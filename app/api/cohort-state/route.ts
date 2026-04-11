@@ -3,11 +3,25 @@
 // The browser polls this every 60 seconds via React Query.
 // This endpoint NEVER calls Hyperliquid directly.
 
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { kv } from "@vercel/kv";
 import { createClient } from "@supabase/supabase-js";
 import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from "@/lib/env";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
+
+const STALE_AFTER_MS = 5 * 60 * 1000; // 5 minutes
+
+/** Fire-and-forget background refresh so the next poll gets fresh data. */
+function triggerBackgroundRefresh(): void {
+  const base = process.env.VERCEL_URL
+    ? `https://${process.env.VERCEL_URL}`
+    : "http://localhost:3000";
+  after(
+    fetch(`${base}/api/refresh-cohort`, { method: "GET" }).catch((e) =>
+      console.warn("[cohort-state] background refresh failed:", e)
+    )
+  );
+}
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -22,16 +36,22 @@ export async function GET(): Promise<NextResponse> {
       const payload: CohortCachePayload =
         typeof cached === "string" ? JSON.parse(cached) : cached;
 
+      // Trigger background refresh if cache is stale (replaces every-minute cron on Hobby plan)
+      const ageMs = Date.now() - new Date(payload.updated_at).getTime();
+      if (ageMs > STALE_AFTER_MS) {
+        triggerBackgroundRefresh();
+      }
+
       return NextResponse.json(payload, {
         headers: {
-          // Cache just under the 60s cron interval so clients always get fresh data
           "Cache-Control": "public, max-age=55, stale-while-revalidate=10",
         },
       });
     }
 
-    // ── Fallback: KV miss → read directly from Supabase ───────────────────────
+    // ── Fallback: KV miss → read directly from Supabase, kick off refresh ────
     console.warn("[cohort-state] KV miss — falling back to Supabase");
+    triggerBackgroundRefresh();
 
     const { data: wallets, error: walletErr } = await supabase
       .from("wallets")
