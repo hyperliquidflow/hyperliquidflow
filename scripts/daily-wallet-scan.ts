@@ -34,8 +34,8 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 const WIN_RATE_THRESHOLD = 0.52;
 const MIN_TRADES_30D     = 30;
 const MAX_WALLETS_TO_SCAN = 2000;
-const CONCURRENCY         = 8;  // max parallel Hyperliquid API calls
-const DELAY_BETWEEN_MS    = 125; // ms between each API call
+const CONCURRENCY         = 3;   // max parallel Hyperliquid API calls
+const DELAY_BETWEEN_MS    = 400; // ms between each API call — stay under 429 threshold
 
 // ── In-process semaphore (valid here — long-running Node.js process, not serverless) ──
 class Semaphore {
@@ -318,9 +318,10 @@ async function main(): Promise<void> {
   // ── Step 2: Upsert newly discovered addresses (if any) ────────────────────
   if (addresses.length > 0) {
     const targetAddresses = addresses.slice(0, MAX_WALLETS_TO_SCAN);
-    summary.discovered = targetAddresses.length;
+    addresses = targetAddresses; // only score what we upserted
+    summary.discovered = addresses.length;
     summary.discovery_source = source;
-    summary.new_wallets = await upsertAddresses(targetAddresses, source);
+    summary.new_wallets = await upsertAddresses(addresses, source);
   } else {
     // Discovery failed — fall back to scoring wallets already in the database
     console.warn("[discovery] no new addresses — scoring existing wallets in database");
