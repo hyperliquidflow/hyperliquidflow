@@ -30,8 +30,19 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${geistMono.variable}`}>
       <body className="bg-[#090909] text-[#f0f0f0] font-[family-name:var(--font-inter)] antialiased min-h-screen">
+        {/* Corner aura — brightest at the exact bottom-right corner */}
+        <div aria-hidden="true" style={{
+          position: "fixed",
+          bottom: 0,
+          right: 0,
+          width: "80vw",
+          height: "80vh",
+          background: "radial-gradient(ellipse at 100% 100%, rgba(151,253,229,0.10) 0%, rgba(7,39,35,0.09) 28%, transparent 62%)",
+          pointerEvents: "none",
+          zIndex: 0,
+        }} />
         <Nav />
-        <main className="min-h-[calc(100vh-52px)]">{children}</main>
+        <main className="min-h-[calc(100vh-52px)]" style={{ position: "relative", zIndex: 1 }}>{children}</main>
       </body>
     </html>
   );
