@@ -1,0 +1,39 @@
+name: Daily Wallet Scan
+
+on:
+  schedule:
+    - cron: '0 2 * * *'   # 02:00 UTC daily — low market activity
+  workflow_dispatch:        # manual trigger for testing
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30    # hard stop — normal run completes in ~6 min
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run daily wallet scan
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          HYPERLIQUID_API_URL: ${{ secrets.HYPERLIQUID_API_URL }}
+        run: npx tsx scripts/daily-wallet-scan.ts
+
+      - name: Upload scan summary artifact
+        if: always()    # upload even if scan partially failed
+        uses: actions/upload-artifact@v4
+        with:
+          name: scan-summary-${{ github.run_id }}
+          path: scan-summary.json
+          retention-days: 7

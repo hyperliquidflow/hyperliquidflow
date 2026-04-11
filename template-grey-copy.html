@@ -1,0 +1,723 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fragments — Template Grey</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+
+    /* ── RESET ───────────────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* ── TOKENS ──────────────────────────────────────────────────────────────── */
+    :root {
+      /* Background layers (darkest → lightest) — pure neutral, no blue tint */
+      --bg:  #090909;
+      --s1:  #0f0f0f;
+      --s2:  #141414;
+      --s3:  #1c1c1c;
+
+      /* Accent / border — neutral grey */
+      --b:   rgba(180,180,180,0.12);
+      --bs:  rgba(180,180,180,0.06);
+      --gold:#606060;
+      --gd:  rgba(180,180,180,0.5);
+      --gg:  rgba(180,180,180,0.05);
+
+      /* Text */
+      --t:   #e3e3e3;
+      --tm:  rgba(227,227,227,0.6);
+      --td:  rgba(227,227,227,0.38);
+
+      /* Category A — mid grey */
+      --a:   #707070; --ab: rgba(112,112,112,0.1);  --ao: rgba(112,112,112,0.2);
+      /* Category C — darker grey */
+      --c:   #5e5e5e; --cb: rgba(94,94,94,0.1);    --co: rgba(94,94,94,0.2);
+      /* Category D — deep grey */
+      --d:   #545454; --db: rgba(84,84,84,0.1);     --do: rgba(84,84,84,0.2);
+      /* Category E — light grey */
+      --e:   #686868; --eb: rgba(104,104,104,0.1);  --eo: rgba(104,104,104,0.2);
+
+      /* Type labels */
+      --social:  #6a6a6a;
+      --article: #545454;
+    }
+
+    /* ── BASE ────────────────────────────────────────────────────────────────── */
+    body {
+      font-family: 'Inter', system-ui, sans-serif;
+      background: var(--bg); color: var(--t);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      font-size: 15px;
+      user-select: none; -webkit-user-select: none;
+    }
+    input, textarea { user-select: text; -webkit-user-select: text; }
+
+    /* ── SCROLLBARS ──────────────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(180,180,180,0.18); border-radius: 3px; }
+
+    /* ── TOPBAR ──────────────────────────────────────────────────────────────── */
+    .topbar {
+      position: sticky; top: 0; z-index: 200;
+      height: 52px; padding: 0 28px;
+      background: rgba(9,9,9,0.96); backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--bs);
+      display: flex; align-items: center; gap: 16px;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+    .logo-text { font-size: 15px; font-weight: 700; color: var(--t); }
+    .logo-sub  { font-size: 12px; color: var(--td); font-weight: 400; }
+
+    .topbar-div { width: 1px; height: 20px; background: var(--bs); flex-shrink: 0; }
+
+    .topbar-nav { display: flex; align-items: center; gap: 2px; }
+    .nav-link {
+      font-size: 12px; font-weight: 500; color: var(--td);
+      text-decoration: none; padding: 5px 10px; border-radius: 5px;
+      transition: color 0.15s, background 0.15s;
+    }
+    .nav-link:hover  { color: var(--tm); background: var(--gg); }
+    .nav-link.active { color: var(--t);  background: var(--ab); }
+
+    .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+    /* ── TABS BAR ────────────────────────────────────────────────────────────── */
+    .tabs-bar {
+      padding: 0 28px;
+      border-bottom: 1px solid var(--bs);
+      display: flex; gap: 0;
+    }
+    .tab {
+      padding: 14px 20px; font-size: 15px; font-weight: 500;
+      color: var(--td); cursor: pointer; border: none; background: none;
+      border-bottom: 2px solid transparent; margin-bottom: -1px;
+      font-family: inherit; transition: color 0.15s;
+    }
+    .tab:hover        { color: var(--tm); }
+    .tab.active       { color: var(--t); border-bottom-color: var(--gold); }
+
+    /* ── FIELD LABEL ─────────────────────────────────────────────────────────── */
+    .field-label {
+      display: block;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--td); margin-bottom: 8px;
+    }
+
+    /* ── INPUTS & TEXTAREAS ──────────────────────────────────────────────────── */
+    textarea, input[type=text], input[type=password], input[type=email] {
+      width: 100%;
+      background: var(--s2); border: 1px solid var(--bs);
+      border-radius: 6px; color: var(--t);
+      font-family: inherit; font-size: 13px;
+      padding: 12px 14px; outline: none;
+      transition: border-color 0.15s;
+    }
+    textarea { resize: vertical; line-height: 1.6; }
+    textarea:focus, input:focus    { border-color: var(--b); }
+    textarea::placeholder, input::placeholder { color: var(--td); }
+
+    /* ── PRIMARY BUTTON (CTA) ────────────────────────────────────────────────── */
+    .btn-primary {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      height: 44px; padding: 0 20px; border-radius: 7px; border: none; cursor: pointer;
+      background: linear-gradient(135deg, #1e1e1e 0%, #2e2e2e 100%);
+      color: #e3e3e3; font-size: 14px; font-weight: 700; font-family: inherit;
+      letter-spacing: 0.04em;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      transition: filter 0.15s, transform 0.1s;
+    }
+    .btn-primary:hover:not(:disabled) { filter: brightness(1.12); transform: translateY(-1px); }
+    .btn-primary:active { transform: scale(0.99); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .btn-primary.full { width: 100%; }
+
+    /* ── SECONDARY / ACTION BUTTON ───────────────────────────────────────────── */
+    .btn-secondary {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; font-weight: 600; letter-spacing: 0.02em;
+      padding: 5px 10px; border-radius: 5px; cursor: pointer;
+      border: 1px solid var(--bs); background: var(--s1);
+      color: var(--tm); font-family: inherit;
+      transition: all 0.15s;
+    }
+    .btn-secondary:hover { border-color: var(--b); color: var(--t); }
+
+    /* ── GHOST / CANCEL BUTTON ───────────────────────────────────────────────── */
+    .btn-ghost {
+      display: inline-flex; align-items: center; gap: 5px;
+      height: 38px; padding: 0 16px; border-radius: 6px; cursor: pointer;
+      background: var(--s2); border: 1px solid var(--bs); color: var(--tm);
+      font-size: 13px; font-family: inherit; transition: color 0.15s;
+    }
+    .btn-ghost:hover { color: var(--t); }
+
+    /* ── ICON BUTTON (circle) ────────────────────────────────────────────────── */
+    .icon-btn {
+      width: 30px; height: 30px; border-radius: 50%; border: none; cursor: pointer;
+      background: transparent; color: rgba(227,227,227,0.35);
+      display: flex; align-items: center; justify-content: center;
+      font-family: inherit; transition: all 0.15s; position: relative; overflow: hidden;
+    }
+    .icon-btn:hover { color: var(--tm); background: rgba(200,200,200,0.08); }
+
+    /* ── PILL BUTTON ─────────────────────────────────────────────────────────── */
+    .pill-btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: transparent; border: 1px solid transparent;
+      border-radius: 20px; padding: 4px 9px; height: 28px; cursor: pointer;
+      color: rgba(227,227,227,0.35); font-size: 11px; font-weight: 600;
+      font-family: inherit; transition: all 0.15s; white-space: nowrap;
+      position: relative; overflow: hidden;
+    }
+    .pill-btn:hover  { color: var(--tm); background: rgba(200,200,200,0.07); }
+    .pill-btn.active { color: var(--t); border-color: rgba(180,180,180,0.3); background: rgba(180,180,180,0.09); }
+
+    /* ── MODE TOGGLE ─────────────────────────────────────────────────────────── */
+    .mode-toggle { display: flex; border: 1px solid var(--bs); border-radius: 5px; overflow: hidden; }
+    .mode-btn {
+      padding: 5px 12px; font-size: 11px; font-weight: 600; cursor: pointer;
+      background: transparent; border: none; color: var(--td);
+      font-family: inherit; transition: all 0.15s;
+    }
+    .mode-btn.active { background: var(--s3); color: var(--t); }
+    .mode-btn:hover:not(.active) { color: var(--tm); }
+
+    /* ── KEY / UTILITY BUTTON ────────────────────────────────────────────────── */
+    .key-btn {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 11px; font-weight: 500; color: var(--td);
+      background: var(--s1); border: 1px solid var(--bs);
+      border-radius: 5px; padding: 5px 10px; cursor: pointer; transition: all 0.15s;
+    }
+    .key-btn:hover { color: var(--tm); border-color: var(--b); }
+    .key-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--td); flex-shrink: 0; }
+    .key-dot.set { background: #686868; }
+
+    /* ── SEND BUTTON ─────────────────────────────────────────────────────────── */
+    .send-btn {
+      width: 32px; height: 32px; border-radius: 50%; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; transition: all 0.15s; position: relative; overflow: hidden;
+    }
+    .send-btn.idle  { background: rgba(227,227,227,0.08);  color: rgba(227,227,227,0.25); cursor: default; }
+    .send-btn.ready { background: #e3e3e3; color: #090909; }
+    .send-btn.ready:hover { background: #fff; }
+    .send-btn.stop  { background: transparent; color: #e05555; border: 1px solid rgba(224,85,85,0.3); }
+    .send-btn.stop:hover  { background: rgba(224,85,85,0.08); }
+
+    /* ── DISMISS / CLOSE ─────────────────────────────────────────────────────── */
+    .btn-dismiss {
+      display: flex; align-items: center; justify-content: center;
+      width: 26px; height: 26px; border-radius: 4px; cursor: pointer;
+      background: var(--s2); border: 1px solid var(--bs);
+      color: var(--tm); font-size: 15px; line-height: 1;
+      transition: background 0.1s, color 0.1s;
+    }
+    .btn-dismiss:hover { background: var(--s3); color: var(--t); }
+
+    /* ── BADGES ──────────────────────────────────────────────────────────────── */
+    .badge {
+      display: inline-flex; align-items: center;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+      padding: 4px 10px; border-radius: 4px; border: 1px solid transparent;
+    }
+    /* Type variants */
+    .badge.social   { color: var(--social);  background: var(--ab); border-color: var(--ao); }
+    .badge.article  { color: var(--article); background: var(--eb); border-color: var(--eo); }
+    .badge.longform { color: var(--d);       background: var(--db); border-color: var(--do); }
+    /* Category variants */
+    .badge.cat-a { color: var(--a); background: var(--ab); border-color: var(--ao); }
+    .badge.cat-b { color: var(--e); background: var(--eb); border-color: var(--eo); }
+    .badge.cat-c { color: var(--c); background: var(--cb); border-color: var(--co); }
+    .badge.cat-d { color: var(--d); background: var(--db); border-color: var(--do); }
+    .badge.cat-e { color: var(--e); background: var(--eb); border-color: var(--eo); }
+    /* Neutral */
+    .badge.neutral { color: var(--td); background: var(--s2); border-color: var(--bs); }
+
+    /* Pillar tag (small) */
+    .ptag {
+      font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+      padding: 4px 10px; border-radius: 4px; cursor: default;
+    }
+    .ptag.a { color: var(--a); background: var(--ab); }
+    .ptag.c { color: var(--c); background: var(--cb); }
+    .ptag.d { color: var(--d); background: var(--db); }
+    .ptag.e { color: var(--e); background: var(--eb); }
+
+    /* ── TYPE DOT ────────────────────────────────────────────────────────────── */
+    .type-dot { width: 7px; height: 7px; border-radius: 50%; }
+    .type-dot.social  { background: var(--social); }
+    .type-dot.article { background: var(--article); }
+
+    /* ── CARD ────────────────────────────────────────────────────────────────── */
+    .card {
+      background: var(--s1); border: 1px solid var(--b);
+      border-radius: 10px; overflow: hidden;
+    }
+    .card-header { border-bottom: 1px solid var(--bs); padding: 18px 22px; }
+    .card-body   { padding: 18px 22px; }
+
+    /* Calendar card (compact, with top accent stripe) */
+    .cal-card {
+      background: var(--s2); border: 1px solid var(--bs); border-radius: 5px;
+      padding: 9px 10px; cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      position: relative; overflow: hidden;
+    }
+    .cal-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1.5px;
+    }
+    .cal-card.social::before  { background: var(--social); }
+    .cal-card.article::before { background: var(--article); }
+    .cal-card:hover { border-color: var(--b); background: var(--s3); }
+
+    /* ── DIVIDER ─────────────────────────────────────────────────────────────── */
+    .divider { height: 1px; background: var(--bs); margin: 24px 0; }
+    .divider.tight { margin: 16px 0; }
+
+    /* ── CHIP ────────────────────────────────────────────────────────────────── */
+    .chip {
+      font-size: 12px; font-weight: 500; color: var(--tm);
+      background: var(--s2); border: 1px solid var(--bs);
+      border-radius: 20px; padding: 6px 14px; cursor: pointer;
+      transition: all 0.15s; position: relative; overflow: hidden;
+    }
+    .chip:hover { border-color: var(--b); color: var(--t); background: var(--s3); }
+
+    /* ── EMPTY STATE ─────────────────────────────────────────────────────────── */
+    .empty-state {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; gap: 12px; padding: 48px 24px;
+    }
+    .empty-icon {
+      font-size: 32px; opacity: 0.2; margin-bottom: 4px; cursor: default;
+      user-select: none; -webkit-user-select: none;
+      transition: transform 0.35s cubic-bezier(.34,1.56,.64,1), opacity 0.4s ease;
+    }
+    .empty-icon:hover { transform: scale(1.22); opacity: 0.65; }
+    .empty-title { font-size: 15px; font-weight: 600; color: var(--tm); }
+    .empty-sub   { font-size: 12px; color: var(--td); max-width: 280px; line-height: 1.6; }
+
+    /* ── OPTION PILL (checkbox row) ──────────────────────────────────────────── */
+    .option-pill {
+      display: flex; align-items: center; gap: 7px; flex: 1;
+      padding: 8px 11px; background: var(--s2); border: 1px solid var(--bs);
+      border-radius: 6px; transition: border-color 0.15s;
+    }
+    .option-pill:hover { border-color: var(--b); }
+    .option-pill-label {
+      display: flex; align-items: center; gap: 6px; cursor: pointer;
+      flex: 1; font-size: 12px; font-weight: 600; color: var(--tm);
+    }
+    .option-pill-label input[type=checkbox] { width: 13px; height: 13px; accent-color: var(--a); cursor: pointer; flex-shrink: 0; }
+
+    /* ── CHAR COUNTER ────────────────────────────────────────────────────────── */
+    .char-counter { font-size: 11px; font-weight: 600; color: var(--td); font-variant-numeric: tabular-nums; transition: color 0.15s; }
+    .char-counter.warn { color: #b8853a; }
+    .char-counter.over { color: #c0504a; }
+
+    /* ── METALLIC GLOW HOVER ─────────────────────────────────────────────────── */
+    /* Add class="glow-btn" + JS mousemove listener to any button for the effect  */
+    .glow-btn { position: relative; overflow: hidden; }
+    .glow-btn::after {
+      content: ''; position: absolute; inset: 0;
+      background: radial-gradient(
+        circle at var(--gx, 50%) var(--gy, 50%),
+        rgba(235,235,235,0.1) 0%, rgba(200,200,200,0.05) 35%, transparent 65%
+      );
+      opacity: 0; transition: opacity 1s ease-out; pointer-events: none; border-radius: inherit;
+    }
+    .glow-btn:hover::after { opacity: 1; transition: opacity 0.12s ease-in; }
+    .glow-btn.btn-sweeping::after {
+      background: radial-gradient(
+        circle at var(--gx, 50%) var(--gy, 50%),
+        rgba(235,235,235,0.14) 0%, rgba(200,200,200,0.07) 35%, transparent 65%
+      );
+      opacity: 1 !important; transition: none !important;
+    }
+
+    /* ── MODAL OVERLAY ───────────────────────────────────────────────────────── */
+    .overlay {
+      position: fixed; inset: 0; z-index: 500;
+      background: rgba(0,0,0,0.8); backdrop-filter: blur(6px);
+      display: none; align-items: center; justify-content: center; padding: 24px;
+    }
+    .overlay.open { display: flex; }
+    .modal {
+      background: var(--s1); border: 1px solid var(--b);
+      border-radius: 10px; width: 100%; max-width: 540px;
+      max-height: 90vh; overflow-y: auto;
+      animation: mIn 0.15s ease-out;
+    }
+    .modal-sm { max-width: 380px; }
+    .modal-header {
+      padding: 20px 22px 16px; border-bottom: 1px solid var(--bs);
+      display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+    }
+    .modal-title { font-size: 16px; font-weight: 700; }
+    .modal-body  { padding: 18px 22px 22px; }
+    .modal-footer { display: flex; gap: 8px; margin-top: 14px; }
+
+    /* ── TOAST ───────────────────────────────────────────────────────────────── */
+    .toast {
+      position: fixed; bottom: 24px; left: 24px; z-index: 600;
+      background: var(--s3); border: 1px solid var(--b); border-radius: 7px;
+      padding: 10px 16px; font-size: 12px; font-weight: 500; color: var(--t);
+      opacity: 0; transform: translateY(8px); transition: all 0.2s;
+      pointer-events: none; display: flex; align-items: center; gap: 10px;
+    }
+    .toast.show { opacity: 1; transform: none; pointer-events: auto; }
+    .toast-undo-btn {
+      background: none; border: 1px solid var(--b); border-radius: 4px;
+      color: var(--t); font-size: 11px; font-weight: 700; padding: 3px 9px;
+      cursor: pointer; font-family: inherit; transition: all 0.15s; flex-shrink: 0;
+    }
+    .toast-undo-btn:hover { background: var(--s2); border-color: var(--gold); }
+
+    /* ── SPINNER ─────────────────────────────────────────────────────────────── */
+    .spinner {
+      width: 16px; height: 16px; border-radius: 50%;
+      border: 2px solid rgba(227,227,227,0.12);
+      border-top-color: var(--t);
+      animation: spin 0.7s linear infinite; flex-shrink: 0;
+    }
+    .spinner.sm { width: 12px; height: 12px; }
+
+    /* ── STREAMING CURSOR ────────────────────────────────────────────────────── */
+    .streaming-cursor::after {
+      content: '|'; display: inline-block;
+      animation: blink 0.65s step-end infinite;
+      color: rgba(160,160,160,0.7); margin-left: 1px; font-weight: 300;
+    }
+
+    /* ── TYPING DOTS ─────────────────────────────────────────────────────────── */
+    .typing-dots { display: inline-flex; gap: 2px; margin-left: 1px; align-items: center; }
+    .typing-dots span { width: 3px; height: 3px; border-radius: 50%; background: currentColor; opacity: 0; }
+    .typing-dots span:nth-child(1) { animation: typing-dot-1 1.2s ease-in-out infinite; }
+    .typing-dots span:nth-child(2) { animation: typing-dot-2 1.2s ease-in-out infinite; }
+    .typing-dots span:nth-child(3) { animation: typing-dot-3 1.2s ease-in-out infinite; }
+
+    /* ── MAIN CONTENT AREA ───────────────────────────────────────────────────── */
+    .main { padding: 28px; }
+
+    /* ── ANIMATIONS ──────────────────────────────────────────────────────────── */
+    @keyframes spin        { to { transform: rotate(360deg); } }
+    @keyframes blink       { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+    @keyframes fadeUp      { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    @keyframes mIn         { from { transform: scale(0.96) translateY(6px); opacity: 0; } to { transform: none; opacity: 1; } }
+    @keyframes typing-dot-1 { 0%, 66%, 100% { opacity: 0; } 22%, 44% { opacity: 1; } }
+    @keyframes typing-dot-2 { 0%, 33%, 100% { opacity: 0; } 44%, 66% { opacity: 1; } }
+    @keyframes typing-dot-3 { 0%, 55%, 100% { opacity: 0; } 66%, 88% { opacity: 1; } }
+
+    /* ────────────────────────────────────────────────────────────────────────── */
+    /* COMPONENT DEMO LAYOUT (remove when using as base)                         */
+    /* ────────────────────────────────────────────────────────────────────────── */
+    .demo-section { margin-bottom: 48px; }
+    .demo-label {
+      font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--td); margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--bs);
+    }
+    .demo-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+
+  </style>
+</head>
+<body>
+
+<!-- ── TOPBAR ──────────────────────────────────────────────────────────────── -->
+<header class="topbar">
+  <div class="logo">
+    <img src="assets/logo-light.svg" alt="Fragments" style="height:22px;width:auto;display:block;flex-shrink:0;">
+    <span class="logo-text">Fragments</span>
+    <span class="logo-sub">Template Grey</span>
+  </div>
+  <div class="topbar-div"></div>
+  <nav class="topbar-nav">
+    <a href="dashboard.html"     class="nav-link">Calendar</a>
+    <a href="compose.html"       class="nav-link">Compose</a>
+    <a href="chat.html"          class="nav-link">Chat</a>
+    <a href="template-grey.html" class="nav-link active">Template Grey</a>
+  </nav>
+  <div class="topbar-right">
+    <div class="mode-toggle">
+      <button class="mode-btn active">Local</button>
+      <button class="mode-btn">Cloud</button>
+    </div>
+    <div class="key-btn">
+      <span class="key-dot set"></span>
+      API Key
+    </div>
+  </div>
+</header>
+
+<!-- ── TABS ────────────────────────────────────────────────────────────────── -->
+<nav class="tabs-bar">
+  <button class="tab active">Overview</button>
+  <button class="tab">Settings</button>
+  <button class="tab">Archive</button>
+</nav>
+
+<!-- ── MAIN ────────────────────────────────────────────────────────────────── -->
+<main class="main">
+
+  <!-- BUTTONS -->
+  <div class="demo-section">
+    <div class="demo-label">Buttons</div>
+    <div class="demo-row">
+      <button class="btn-primary glow-btn">Generate Draft</button>
+      <button class="btn-primary glow-btn" disabled>Disabled</button>
+    </div>
+    <div class="demo-row">
+      <button class="btn-secondary glow-btn">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12l7-7 7 7"/></svg>
+        Action
+      </button>
+      <button class="btn-ghost">Cancel</button>
+      <button class="icon-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+      </button>
+      <button class="pill-btn">Short</button>
+      <button class="pill-btn active">Medium</button>
+      <button class="btn-dismiss">✕</button>
+    </div>
+    <div class="demo-row">
+      <div class="send-btn idle">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/></svg>
+      </div>
+      <div class="send-btn ready">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/></svg>
+      </div>
+      <div class="send-btn stop">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="1"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- BADGES -->
+  <div class="demo-section">
+    <div class="demo-label">Badges</div>
+    <div class="demo-row">
+      <span class="badge social">Social</span>
+      <span class="badge article">Article</span>
+      <span class="badge longform">Longform</span>
+      <span class="badge neutral">Draft</span>
+    </div>
+    <div class="demo-row">
+      <span class="badge cat-a">Bitcoin</span>
+      <span class="badge cat-b">Protocol</span>
+      <span class="badge cat-c">Culture</span>
+      <span class="badge cat-d">Market</span>
+      <span class="badge cat-e">Education</span>
+    </div>
+    <div class="demo-row">
+      <span class="ptag a">Pillar A</span>
+      <span class="ptag c">Pillar C</span>
+      <span class="ptag d">Pillar D</span>
+      <span class="ptag e">Pillar E</span>
+    </div>
+    <div class="demo-row">
+      <span class="type-dot social"></span>
+      <span class="type-dot article"></span>
+    </div>
+  </div>
+
+  <!-- INPUTS -->
+  <div class="demo-section">
+    <div class="demo-label">Inputs</div>
+    <div style="max-width:480px;display:flex;flex-direction:column;gap:16px;">
+      <div>
+        <label class="field-label">Topic</label>
+        <input type="text" placeholder="What's this post about?">
+      </div>
+      <div>
+        <label class="field-label">Password</label>
+        <input type="password" placeholder="sk-ant-...">
+      </div>
+      <div>
+        <label class="field-label">Notes</label>
+        <textarea rows="3" placeholder="Additional context..."></textarea>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;">
+        <span class="char-counter">180</span>
+        <span class="char-counter warn">240 / 280</span>
+        <span class="char-counter over">310 / 280</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- CHIPS -->
+  <div class="demo-section">
+    <div class="demo-label">Chips</div>
+    <div class="demo-row">
+      <span class="chip">Why BTC-Jr?</span>
+      <span class="chip">No liquidations</span>
+      <span class="chip">Rotation strategy</span>
+    </div>
+  </div>
+
+  <!-- OPTION PILLS -->
+  <div class="demo-section">
+    <div class="demo-label">Option pills (checkbox)</div>
+    <div style="max-width:480px;display:flex;gap:8px;">
+      <div class="option-pill">
+        <label class="option-pill-label">
+          <input type="checkbox" checked>
+          Include waitlist CTA
+        </label>
+      </div>
+      <div class="option-pill">
+        <label class="option-pill-label">
+          <input type="checkbox">
+          Add visual hook
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- CARDS -->
+  <div class="demo-section">
+    <div class="demo-label">Cards</div>
+    <div style="max-width:480px;">
+      <div class="card">
+        <div class="card-header">
+          <div style="display:flex;gap:6px;margin-bottom:12px;">
+            <span class="badge social">Social</span>
+            <span class="badge cat-a">Bitcoin</span>
+          </div>
+          <div style="font-size:18px;font-weight:800;letter-spacing:-0.02em;">BTC-Jr as a positioning tool</div>
+        </div>
+        <div class="card-body">
+          <div style="font-size:13px;color:var(--tm);line-height:1.7;">
+            Spot is exposure. BTC-Jr is exposure with intent.<br>
+            Both express Bitcoin conviction. One does more with it.
+          </div>
+          <div class="divider tight"></div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn-secondary glow-btn">Copy</button>
+            <button class="btn-secondary glow-btn">Edit</button>
+            <button class="btn-dismiss" style="margin-left:auto;">✕</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATES -->
+  <div class="demo-section">
+    <div class="demo-label">States</div>
+    <div class="demo-row" style="align-items:flex-start;gap:32px;">
+      <div class="empty-state" style="padding:24px;border:1px solid var(--bs);border-radius:10px;width:220px;">
+        <div class="empty-icon">✦</div>
+        <div class="empty-title">Nothing here yet</div>
+        <div class="empty-sub">Generate a draft to get started.</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:12px;padding-top:8px;">
+        <div style="display:flex;align-items:center;gap:8px;color:var(--tm);font-size:13px;">
+          <div class="spinner"></div> Generating...
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;color:var(--tm);font-size:13px;">
+          <div class="spinner sm"></div> Loading
+        </div>
+        <div style="font-size:14px;color:var(--tm);">
+          Streaming text<span class="streaming-cursor"></span>
+        </div>
+        <div style="font-size:13px;color:var(--tm);display:flex;align-items:center;gap:4px;">
+          Thinking
+          <span class="typing-dots"><span></span><span></span><span></span></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL TRIGGER -->
+  <div class="demo-section">
+    <div class="demo-label">Modal</div>
+    <button class="btn-secondary" onclick="document.getElementById('demoOverlay').classList.add('open')">Open modal</button>
+  </div>
+
+  <!-- TOAST TRIGGER -->
+  <div class="demo-section">
+    <div class="demo-label">Toast</div>
+    <button class="btn-secondary" onclick="showToast()">Show toast</button>
+  </div>
+
+</main>
+
+<!-- ── MODAL ────────────────────────────────────────────────────────────────── -->
+<div class="overlay" id="demoOverlay" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal modal-sm">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">Confirm action</div>
+      </div>
+      <button class="btn-dismiss" onclick="document.getElementById('demoOverlay').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:var(--td);line-height:1.6;margin-bottom:20px;">
+        This is a modal. Replace this content with whatever your page needs.
+      </p>
+      <div class="modal-footer">
+        <button class="btn-primary full glow-btn" onclick="document.getElementById('demoOverlay').classList.remove('open')">Confirm</button>
+        <button class="btn-ghost" onclick="document.getElementById('demoOverlay').classList.remove('open')">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TOAST ────────────────────────────────────────────────────────────────── -->
+<div class="toast" id="toast">
+  Post copied to clipboard
+  <button class="toast-undo-btn" onclick="hideToast()">Undo</button>
+</div>
+
+<!-- ── JS ──────────────────────────────────────────────────────────────────── -->
+<script>
+
+  // ── Metallic glow mousemove ───────────────────────────────────────────────
+  document.addEventListener('mousemove', e => {
+    document.querySelectorAll('.glow-btn').forEach(btn => {
+      const r = btn.getBoundingClientRect();
+      btn.style.setProperty('--gx', ((e.clientX - r.left) / r.width  * 100) + '%');
+      btn.style.setProperty('--gy', ((e.clientY - r.top)  / r.height * 100) + '%');
+    });
+  });
+
+  // ── Toast ─────────────────────────────────────────────────────────────────
+  let _toastTimer;
+  function showToast(msg) {
+    const el = document.getElementById('toast');
+    if (msg) el.childNodes[0].textContent = msg + ' ';
+    el.classList.add('show');
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(hideToast, 3000);
+  }
+  function hideToast() {
+    document.getElementById('toast').classList.remove('show');
+  }
+
+  // ── Tabs (generic) ────────────────────────────────────────────────────────
+  document.querySelectorAll('.tabs-bar .tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      tab.closest('.tabs-bar').querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+    });
+  });
+
+  // ── Mode toggle (generic) ─────────────────────────────────────────────────
+  document.querySelectorAll('.mode-toggle').forEach(toggle => {
+    toggle.querySelectorAll('.mode-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        toggle.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+  });
+
+</script>
+</body>
+</html>

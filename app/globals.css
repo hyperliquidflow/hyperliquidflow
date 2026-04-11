@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Dark theme – HyperliquidFLOW */
+    --background:          220 13% 5%;    /* #0A0B0D */
+    --foreground:          0 0% 95%;
+
+    --card:                220 11% 9%;    /* #13151A */
+    --card-foreground:     0 0% 95%;
+
+    --popover:             220 11% 9%;
+    --popover-foreground:  0 0% 95%;
+
+    --primary:             258 95% 68%;   /* #7C5CFC – flow accent */
+    --primary-foreground:  0 0% 100%;
+
+    --secondary:           220 9% 14%;   /* #1E2028 – flow border */
+    --secondary-foreground:0 0% 80%;
+
+    --muted:               220 9% 14%;
+    --muted-foreground:    220 9% 55%;   /* #6B7280 */
+
+    --accent:              258 95% 68%;
+    --accent-foreground:   0 0% 100%;
+
+    --destructive:         0 72% 51%;    /* #EF4444 */
+    --destructive-foreground: 0 0% 100%;
+
+    --border:              220 9% 14%;   /* #1E2028 */
+    --input:               220 9% 14%;
+    --ring:                258 95% 68%;
+
+    --radius:              0.5rem;
+
+    /* Signal colour tokens */
+    --signal-long:         142 71% 45%;  /* green  */
+    --signal-short:        0 72% 51%;    /* red    */
+    --signal-neutral:      43 96% 56%;   /* amber  */
+    --signal-accent:       258 95% 68%;  /* purple */
+  }
+
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Subtle scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--background));
+  }
+  ::-webkit-scrollbar-thumb {
+    background: hsl(var(--border));
+    border-radius: 2px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(var(--muted-foreground));
+  }
+}
+
+@layer utilities {
+  /* Gradient text helper */
+  .text-gradient {
+    @apply bg-gradient-to-r from-flow-accent to-purple-400 bg-clip-text text-transparent;
+  }
+
+  /* Glow effect for active signals */
+  .glow-green {
+    box-shadow: 0 0 12px 2px rgba(34, 197, 94, 0.25);
+  }
+  .glow-red {
+    box-shadow: 0 0 12px 2px rgba(239, 68, 68, 0.25);
+  }
+  .glow-accent {
+    box-shadow: 0 0 12px 2px rgba(124, 92, 252, 0.35);
+  }
+
+  /* Monospace numerics */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
