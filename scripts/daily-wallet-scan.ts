@@ -33,9 +33,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 // ── Qualification thresholds ──────────────────────────────────────────────────
 const WIN_RATE_THRESHOLD = 0.52;
 const MIN_TRADES_30D     = 30;
-const MAX_WALLETS_TO_SCAN = 2000;
-const CONCURRENCY         = 3;   // max parallel Hyperliquid API calls
-const DELAY_BETWEEN_MS    = 400; // ms between each API call — stay under 429 threshold
+const MAX_WALLETS_TO_SCORE = 5000; // wallets scored per run (~11 min at current rate)
+const CONCURRENCY          = 3;   // max parallel Hyperliquid API calls
+const DELAY_BETWEEN_MS     = 400; // ms between each API call — stay under 429 threshold
 
 // ── In-process semaphore (valid here — long-running Node.js process, not serverless) ──
 class Semaphore {
@@ -156,7 +156,19 @@ async function fetchLeaderboardAddresses(): Promise<string[]> {
 
   console.log(`[discovery] address field: "${addressField}", ${rows.length} rows`);
 
-  return (rows as Record<string, unknown>[])
+  // Sort by monthly ROI descending so the best traders get upserted and scored first
+  const typedRows = rows as Record<string, unknown>[];
+  typedRows.sort((a, b) => {
+    const monthRoi = (row: Record<string, unknown>): number => {
+      const perfs = row.windowPerformances as Array<[string, Record<string, string>]> | undefined;
+      if (!perfs) return 0;
+      const month = perfs.find(([w]) => w === "month");
+      return month ? parseFloat(month[1].roi ?? "0") : 0;
+    };
+    return monthRoi(b) - monthRoi(a);
+  });
+
+  return typedRows
     .map((e) => e[addressField] as string)
     .filter((a) => /^0x[a-fA-F0-9]{40}$/.test(a));
 }
@@ -315,32 +327,32 @@ async function main(): Promise<void> {
     console.warn("[discovery] primary path failed:", msg);
   }
 
-  // ── Step 2: Upsert newly discovered addresses (if any) ────────────────────
+  // ── Step 2: Upsert ALL discovered addresses into DB ──────────────────────
+  // (fast — just writes, no Hyperliquid calls)
   if (addresses.length > 0) {
-    const targetAddresses = addresses.slice(0, MAX_WALLETS_TO_SCAN);
-    addresses = targetAddresses; // only score what we upserted
     summary.discovered = addresses.length;
     summary.discovery_source = source;
     summary.new_wallets = await upsertAddresses(addresses, source);
+    console.log(`[discovery] upserted ${addresses.length} addresses (${summary.new_wallets} new)`);
   } else {
-    // Discovery failed — fall back to scoring wallets already in the database
-    console.warn("[discovery] no new addresses — scoring existing wallets in database");
-    const { data: existing } = await supabase
-      .from("wallets")
-      .select("address")
-      .order("last_scanned_at", { ascending: true, nullsFirst: true })
-      .limit(MAX_WALLETS_TO_SCAN);
-    addresses = (existing ?? []).map((w) => w.address);
-    summary.discovered = addresses.length;
+    console.warn("[discovery] no new addresses — will rescore from database");
     summary.discovery_source = "database_rescore";
-    console.log(`[discovery] rescoring ${addresses.length} existing wallets`);
   }
 
-  // ── Step 3: Score each wallet ──────────────────────────────────────────────
-  console.log(`[scan] scoring ${addresses.length} wallets (concurrency: ${CONCURRENCY})`);
+  // ── Step 3: Pick next batch to score from DB (cycles through all wallets) ──
+  // Wallets never scanned (null) come first; then stalest scan date.
+  // Since we insert in monthly-ROI order, new wallets surface best traders first.
+  const { data: toScore } = await supabase
+    .from("wallets")
+    .select("address")
+    .order("last_scanned_at", { ascending: true, nullsFirst: true })
+    .limit(MAX_WALLETS_TO_SCORE);
+
+  const scoreAddresses = (toScore ?? []).map((w) => w.address);
+  console.log(`[scan] scoring ${scoreAddresses.length} wallets (concurrency: ${CONCURRENCY})`);
 
   const results = await Promise.allSettled(
-    addresses.map(async (address) => {
+    scoreAddresses.map(async (address) => {
       await sem.acquire();
       try {
         const result = await scoreWallet(address);
