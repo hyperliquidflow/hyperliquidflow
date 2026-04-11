@@ -6,6 +6,9 @@
 function requireEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
+    // During `next build` (static analysis), env vars aren't available — skip the throw.
+    // At runtime (actual requests), missing vars will still throw.
+    if (process.env.NEXT_PHASE === "phase-production-build") return "";
     throw new Error(
       `[env] Missing required environment variable: ${name}. ` +
         `Check your .env.local file or Vercel/GitHub project settings.`
