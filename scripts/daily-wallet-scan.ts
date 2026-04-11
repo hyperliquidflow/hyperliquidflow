@@ -314,32 +314,33 @@ async function main(): Promise<void> {
     const msg = err instanceof Error ? err.message : String(err);
     summary.errors.push(`primary_path: ${msg}`);
     console.warn("[discovery] primary path failed:", msg);
-
-    try {
-      addresses = await scrapeLeaderboardAddresses();
-      source = "leaderboard_scrape";
-    } catch (scrapeErr) {
-      const scrapeMsg = scrapeErr instanceof Error ? scrapeErr.message : String(scrapeErr);
-      summary.errors.push(`fallback_path: ${scrapeMsg}`);
-      console.error("[discovery] both paths failed — aborting");
-      summary.duration_ms = Date.now() - startMs;
-      await fs.writeFile("scan-summary.json", JSON.stringify(summary, null, 2));
-      process.exit(1);
-    }
   }
 
-  const targetAddresses = addresses.slice(0, MAX_WALLETS_TO_SCAN);
-  summary.discovered = targetAddresses.length;
-  summary.discovery_source = source;
-
-  // ── Step 2: Upsert addresses into wallets table ────────────────────────────
-  summary.new_wallets = await upsertAddresses(targetAddresses, source);
+  // ── Step 2: Upsert newly discovered addresses (if any) ────────────────────
+  if (addresses.length > 0) {
+    const targetAddresses = addresses.slice(0, MAX_WALLETS_TO_SCAN);
+    summary.discovered = targetAddresses.length;
+    summary.discovery_source = source;
+    summary.new_wallets = await upsertAddresses(targetAddresses, source);
+  } else {
+    // Discovery failed — fall back to scoring wallets already in the database
+    console.warn("[discovery] no new addresses — scoring existing wallets in database");
+    const { data: existing } = await supabase
+      .from("wallets")
+      .select("address")
+      .order("last_scanned_at", { ascending: true, nullsFirst: true })
+      .limit(MAX_WALLETS_TO_SCAN);
+    addresses = (existing ?? []).map((w) => w.address);
+    summary.discovered = addresses.length;
+    summary.discovery_source = "database_rescore";
+    console.log(`[discovery] rescoring ${addresses.length} existing wallets`);
+  }
 
   // ── Step 3: Score each wallet ──────────────────────────────────────────────
-  console.log(`[scan] scoring ${targetAddresses.length} wallets (concurrency: ${CONCURRENCY})`);
+  console.log(`[scan] scoring ${addresses.length} wallets (concurrency: ${CONCURRENCY})`);
 
   const results = await Promise.allSettled(
-    targetAddresses.map(async (address) => {
+    addresses.map(async (address) => {
       await sem.acquire();
       try {
         const result = await scoreWallet(address);
