@@ -88,36 +88,34 @@ async function hlPost<T>(body: unknown, timeoutMs = 15_000): Promise<T> {
   }
 }
 
-// ── Discovery: primary path (leaderboard API) ─────────────────────────────────
+// ── Discovery: primary path (stats-data leaderboard GET) ─────────────────────
+// Hyperliquid leaderboard is NOT on the info POST API — it's a separate GET endpoint.
+// Response shape: { leaderboardRows: [{ ethAddress: "0x...", ... }, ...] }
 
-const ADDRESS_CANDIDATES = ["ethAddress", "address", "user", "wallet", "account"];
+const STATS_LEADERBOARD_URL = "https://stats-data.hyperliquid.xyz/Mainnet/leaderboard";
 
 async function fetchLeaderboardAddresses(): Promise<string[]> {
-  // Try known request shapes — Hyperliquid API has changed this endpoint format before
-  const ATTEMPTS = [
-    { type: "leaderboard", window: "allTime" },
-    { type: "leaderboard", window: "30d" },
-    { type: "leaderboard" },
-  ];
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30_000);
 
   let raw: unknown;
-  let lastErr = "";
-
-  for (const body of ATTEMPTS) {
-    try {
-      raw = await hlPost<unknown>(body, 30_000);
-      console.log(
-        `[discovery] leaderboard raw with ${JSON.stringify(body)} (first 500 chars):`,
-        JSON.stringify(raw).slice(0, 500)
-      );
-      break;
-    } catch (err) {
-      lastErr = err instanceof Error ? err.message : String(err);
-      console.warn(`[discovery] attempt ${JSON.stringify(body)} failed: ${lastErr}`);
-    }
+  try {
+    const res = await fetch(STATS_LEADERBOARD_URL, {
+      method: "GET",
+      headers: { "Accept": "application/json" },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+    raw = await res.json();
+    console.log(
+      `[discovery] leaderboard raw (first 500 chars):`,
+      JSON.stringify(raw).slice(0, 500)
+    );
+  } catch (err) {
+    clearTimeout(timer);
+    throw new Error(`LeaderboardAPIError: ${err instanceof Error ? err.message : String(err)}`);
   }
-
-  if (!raw) throw new Error(`LeaderboardAPIError: all request shapes failed. Last: ${lastErr}`);
 
   // Handle both array response and {leaderboardRows: [...]} envelope
   let rows: unknown[];
@@ -141,7 +139,8 @@ async function fetchLeaderboardAddresses(): Promise<string[]> {
 
   const sample = rows[0] as Record<string, unknown>;
 
-  // Address may be nested under an "ethAddress" object or directly on the row
+  // Address may be nested or directly on the row
+  const ADDRESS_CANDIDATES = ["ethAddress", "address", "user", "wallet", "account"];
   const addressField = ADDRESS_CANDIDATES.find(
     (k) =>
       typeof sample[k] === "string" &&
