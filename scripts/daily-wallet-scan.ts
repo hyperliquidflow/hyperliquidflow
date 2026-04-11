@@ -34,8 +34,8 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 const WIN_RATE_THRESHOLD = 0.52;
 const MIN_TRADES_30D     = 30;
 const MAX_WALLETS_TO_SCORE = 5000; // wallets scored per run (~11 min at current rate)
-const CONCURRENCY          = 3;   // max parallel Hyperliquid API calls
-const DELAY_BETWEEN_MS     = 400; // ms between each API call — stay under 429 threshold
+const CONCURRENCY          = 1;   // serial — prevents burst that triggers 429
+const DELAY_BETWEEN_MS     = 800; // ms between each API call — ~1.25 req/s
 
 // ── In-process semaphore (valid here — long-running Node.js process, not serverless) ──
 class Semaphore {
