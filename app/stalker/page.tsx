@@ -9,8 +9,8 @@ const S = {
   page:  { padding: "28px", maxWidth: "1100px", margin: "0 auto" },
   card:  { background: "#0f0f0f", border: "1px solid rgba(180,180,180,0.12)", borderRadius: "10px", overflow: "hidden" as const },
   hdr:   { borderBottom: "1px solid rgba(180,180,180,0.06)", padding: "16px 20px" },
-  label: { fontSize: "10px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(227,227,227,0.38)" },
-  muted: { color: "rgba(227,227,227,0.38)", fontSize: "11px" },
+  label: { fontSize: "10px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.44)" },
+  muted: { color: "rgba(255,255,255,0.44)", fontSize: "11px" },
   mono:  { fontFamily: "var(--font-mono)", fontSize: "11px" },
   td:    { padding: "10px 14px", borderBottom: "1px solid rgba(180,180,180,0.06)", fontSize: "12px" },
 };
@@ -78,7 +78,7 @@ function StalkerInner() {
   return (
     <div style={S.page}>
       <div style={{ marginBottom: "24px" }}>
-        <h1 style={{ fontSize: "18px", fontWeight: 700, color: "#e3e3e3" }}>Wallet Stalker</h1>
+        <h1 style={{ fontSize: "18px", fontWeight: 700, color: "#f0f0f0" }}>Wallet Stalker</h1>
         <p style={S.muted}>Drop any Hyperliquid address to see full trading history and verdict</p>
       </div>
 
@@ -91,7 +91,7 @@ function StalkerInner() {
           placeholder="0x… wallet address"
           style={{
             flex: 1, background: "#141414", border: "1px solid rgba(180,180,180,0.12)",
-            borderRadius: "6px", color: "#e3e3e3", fontFamily: "var(--font-mono)",
+            borderRadius: "6px", color: "#f0f0f0", fontFamily: "var(--font-mono)",
             fontSize: "13px", padding: "10px 14px", outline: "none",
           }}
         />
@@ -99,13 +99,13 @@ function StalkerInner() {
           style={{
             padding: "0 20px", borderRadius: "6px", border: "none", cursor: loading ? "not-allowed" : "pointer",
             background: "linear-gradient(135deg, #1e1e1e 0%, #2e2e2e 100%)",
-            color: "#e3e3e3", fontSize: "13px", fontWeight: 700, opacity: loading ? 0.5 : 1,
+            color: "#f0f0f0", fontSize: "13px", fontWeight: 700, opacity: loading ? 0.5 : 1,
           }}>
           {loading ? "Loading…" : "Lookup"}
         </button>
       </div>
 
-      {error && <div style={{ color: "#f87171", fontSize: "12px", marginBottom: "16px" }}>{error}</div>}
+      {error && <div style={{ color: "#b06868", fontSize: "12px", marginBottom: "16px" }}>{error}</div>}
 
       {profile && <WalletProfileCard profile={profile} />}
     </div>
@@ -114,7 +114,7 @@ function StalkerInner() {
 
 function WalletProfileCard({ profile }: { profile: WalletProfile }) {
   const [tab, setTab] = useState<"overview" | "positions" | "trades">("overview");
-  const pnlColor = profile.stats.total_pnl >= 0 ? "#4ade80" : "#f87171";
+  const pnlColor = profile.stats.total_pnl >= 0 ? "#6aaa7a" : "#b06868";
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -140,7 +140,7 @@ function WalletProfileCard({ profile }: { profile: WalletProfile }) {
           ].map(({ label, value, color }) => (
             <div key={label} style={{ textAlign: "right" }}>
               <div style={{ ...S.muted, marginBottom: "2px" }}>{label}</div>
-              <div style={{ fontSize: "14px", fontWeight: 700, color: color ?? "#e3e3e3", fontVariantNumeric: "tabular-nums" }}>{value}</div>
+              <div style={{ fontSize: "14px", fontWeight: 700, color: color ?? "#f0f0f0", fontVariantNumeric: "tabular-nums" }}>{value}</div>
             </div>
           ))}
         </div>
@@ -149,14 +149,14 @@ function WalletProfileCard({ profile }: { profile: WalletProfile }) {
       {/* Stat grid */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: "10px" }}>
         {[
-          { label: "Avg Win",      value: formatUsd(profile.stats.avg_win),     color: "#4ade80" },
-          { label: "Avg Loss",     value: formatUsd(profile.stats.avg_loss),    color: "#f87171" },
+          { label: "Avg Win",      value: formatUsd(profile.stats.avg_win),     color: "#6aaa7a" },
+          { label: "Avg Loss",     value: formatUsd(profile.stats.avg_loss),    color: "#b06868" },
           { label: "Profit Factor",value: profile.stats.profit_factor.toFixed(2) },
           { label: `${profile.stats.is_win_streak ? "Win" : "Loss"} Streak`, value: `${profile.stats.current_streak}` },
         ].map(({ label, value, color }) => (
           <div key={label} style={{ ...S.card, padding: "16px" }}>
             <div style={S.label}>{label}</div>
-            <div style={{ fontSize: "18px", fontWeight: 700, color: color ?? "#e3e3e3", marginTop: "6px", fontVariantNumeric: "tabular-nums" }}>{value}</div>
+            <div style={{ fontSize: "18px", fontWeight: 700, color: color ?? "#f0f0f0", marginTop: "6px", fontVariantNumeric: "tabular-nums" }}>{value}</div>
           </div>
         ))}
       </div>
@@ -165,13 +165,15 @@ function WalletProfileCard({ profile }: { profile: WalletProfile }) {
       <div style={S.card}>
         <div style={{ display: "flex", borderBottom: "1px solid rgba(180,180,180,0.06)" }}>
           {(["overview", "positions", "trades"] as const).map((t) => (
-            <button key={t} onClick={() => setTab(t)} style={{
-              padding: "12px 20px", fontSize: "13px", fontWeight: 500,
-              color: tab === t ? "#e3e3e3" : "rgba(227,227,227,0.38)",
-              background: "none", border: "none", cursor: "pointer",
-              borderBottom: tab === t ? "2px solid #606060" : "2px solid transparent",
-              marginBottom: "-1px", textTransform: "capitalize" as const,
-            }}>{t}</button>
+            <button key={t} onClick={() => setTab(t)}
+              className={`tab-hover${tab === t ? " tab-active" : ""}`}
+              style={{
+                padding: "12px 20px", fontSize: "13px", fontWeight: 500,
+                color: tab === t ? "#f0f0f0" : "rgba(255,255,255,0.44)",
+                background: "none", border: "none", cursor: "pointer",
+                borderBottom: tab === t ? "2px solid #606060" : "2px solid transparent",
+                marginBottom: "-1px", textTransform: "capitalize" as const,
+              }}>{t}</button>
           ))}
         </div>
 
@@ -214,7 +216,7 @@ function WalletProfileCard({ profile }: { profile: WalletProfile }) {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead><tr>
               {["Coin","Side","Size","Value","uPnL","Entry Px","Lev","Liq Px"].map(h => (
-                <th key={h} style={{ padding: "10px 14px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: "rgba(227,227,227,0.38)", textAlign: "left" as const }}>{h}</th>
+                <th key={h} style={{ padding: "10px 14px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.44)", textAlign: "left" as const }}>{h}</th>
               ))}
             </tr></thead>
             <tbody>
@@ -223,13 +225,13 @@ function WalletProfileCard({ profile }: { profile: WalletProfile }) {
                 return (
                   <tr key={i}>
                     <td style={{ ...S.td, fontWeight: 600 }}>{p.coin}</td>
-                    <td style={{ ...S.td, color: isLong ? "#4ade80" : "#f87171" }}>{isLong ? "LONG" : "SHORT"}</td>
+                    <td style={{ ...S.td, color: isLong ? "#6aaa7a" : "#b06868" }}>{isLong ? "LONG" : "SHORT"}</td>
                     <td style={{ ...S.td, fontVariantNumeric: "tabular-nums" }}>{Math.abs(parseFloat(p.szi)).toFixed(4)}</td>
                     <td style={{ ...S.td, fontVariantNumeric: "tabular-nums" }}>{formatUsd(parseFloat(p.positionValue))}</td>
-                    <td style={{ ...S.td, color: parseFloat(p.unrealizedPnl) >= 0 ? "#4ade80" : "#f87171", fontVariantNumeric: "tabular-nums" }}>{formatUsd(parseFloat(p.unrealizedPnl))}</td>
+                    <td style={{ ...S.td, color: parseFloat(p.unrealizedPnl) >= 0 ? "#6aaa7a" : "#b06868", fontVariantNumeric: "tabular-nums" }}>{formatUsd(parseFloat(p.unrealizedPnl))}</td>
                     <td style={{ ...S.td, fontVariantNumeric: "tabular-nums" }}>{parseFloat(p.entryPx).toFixed(2)}</td>
                     <td style={S.td}>{p.leverage.value}x {p.leverage.type}</td>
-                    <td style={{ ...S.td, color: p.liquidationPx ? "#f87171" : "rgba(227,227,227,0.38)" }}>{p.liquidationPx ? parseFloat(p.liquidationPx).toFixed(2) : "—"}</td>
+                    <td style={{ ...S.td, color: p.liquidationPx ? "#b06868" : "rgba(255,255,255,0.44)" }}>{p.liquidationPx ? parseFloat(p.liquidationPx).toFixed(2) : "—"}</td>
                   </tr>
                 );
               })}
@@ -242,7 +244,7 @@ function WalletProfileCard({ profile }: { profile: WalletProfile }) {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead><tr>
               {["Time","Coin","Side","Price","Size","Realized PnL"].map(h => (
-                <th key={h} style={{ padding: "10px 14px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: "rgba(227,227,227,0.38)", textAlign: "left" as const }}>{h}</th>
+                <th key={h} style={{ padding: "10px 14px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.44)", textAlign: "left" as const }}>{h}</th>
               ))}
             </tr></thead>
             <tbody>
@@ -252,10 +254,10 @@ function WalletProfileCard({ profile }: { profile: WalletProfile }) {
                   <tr key={i}>
                     <td style={{ ...S.td, ...S.muted }}>{timeAgo(f.time)}</td>
                     <td style={{ ...S.td, fontWeight: 600 }}>{f.coin}</td>
-                    <td style={{ ...S.td, color: f.side === "B" ? "#4ade80" : "#f87171" }}>{f.side === "B" ? "Buy" : "Sell"}</td>
+                    <td style={{ ...S.td, color: f.side === "B" ? "#6aaa7a" : "#b06868" }}>{f.side === "B" ? "Buy" : "Sell"}</td>
                     <td style={{ ...S.td, fontVariantNumeric: "tabular-nums" }}>{parseFloat(f.px).toFixed(2)}</td>
                     <td style={{ ...S.td, fontVariantNumeric: "tabular-nums" }}>{parseFloat(f.sz).toFixed(4)}</td>
-                    <td style={{ ...S.td, color: pnl > 0 ? "#4ade80" : pnl < 0 ? "#f87171" : "rgba(227,227,227,0.38)", fontVariantNumeric: "tabular-nums" }}>
+                    <td style={{ ...S.td, color: pnl > 0 ? "#6aaa7a" : pnl < 0 ? "#b06868" : "rgba(255,255,255,0.44)", fontVariantNumeric: "tabular-nums" }}>
                       {pnl !== 0 ? formatUsd(pnl) : "—"}
                     </td>
                   </tr>

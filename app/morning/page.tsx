@@ -10,9 +10,9 @@ const S = {
   page:  { padding: "28px", maxWidth: "900px", margin: "0 auto" },
   card:  { background: "#0f0f0f", border: "1px solid rgba(180,180,180,0.12)", borderRadius: "10px", overflow: "hidden" as const },
   hdr:   { borderBottom: "1px solid rgba(180,180,180,0.06)", padding: "16px 20px", display: "flex", alignItems: "center", gap: "12px" },
-  label: { fontSize: "10px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(227,227,227,0.38)" },
-  muted: { color: "rgba(227,227,227,0.38)", fontSize: "11px" },
-  body:  { fontSize: "13px", color: "rgba(227,227,227,0.8)", lineHeight: 1.7 },
+  label: { fontSize: "10px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.44)" },
+  muted: { color: "rgba(255,255,255,0.44)", fontSize: "11px" },
+  body:  { fontSize: "13px", color: "rgba(255,255,255,0.82)", lineHeight: 1.7 },
 };
 
 interface MorningScan {
@@ -36,13 +36,13 @@ function MorningScanInner() {
 
   if (isLoading || !data) return <div style={{ padding: "28px", ...S.muted }}>Loading morning scan…</div>;
 
-  const regimeColor = data.regime === "BULL" ? "#4ade80" : data.regime === "BEAR" ? "#f87171" : "#9ca3af";
+  const regimeColor = data.regime === "BULL" ? "#6aaa7a" : data.regime === "BEAR" ? "#b06868" : "#9ca3af";
 
   return (
     <div style={S.page}>
       <div style={{ marginBottom: "24px", display: "flex", alignItems: "baseline", gap: "16px" }}>
         <div>
-          <h1 style={{ fontSize: "18px", fontWeight: 700, color: "#e3e3e3" }}>Morning Alpha Scan</h1>
+          <h1 style={{ fontSize: "18px", fontWeight: 700, color: "#f0f0f0" }}>Morning Alpha Scan</h1>
           <p style={S.muted}>Generated daily at 02:30 UTC · {timeAgo(data.generated_at)}</p>
         </div>
         <div style={{ marginLeft: "auto", fontSize: "11px", fontWeight: 700, padding: "4px 10px", borderRadius: "4px",
@@ -81,7 +81,7 @@ function MorningScanInner() {
           <div style={{ padding: "16px 20px", display: "flex", flexWrap: "wrap" as const, gap: "8px" }}>
             {data.watch_list.map((coin) => (
               <a key={coin} href={`/deep-dive?coin=${coin}`}
-                style={{ padding: "5px 12px", background: "rgba(96,96,96,0.1)", border: "1px solid rgba(96,96,96,0.3)", borderRadius: "4px", fontSize: "12px", fontWeight: 700, color: "#e3e3e3", textDecoration: "none" }}>
+                style={{ padding: "5px 12px", background: "rgba(96,96,96,0.1)", border: "1px solid rgba(96,96,96,0.3)", borderRadius: "4px", fontSize: "12px", fontWeight: 700, color: "#f0f0f0", textDecoration: "none" }}>
                 {coin}
               </a>
             ))}
@@ -96,7 +96,7 @@ function MorningScanInner() {
           <div style={{ padding: "24px", textAlign: "center", ...S.muted }}>No signals in the last 24h</div>
         ) : (
           data.top_signals.map((sig, i) => {
-            const dirColor = sig.direction === "LONG" ? "#4ade80" : sig.direction === "SHORT" ? "#f87171" : "#9ca3af";
+            const dirColor = sig.direction === "LONG" ? "#6aaa7a" : sig.direction === "SHORT" ? "#b06868" : "#9ca3af";
             return (
               <div key={i} style={{ padding: "12px 20px", borderBottom: "1px solid rgba(180,180,180,0.06)", display: "flex", alignItems: "center", gap: "12px" }}>
                 <div style={{ width: "7px", height: "7px", borderRadius: "50%", background: dirColor, flexShrink: 0 }} />
@@ -116,7 +116,7 @@ function MorningScanInner() {
       <div style={S.card}>
         <div style={S.hdr}><span style={S.label}>Top Cohort Movers (24h)</span></div>
         {data.top_movers.map((m, i) => {
-          const dirColor = m.direction === "LONG" ? "#4ade80" : "#f87171";
+          const dirColor = m.direction === "LONG" ? "#6aaa7a" : "#b06868";
           return (
             <div key={i} style={{ padding: "12px 20px", borderBottom: "1px solid rgba(180,180,180,0.06)", display: "flex", alignItems: "center", gap: "12px" }}>
               <span style={{ fontSize: "13px", fontWeight: 700 }}>{m.coin}</span>

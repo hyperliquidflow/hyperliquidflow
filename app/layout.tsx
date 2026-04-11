@@ -29,7 +29,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${inter.variable} ${geistMono.variable}`}>
-      <body className="bg-[#090909] text-[#e3e3e3] font-[family-name:var(--font-inter)] antialiased min-h-screen">
+      <body className="bg-[#090909] text-[#f0f0f0] font-[family-name:var(--font-inter)] antialiased min-h-screen">
         <Nav />
         <main className="min-h-[calc(100vh-52px)]">{children}</main>
       </body>

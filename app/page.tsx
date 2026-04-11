@@ -9,8 +9,8 @@ import { QueryProvider } from "@/components/query-provider";
 
 // ── Regime colours (template-grey palette) ────────────────────────────────────
 const REGIME_STYLES = {
-  BULL:    { color: "#4ade80", bg: "rgba(74,222,128,0.07)", label: "BULLISH" },
-  BEAR:    { color: "#f87171", bg: "rgba(248,113,113,0.07)", label: "BEARISH" },
+  BULL:    { color: "#6aaa7a", bg: "rgba(106,170,122,0.07)", label: "BULLISH" },
+  BEAR:    { color: "#b06868", bg: "rgba(176,104,104,0.07)", label: "BEARISH" },
   RANGING: { color: "#9ca3af", bg: "rgba(156,163,175,0.07)", label: "RANGING" },
 };
 
@@ -31,10 +31,10 @@ const S = {
   page:    { padding: "28px", maxWidth: "1400px", margin: "0 auto" },
   card:    { background: "#0f0f0f", border: "1px solid rgba(180,180,180,0.12)", borderRadius: "10px", overflow: "hidden" as const },
   hdr:     { borderBottom: "1px solid rgba(180,180,180,0.06)", padding: "16px 20px", display: "flex", alignItems: "center", gap: "8px" },
-  label:   { fontSize: "10px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(227,227,227,0.38)" },
+  label:   { fontSize: "10px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.44)" },
   val:     { fontSize: "22px", fontWeight: 700, fontVariantNumeric: "tabular-nums" as const },
-  small:   { fontSize: "11px", color: "rgba(227,227,227,0.6)" },
-  muted:   { color: "rgba(227,227,227,0.38)", fontSize: "11px" },
+  small:   { fontSize: "11px", color: "rgba(255,255,255,0.69)" },
+  muted:   { color: "rgba(255,255,255,0.44)", fontSize: "11px" },
   mono:    { fontFamily: "var(--font-mono)", fontSize: "11px" },
 };
 
@@ -90,12 +90,12 @@ function OverviewInner() {
         {[
           { label: "Active Cohort",     value: `${data.wallet_count}`,           sub: "wallets tracked" },
           { label: "Total Book Value",  value: formatUsd(totalAv),               sub: "across cohort" },
-          { label: "Unrealised PnL",    value: formatUsd(totalPnl), color: totalPnl >= 0 ? "#4ade80" : "#f87171", sub: "open positions" },
+          { label: "Unrealised PnL",    value: formatUsd(totalPnl), color: totalPnl >= 0 ? "#6aaa7a" : "#b06868", sub: "open positions" },
           { label: "Avg Cohort Score",  value: avgScore.toFixed(2),              sub: "out of 1.00" },
         ].map(({ label, value, sub, color }) => (
           <div key={label} style={{ ...S.card, padding: "20px" }}>
             <div style={S.label}>{label}</div>
-            <div style={{ ...S.val, color: color ?? "#e3e3e3", marginTop: "8px" }}>{value}</div>
+            <div style={{ ...S.val, color: color ?? "#f0f0f0", marginTop: "8px" }}>{value}</div>
             <div style={{ ...S.muted, marginTop: "4px" }}>{sub}</div>
           </div>
         ))}
@@ -107,7 +107,7 @@ function OverviewInner() {
         <div style={S.card}>
           <div style={S.hdr}>
             <span style={S.label}>Recent Signals</span>
-            <a href="/signals" style={{ marginLeft: "auto", fontSize: "11px", color: "rgba(227,227,227,0.38)", textDecoration: "none" }}>View all →</a>
+            <a href="/signals" style={{ marginLeft: "auto", fontSize: "11px", color: "rgba(255,255,255,0.44)", textDecoration: "none" }}>View all →</a>
           </div>
           <div>
             {data.recent_signals.slice(0, 6).map((sig, i) => (
@@ -120,7 +120,7 @@ function OverviewInner() {
               }}>
                 <DirectionDot direction={sig.direction} />
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: "12px", fontWeight: 600, color: "#e3e3e3" }}>
+                  <div style={{ fontSize: "12px", fontWeight: 600, color: "#f0f0f0" }}>
                     {RECIPE_LABELS[sig.recipe_id] ?? sig.recipe_id} · {sig.coin}
                   </div>
                   <div style={S.muted}>{timeAgo(sig.detected_at)}</div>
@@ -144,7 +144,7 @@ function OverviewInner() {
         <div style={S.card}>
           <div style={S.hdr}>
             <span style={S.label}>Top Wallets by Score</span>
-            <a href="/wallets" style={{ marginLeft: "auto", fontSize: "11px", color: "rgba(227,227,227,0.38)", textDecoration: "none" }}>Full report →</a>
+            <a href="/wallets" style={{ marginLeft: "auto", fontSize: "11px", color: "rgba(255,255,255,0.44)", textDecoration: "none" }}>Full report →</a>
           </div>
           <div>
             {data.top_wallets.slice(0, 6).map((w, i) => (
@@ -155,12 +155,12 @@ function OverviewInner() {
                 alignItems: "center",
                 gap: "12px",
               }}>
-                <span style={{ fontSize: "11px", color: "rgba(227,227,227,0.28)", width: "16px", flexShrink: 0 }}>{i + 1}</span>
+                <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.32)", width: "16px", flexShrink: 0 }}>{i + 1}</span>
                 <a href={`/stalker?address=${w.address}`} style={{ ...S.mono, color: "#9ca3af", textDecoration: "none", flex: 1 }}>
                   {truncateAddress(w.address)}
                 </a>
                 <ScoreBar score={w.overall_score} />
-                <div style={{ fontSize: "11px", fontWeight: 600, color: "#e3e3e3", width: "36px", textAlign: "right" }}>
+                <div style={{ fontSize: "11px", fontWeight: 600, color: "#f0f0f0", width: "36px", textAlign: "right" }}>
                   {w.overall_score.toFixed(2)}
                 </div>
               </div>
@@ -175,7 +175,7 @@ function OverviewInner() {
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function DirectionDot({ direction }: { direction: string | null }) {
-  const color = direction === "LONG" ? "#4ade80" : direction === "SHORT" ? "#f87171" : "#6b7280";
+  const color = direction === "LONG" ? "#6aaa7a" : direction === "SHORT" ? "#b06868" : "#6b7280";
   return <div style={{ width: "7px", height: "7px", borderRadius: "50%", background: color, flexShrink: 0 }} />;
 }
 
@@ -185,7 +185,7 @@ function ScoreBar({ score }: { score: number }) {
       <div style={{
         width: `${score * 100}%`,
         height: "100%",
-        background: score >= 0.7 ? "#4ade80" : score >= 0.5 ? "#606060" : "#f87171",
+        background: score >= 0.7 ? "#6aaa7a" : score >= 0.5 ? "#606060" : "#b06868",
         borderRadius: "2px",
         transition: "width 0.3s",
       }} />
@@ -206,7 +206,7 @@ function LoadingState() {
 function ErrorState({ message }: { message: string }) {
   return (
     <div style={{ ...S.page }}>
-      <div style={{ ...S.card, padding: "32px", textAlign: "center", color: "#f87171" }}>
+      <div style={{ ...S.card, padding: "32px", textAlign: "center", color: "#b06868" }}>
         Failed to load data: {message}
       </div>
     </div>

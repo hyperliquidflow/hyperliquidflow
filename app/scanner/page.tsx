@@ -9,8 +9,8 @@ const S = {
   page:  { padding: "28px", maxWidth: "1000px", margin: "0 auto" },
   card:  { background: "#0f0f0f", border: "1px solid rgba(180,180,180,0.12)", borderRadius: "10px", overflow: "hidden" as const },
   hdr:   { borderBottom: "1px solid rgba(180,180,180,0.06)", padding: "16px 20px", display: "flex", alignItems: "center", gap: "12px" },
-  label: { fontSize: "10px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(227,227,227,0.38)" },
-  muted: { color: "rgba(227,227,227,0.38)", fontSize: "11px" },
+  label: { fontSize: "10px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.44)" },
+  muted: { color: "rgba(255,255,255,0.44)", fontSize: "11px" },
   mono:  { fontFamily: "var(--font-mono)", fontSize: "11px" },
   td:    { padding: "10px 14px", borderBottom: "1px solid rgba(180,180,180,0.06)", fontSize: "12px" },
 };
@@ -38,7 +38,7 @@ function ScannerInner() {
   return (
     <div style={S.page}>
       <div style={{ marginBottom: "20px" }}>
-        <h1 style={{ fontSize: "18px", fontWeight: 700, color: "#e3e3e3" }}>Wallet Scanner</h1>
+        <h1 style={{ fontSize: "18px", fontWeight: 700, color: "#f0f0f0" }}>Wallet Scanner</h1>
         <p style={S.muted}>Daily discovery at 02:00 UTC · GitHub Actions · leaderboard → win rate filter → cohort</p>
       </div>
 
@@ -46,13 +46,13 @@ function ScannerInner() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "20px" }}>
         {[
           { label: "Discovered",       value: `${data.total_discovered}` },
-          { label: "Active in Cohort", value: `${data.total_active}`,   color: "#4ade80" },
-          { label: "Filtered Out",     value: `${data.total_inactive}`,  color: "#f87171" },
+          { label: "Active in Cohort", value: `${data.total_active}`,   color: "#6aaa7a" },
+          { label: "Filtered Out",     value: `${data.total_inactive}`,  color: "#b06868" },
           { label: "Avg Win Rate",     value: formatPct(data.avg_win_rate) },
         ].map(({ label, value, color }) => (
           <div key={label} style={{ ...S.card, padding: "18px" }}>
             <div style={S.label}>{label}</div>
-            <div style={{ fontSize: "20px", fontWeight: 700, color: color ?? "#e3e3e3", marginTop: "6px" }}>{value}</div>
+            <div style={{ fontSize: "20px", fontWeight: 700, color: color ?? "#f0f0f0", marginTop: "6px" }}>{value}</div>
           </div>
         ))}
       </div>
@@ -63,12 +63,12 @@ function ScannerInner() {
           <div style={S.hdr}><span style={S.label}>Scan Pipeline</span></div>
           <div style={{ padding: "4px 0" }}>
             {data.scan_pipeline.map((step, i) => {
-              const color = step.status === "ok" ? "#4ade80" : step.status === "warn" ? "#f59e0b" : "#f87171";
+              const color = step.status === "ok" ? "#6aaa7a" : step.status === "warn" ? "#f59e0b" : "#b06868";
               return (
                 <div key={i} style={{ padding: "12px 20px", borderBottom: "1px solid rgba(180,180,180,0.06)", display: "flex", alignItems: "flex-start", gap: "10px" }}>
                   <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: color, marginTop: "4px", flexShrink: 0 }} />
                   <div>
-                    <div style={{ fontSize: "12px", fontWeight: 600, color: "#e3e3e3" }}>{step.step}</div>
+                    <div style={{ fontSize: "12px", fontWeight: 600, color: "#f0f0f0" }}>{step.step}</div>
                     <div style={{ ...S.muted, marginTop: "2px" }}>{step.detail}</div>
                   </div>
                 </div>
@@ -91,7 +91,7 @@ function ScannerInner() {
               ].map(({ label, value }) => (
                 <div key={label} style={{ display: "flex", justifyContent: "space-between" }}>
                   <span style={S.muted}>{label}</span>
-                  <span style={{ fontSize: "12px", color: "#e3e3e3" }}>{value}</span>
+                  <span style={{ fontSize: "12px", color: "#f0f0f0" }}>{value}</span>
                 </div>
               ))}
             </div>
@@ -99,7 +99,7 @@ function ScannerInner() {
             <div style={{ marginTop: "20px", padding: "12px 14px", background: "rgba(96,96,96,0.05)", borderRadius: "6px", border: "1px solid rgba(180,180,180,0.08)" }}>
               <div style={{ ...S.label, marginBottom: "6px" }}>Setup required</div>
               <p style={{ ...S.muted, lineHeight: 1.6 }}>
-                Add <code style={S.mono}>SUPABASE_URL</code>, <code style={S.mono}>SUPABASE_SERVICE_ROLE_KEY</code>, and <code style={S.mono}>HYPERLIQUID_API_URL</code> to GitHub Secrets (Settings → Secrets → Actions). Repo must be <strong style={{ color: "#e3e3e3" }}>public</strong> for 2,000 free minutes/month.
+                Add <code style={S.mono}>SUPABASE_URL</code>, <code style={S.mono}>SUPABASE_SERVICE_ROLE_KEY</code>, and <code style={S.mono}>HYPERLIQUID_API_URL</code> to GitHub Secrets (Settings → Secrets → Actions). Repo must be <strong style={{ color: "#f0f0f0" }}>public</strong> for 2,000 free minutes/month.
               </p>
             </div>
           </div>
@@ -113,22 +113,22 @@ function ScannerInner() {
           <thead>
             <tr>
               {["#","Address","Win Rate","Trades (30d)","Realized PnL (30d)"].map((h) => (
-                <th key={h} style={{ padding: "10px 14px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: "rgba(227,227,227,0.38)", textAlign: "left" as const }}>{h}</th>
+                <th key={h} style={{ padding: "10px 14px", fontSize: "10px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.44)", textAlign: "left" as const }}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {data.top_win_rates.map((w, i) => (
               <tr key={w.address}>
-                <td style={{ ...S.td, color: "rgba(227,227,227,0.28)" }}>{i + 1}</td>
+                <td style={{ ...S.td, color: "rgba(255,255,255,0.32)" }}>{i + 1}</td>
                 <td style={S.td}>
                   <a href={`/stalker?address=${w.address}`} style={{ ...S.mono, color: "#9ca3af", textDecoration: "none" }}>{w.address.slice(0, 10)}…{w.address.slice(-6)}</a>
                 </td>
-                <td style={{ ...S.td, color: w.win_rate >= 0.65 ? "#4ade80" : w.win_rate >= 0.55 ? "#f59e0b" : "#e3e3e3", fontWeight: 600 }}>
+                <td style={{ ...S.td, color: w.win_rate >= 0.65 ? "#6aaa7a" : w.win_rate >= 0.55 ? "#f59e0b" : "#f0f0f0", fontWeight: 600 }}>
                   {formatPct(w.win_rate)}
                 </td>
                 <td style={S.td}>{w.trade_count_30d}</td>
-                <td style={{ ...S.td, color: w.realized_pnl_30d >= 0 ? "#4ade80" : "#f87171", fontVariantNumeric: "tabular-nums" }}>
+                <td style={{ ...S.td, color: w.realized_pnl_30d >= 0 ? "#6aaa7a" : "#b06868", fontVariantNumeric: "tabular-nums" }}>
                   {w.realized_pnl_30d >= 0 ? "+" : ""}${(w.realized_pnl_30d / 1000).toFixed(1)}K
                 </td>
               </tr>

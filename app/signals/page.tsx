@@ -20,8 +20,8 @@ const RECIPE_META: Record<string, { label: string; desc: string }> = {
 };
 
 const SIGNAL_TYPE_COLORS: Record<string, string> = {
-  ENTRY:    "#4ade80",
-  EXIT:     "#f87171",
+  ENTRY:    "#6aaa7a",
+  EXIT:     "#b06868",
   SCALE_IN: "#60a5fa",
   SCALE_OUT:"#f59e0b",
   FLIP:     "#c084fc",
@@ -31,8 +31,8 @@ const SIGNAL_TYPE_COLORS: Record<string, string> = {
 const S = {
   page:  { padding: "28px", maxWidth: "1400px", margin: "0 auto" },
   card:  { background: "#0f0f0f", border: "1px solid rgba(180,180,180,0.12)", borderRadius: "10px", overflow: "hidden" as const },
-  label: { fontSize: "10px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(227,227,227,0.38)" },
-  muted: { color: "rgba(227,227,227,0.38)", fontSize: "11px" },
+  label: { fontSize: "10px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.44)" },
+  muted: { color: "rgba(255,255,255,0.44)", fontSize: "11px" },
   mono:  { fontFamily: "var(--font-mono)", fontSize: "11px" },
 };
 
@@ -61,20 +61,20 @@ function SignalsInner() {
   return (
     <div style={S.page}>
       <div style={{ marginBottom: "20px" }}>
-        <h1 style={{ fontSize: "18px", fontWeight: 700, color: "#e3e3e3" }}>Signal Feed</h1>
+        <h1 style={{ fontSize: "18px", fontWeight: 700, color: "#f0f0f0" }}>Signal Feed</h1>
         <p style={S.muted}>All 9 recipe detections · live updates every 60s · {data.recent_signals.length} recent signals</p>
       </div>
 
       {/* Filters */}
       <div style={{ display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap" as const, alignItems: "center" }}>
         <select value={filterRecipe} onChange={(e) => setFilterRecipe(e.target.value)}
-          style={{ background: "#141414", border: "1px solid rgba(180,180,180,0.12)", borderRadius: "5px", color: "#e3e3e3", padding: "6px 10px", fontSize: "12px", outline: "none" }}>
+          style={{ background: "#141414", border: "1px solid rgba(180,180,180,0.12)", borderRadius: "5px", color: "#f0f0f0", padding: "6px 10px", fontSize: "12px", outline: "none" }}>
           <option value="all">All Recipes</option>
           {uniqueRecipes.map((r) => <option key={r} value={r}>{RECIPE_META[r]?.label ?? r}</option>)}
         </select>
 
         <select value={filterDir} onChange={(e) => setFilterDir(e.target.value)}
-          style={{ background: "#141414", border: "1px solid rgba(180,180,180,0.12)", borderRadius: "5px", color: "#e3e3e3", padding: "6px 10px", fontSize: "12px", outline: "none" }}>
+          style={{ background: "#141414", border: "1px solid rgba(180,180,180,0.12)", borderRadius: "5px", color: "#f0f0f0", padding: "6px 10px", fontSize: "12px", outline: "none" }}>
           <option value="all">All Directions</option>
           <option value="LONG">Long</option>
           <option value="SHORT">Short</option>
@@ -83,20 +83,21 @@ function SignalsInner() {
 
         <input value={filterCoin} onChange={(e) => setFilterCoin(e.target.value)}
           placeholder="Filter coin…"
-          style={{ background: "#141414", border: "1px solid rgba(180,180,180,0.12)", borderRadius: "5px", color: "#e3e3e3", padding: "6px 10px", fontSize: "12px", outline: "none", width: "120px" }} />
+          style={{ background: "#141414", border: "1px solid rgba(180,180,180,0.12)", borderRadius: "5px", color: "#f0f0f0", padding: "6px 10px", fontSize: "12px", outline: "none", width: "120px" }} />
 
         <span style={S.muted}>{signals.length} results</span>
       </div>
 
       {/* Recipe legend */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", marginBottom: "20px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px", marginBottom: "20px" }}>
         {Object.entries(RECIPE_META).map(([id, { label, desc }]) => (
           <button key={id} onClick={() => setFilterRecipe(filterRecipe === id ? "all" : id)}
-            style={{ ...S.card, padding: "10px 14px", textAlign: "left" as const, cursor: "pointer",
+            className="card-hover"
+            style={{ ...S.card, padding: "16px 18px", textAlign: "left" as const, cursor: "pointer",
               border: filterRecipe === id ? "1px solid #606060" : "1px solid rgba(180,180,180,0.12)",
-              background: filterRecipe === id ? "rgba(96,96,96,0.08)" : "#0f0f0f" }}>
-            <div style={{ fontSize: "11px", fontWeight: 600, color: "#e3e3e3" }}>{label}</div>
-            <div style={{ ...S.muted, marginTop: "2px" }}>{desc}</div>
+              background: filterRecipe === id ? "rgba(96,96,96,0.10)" : "#0f0f0f" }}>
+            <div style={{ fontSize: "12px", fontWeight: 600, color: "#f0f0f0", marginBottom: "6px" }}>{label}</div>
+            <div style={{ ...S.muted, lineHeight: 1.5 }}>{desc}</div>
           </button>
         ))}
       </div>
@@ -111,7 +112,7 @@ function SignalsInner() {
           signals.map((sig, i) => {
             const meta = RECIPE_META[sig.recipe_id];
             const typeColor = SIGNAL_TYPE_COLORS[sig.signal_type] ?? "#9ca3af";
-            const dirColor = sig.direction === "LONG" ? "#4ade80" : sig.direction === "SHORT" ? "#f87171" : "#9ca3af";
+            const dirColor = sig.direction === "LONG" ? "#6aaa7a" : sig.direction === "SHORT" ? "#b06868" : "#9ca3af";
 
             return (
               <div key={i} style={{
@@ -133,10 +134,10 @@ function SignalsInner() {
                 {/* Content */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" as const }}>
-                    <span style={{ fontSize: "13px", fontWeight: 600, color: "#e3e3e3" }}>
+                    <span style={{ fontSize: "13px", fontWeight: 600, color: "#f0f0f0" }}>
                       {meta?.label ?? sig.recipe_id}
                     </span>
-                    <span style={{ fontSize: "13px", fontWeight: 700, color: "#e3e3e3" }}>·</span>
+                    <span style={{ fontSize: "13px", fontWeight: 700, color: "#f0f0f0" }}>·</span>
                     <span style={{ fontSize: "13px", fontWeight: 700, color: dirColor }}>{sig.coin}</span>
                     {sig.direction && (
                       <span style={{ fontSize: "10px", fontWeight: 700, color: dirColor, letterSpacing: "0.08em" }}>
@@ -148,7 +149,7 @@ function SignalsInner() {
                     {meta?.desc} · wallet {truncateAddress(sig.wallet_id ?? "")} · {timeAgo(sig.detected_at)}
                   </div>
                   {typeof sig.metadata?.description === "string" && (
-                    <div style={{ fontSize: "11px", color: "rgba(227,227,227,0.5)", marginTop: "4px" }}>
+                    <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.58)", marginTop: "4px" }}>
                       {sig.metadata.description}
                     </div>
                   )}
@@ -157,7 +158,7 @@ function SignalsInner() {
                 {/* EV score */}
                 {sig.ev_score != null ? (
                   <div style={{ textAlign: "right", flexShrink: 0 }}>
-                    <div style={{ fontSize: "15px", fontWeight: 700, color: sig.ev_score > 0.6 ? "#4ade80" : sig.ev_score > 0.3 ? "#f59e0b" : "#9ca3af" }}>
+                    <div style={{ fontSize: "15px", fontWeight: 700, color: sig.ev_score > 0.6 ? "#6aaa7a" : sig.ev_score > 0.3 ? "#f59e0b" : "#9ca3af" }}>
                       {(sig.ev_score * 100).toFixed(0)}
                     </div>
                     <div style={S.muted}>EV</div>

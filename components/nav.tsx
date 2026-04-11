@@ -40,11 +40,8 @@ export function Nav() {
     >
       {/* Logo */}
       <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
-        <span style={{ fontSize: "15px", fontWeight: 700, color: "#e3e3e3" }}>
+        <span style={{ fontSize: "15px", fontWeight: 700, color: "#f0f0f0" }}>
           HyperliquidFLOW
-        </span>
-        <span style={{ fontSize: "12px", color: "rgba(227,227,227,0.38)", fontWeight: 400 }}>
-          Smart Money Sentinel
         </span>
       </div>
 
@@ -62,7 +59,7 @@ export function Nav() {
               style={{
                 fontSize: "12px",
                 fontWeight: 500,
-                color: active ? "#e3e3e3" : "rgba(227,227,227,0.38)",
+                color: active ? "#f0f0f0" : "rgba(255,255,255,0.44)",
                 textDecoration: "none",
                 padding: "5px 10px",
                 borderRadius: "5px",
@@ -77,12 +74,6 @@ export function Nav() {
         })}
       </nav>
 
-      {/* Right side: disclaimer */}
-      <div style={{ marginLeft: "auto", flexShrink: 0 }}>
-        <span style={{ fontSize: "10px", color: "rgba(227,227,227,0.28)", letterSpacing: "0.04em" }}>
-          Educational only · Not financial advice
-        </span>
-      </div>
     </header>
   );
 }

@@ -11,11 +11,11 @@ const S = {
   page:  { padding: "28px", maxWidth: "1200px", margin: "0 auto" },
   card:  { background: "#0f0f0f", border: "1px solid rgba(180,180,180,0.12)", borderRadius: "10px", overflow: "hidden" as const },
   hdr:   { borderBottom: "1px solid rgba(180,180,180,0.06)", padding: "16px 20px", display: "flex", alignItems: "center", gap: "12px" },
-  label: { fontSize: "10px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(227,227,227,0.38)" },
-  muted: { color: "rgba(227,227,227,0.38)", fontSize: "11px" },
+  label: { fontSize: "10px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.44)" },
+  muted: { color: "rgba(255,255,255,0.44)", fontSize: "11px" },
 };
 
-const POPULAR_COINS = ["BTC","ETH","SOL","ARB","DOGE","AVAX","MATIC","SUI","WIF","PEPE"];
+const FALLBACK_COINS = ["BTC","ETH","SOL","ARB","DOGE","AVAX","SUI","WIF","PEPE","HYPE"];
 const INTERVALS = ["5m","15m","1h","4h","1d"];
 
 interface DeepDiveData {
@@ -31,6 +31,13 @@ function DeepDiveInner() {
   const [interval, setInterval] = useState("1h");
   const [input,    setInput]    = useState("BTC");
 
+  const { data: topCoins } = useQuery<string[]>({
+    queryKey: ["top-markets"],
+    queryFn:  () => fetch("/api/top-markets?n=12").then((r) => r.json()),
+    staleTime: 5 * 60_000,
+  });
+  const quickCoins = Array.isArray(topCoins) ? topCoins : FALLBACK_COINS;
+
   const { data, isLoading, error } = useQuery<DeepDiveData>({
     queryKey: ["deep-dive", coin, interval],
     queryFn:  () => fetch(`/api/deep-dive?coin=${coin}&interval=${interval}`).then((r) => r.json()),
@@ -43,7 +50,7 @@ function DeepDiveInner() {
   return (
     <div style={S.page}>
       <div style={{ marginBottom: "20px" }}>
-        <h1 style={{ fontSize: "18px", fontWeight: 700, color: "#e3e3e3" }}>Single Token Deep Dive</h1>
+        <h1 style={{ fontSize: "18px", fontWeight: 700, color: "#f0f0f0" }}>Single Token Deep Dive</h1>
         <p style={S.muted}>Funding rates, open interest, candles, and cohort exposure for any coin</p>
       </div>
 
@@ -52,19 +59,20 @@ function DeepDiveInner() {
         <div style={{ display: "flex", gap: "8px" }}>
           <input value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             placeholder="Enter coin (e.g. BTC)"
-            style={{ background: "#141414", border: "1px solid rgba(180,180,180,0.12)", borderRadius: "5px", color: "#e3e3e3", padding: "6px 12px", fontSize: "13px", outline: "none", width: "140px", fontFamily: "var(--font-mono)" }} />
-          <button onClick={handleSearch} style={{ padding: "6px 14px", background: "#1c1c1c", border: "1px solid rgba(180,180,180,0.12)", borderRadius: "5px", color: "#e3e3e3", fontSize: "12px", cursor: "pointer" }}>
+            style={{ background: "#141414", border: "1px solid rgba(180,180,180,0.12)", borderRadius: "5px", color: "#f0f0f0", padding: "6px 12px", fontSize: "13px", outline: "none", width: "140px", fontFamily: "var(--font-mono)" }} />
+          <button onClick={handleSearch} style={{ padding: "6px 14px", background: "#1c1c1c", border: "1px solid rgba(180,180,180,0.12)", borderRadius: "5px", color: "#f0f0f0", fontSize: "12px", cursor: "pointer" }}>
             Dive
           </button>
         </div>
 
         <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" as const }}>
-          {POPULAR_COINS.map((c) => (
+          {quickCoins.map((c) => (
             <button key={c} onClick={() => { setCoin(c); setInput(c); }}
-              style={{ padding: "4px 10px", fontSize: "11px", fontWeight: 600, borderRadius: "4px", cursor: "pointer",
+              className="pill-btn-hover"
+              style={{ padding: "5px 12px", fontSize: "11px", fontWeight: 600, borderRadius: "4px", cursor: "pointer",
                 background: coin === c ? "rgba(96,96,96,0.2)" : "transparent",
                 border: `1px solid ${coin === c ? "rgba(96,96,96,0.5)" : "rgba(180,180,180,0.1)"}`,
-                color: coin === c ? "#e3e3e3" : "rgba(227,227,227,0.5)" }}>
+                color: coin === c ? "#f0f0f0" : "rgba(255,255,255,0.58)" }}>
               {c}
             </button>
           ))}
@@ -73,10 +81,11 @@ function DeepDiveInner() {
         <div style={{ display: "flex", gap: "4px", marginLeft: "auto" }}>
           {INTERVALS.map((iv) => (
             <button key={iv} onClick={() => setInterval(iv)}
-              style={{ padding: "4px 10px", fontSize: "11px", fontWeight: 600, borderRadius: "4px", cursor: "pointer",
+              className="pill-btn-hover"
+              style={{ padding: "5px 12px", fontSize: "11px", fontWeight: 600, borderRadius: "4px", cursor: "pointer",
                 background: interval === iv ? "rgba(96,96,96,0.2)" : "transparent",
                 border: `1px solid ${interval === iv ? "rgba(96,96,96,0.5)" : "rgba(180,180,180,0.1)"}`,
-                color: interval === iv ? "#e3e3e3" : "rgba(227,227,227,0.5)" }}>
+                color: interval === iv ? "#f0f0f0" : "rgba(255,255,255,0.58)" }}>
               {iv}
             </button>
           ))}
@@ -84,7 +93,7 @@ function DeepDiveInner() {
       </div>
 
       {isLoading && <div style={S.muted}>Loading {coin}…</div>}
-      {error    && <div style={{ color: "#f87171", fontSize: "12px" }}>Error loading data</div>}
+      {error    && <div style={{ color: "#b06868", fontSize: "12px" }}>Error loading data</div>}
 
       {data && !isLoading && (
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -93,14 +102,14 @@ function DeepDiveInner() {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "10px" }}>
               {[
                 { label: "Mark Price",  value: `$${parseFloat(data.ctx.markPx).toLocaleString()}` },
-                { label: "24h Change",  value: formatPct((parseFloat(data.ctx.markPx) - parseFloat(data.ctx.prevDayPx)) / parseFloat(data.ctx.prevDayPx)), color: parseFloat(data.ctx.markPx) >= parseFloat(data.ctx.prevDayPx) ? "#4ade80" : "#f87171" },
+                { label: "24h Change",  value: formatPct((parseFloat(data.ctx.markPx) - parseFloat(data.ctx.prevDayPx)) / parseFloat(data.ctx.prevDayPx)), color: parseFloat(data.ctx.markPx) >= parseFloat(data.ctx.prevDayPx) ? "#6aaa7a" : "#b06868" },
                 { label: "Open Interest", value: formatUsd(parseFloat(data.ctx.openInterest)) },
                 { label: "24h Volume",  value: formatUsd(parseFloat(data.ctx.dayNtlVlm)) },
-                { label: "Funding /hr", value: `${(parseFloat(data.ctx.funding) * 100).toFixed(4)}%`, color: parseFloat(data.ctx.funding) > 0 ? "#4ade80" : "#f87171" },
+                { label: "Funding /hr", value: `${(parseFloat(data.ctx.funding) * 100).toFixed(4)}%`, color: parseFloat(data.ctx.funding) > 0 ? "#6aaa7a" : "#b06868" },
               ].map(({ label, value, color }) => (
                 <div key={label} style={{ ...S.card, padding: "14px 16px" }}>
                   <div style={S.label}>{label}</div>
-                  <div style={{ fontSize: "16px", fontWeight: 700, color: color ?? "#e3e3e3", marginTop: "6px", fontVariantNumeric: "tabular-nums" }}>{value}</div>
+                  <div style={{ fontSize: "16px", fontWeight: 700, color: color ?? "#f0f0f0", marginTop: "6px", fontVariantNumeric: "tabular-nums" }}>{value}</div>
                 </div>
               ))}
             </div>
@@ -109,11 +118,11 @@ function DeepDiveInner() {
           {/* Cohort exposure */}
           {data.cohortExposure && (
             <div style={{ ...S.card, padding: "16px 20px", display: "flex", alignItems: "center", gap: "20px",
-              background: data.cohortExposure.direction === "LONG" ? "rgba(74,222,128,0.05)" : "rgba(248,113,113,0.05)",
-              border: `1px solid ${data.cohortExposure.direction === "LONG" ? "rgba(74,222,128,0.2)" : "rgba(248,113,113,0.2)"}` }}>
+              background: data.cohortExposure.direction === "LONG" ? "rgba(106,170,122,0.05)" : "rgba(176,104,104,0.05)",
+              border: `1px solid ${data.cohortExposure.direction === "LONG" ? "rgba(106,170,122,0.2)" : "rgba(176,104,104,0.2)"}` }}>
               <div>
                 <div style={S.label}>Smart Money Cohort Exposure</div>
-                <div style={{ fontSize: "18px", fontWeight: 700, color: data.cohortExposure.direction === "LONG" ? "#4ade80" : "#f87171", marginTop: "4px" }}>
+                <div style={{ fontSize: "18px", fontWeight: 700, color: data.cohortExposure.direction === "LONG" ? "#6aaa7a" : "#b06868", marginTop: "4px" }}>
                   NET {data.cohortExposure.direction} · {formatUsd(Math.abs(data.cohortExposure.net_notional))}
                 </div>
               </div>
@@ -162,7 +171,7 @@ function CandleChart({ candles }: { candles: Array<{ t: number; o: string; h: st
       chart = createChart(containerRef.current, {
         width:  containerRef.current.clientWidth,
         height: 320,
-        layout: { background: { type: ColorType.Solid, color: "#0f0f0f" }, textColor: "rgba(227,227,227,0.6)" },
+        layout: { background: { type: ColorType.Solid, color: "#0f0f0f" }, textColor: "rgba(255,255,255,0.69)" },
         grid:   { vertLines: { color: "rgba(180,180,180,0.06)" }, horzLines: { color: "rgba(180,180,180,0.06)" } },
         crosshair: { mode: 1 },
         rightPriceScale: { borderColor: "rgba(180,180,180,0.12)" },
@@ -170,9 +179,9 @@ function CandleChart({ candles }: { candles: Array<{ t: number; o: string; h: st
       });
 
       const series = chart.addCandlestickSeries({
-        upColor:   "#4ade80", downColor: "#f87171",
-        borderUpColor: "#4ade80", borderDownColor: "#f87171",
-        wickUpColor:   "#4ade80", wickDownColor:   "#f87171",
+        upColor:   "#6aaa7a", downColor: "#b06868",
+        borderUpColor: "#6aaa7a", borderDownColor: "#b06868",
+        wickUpColor:   "#6aaa7a", wickDownColor:   "#b06868",
       });
 
       series.setData(
@@ -201,7 +210,7 @@ function FundingChart({ history }: { history: Array<{ time: number; fundingRate:
       {history.slice(-48).map((h, i) => {
         const rate  = parseFloat(h.fundingRate);
         const pct   = max > 0 ? Math.abs(rate) / max : 0;
-        const color = rate > 0 ? "#4ade80" : "#f87171";
+        const color = rate > 0 ? "#6aaa7a" : "#b06868";
         return (
           <div key={i} title={`${(rate * 100).toFixed(4)}%`}
             style={{ flex: 1, height: `${Math.max(pct * 100, 4)}%`, background: color, opacity: 0.7, borderRadius: "1px" }} />

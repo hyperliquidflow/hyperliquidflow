@@ -6,10 +6,10 @@
   :root {
     /* Dark theme – HyperliquidFLOW */
     --background:          220 13% 5%;    /* #0A0B0D */
-    --foreground:          0 0% 95%;
+    --foreground:          0 0% 98%;
 
     --card:                220 11% 9%;    /* #13151A */
-    --card-foreground:     0 0% 95%;
+    --card-foreground:     0 0% 98%;
 
     --popover:             220 11% 9%;
     --popover-foreground:  0 0% 95%;
@@ -36,8 +36,8 @@
     --radius:              0.5rem;
 
     /* Signal colour tokens */
-    --signal-long:         142 71% 45%;  /* green  */
-    --signal-short:        0 72% 51%;    /* red    */
+    --signal-long:         142 35% 48%;  /* muted green  */
+    --signal-short:        0 40% 48%;    /* muted red    */
     --signal-neutral:      43 96% 56%;   /* amber  */
     --signal-accent:       258 95% 68%;  /* purple */
   }
@@ -78,10 +78,10 @@
 
   /* Glow effect for active signals */
   .glow-green {
-    box-shadow: 0 0 12px 2px rgba(34, 197, 94, 0.25);
+    box-shadow: 0 0 8px 1px rgba(80, 150, 100, 0.18);
   }
   .glow-red {
-    box-shadow: 0 0 12px 2px rgba(239, 68, 68, 0.25);
+    box-shadow: 0 0 8px 1px rgba(170, 90, 90, 0.18);
   }
   .glow-accent {
     box-shadow: 0 0 12px 2px rgba(124, 92, 252, 0.35);
@@ -90,5 +90,34 @@
   /* Monospace numerics */
   .tabular {
     font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Hover interactions (template-grey style) ── */
+  .card-hover {
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .card-hover:hover {
+    border-color: rgba(180,180,180,0.22) !important;
+    background: #141414 !important;
+  }
+
+  .pill-btn-hover {
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+  }
+  .pill-btn-hover:hover {
+    border-color: rgba(180,180,180,0.28) !important;
+    color: #f0f0f0 !important;
+    background: rgba(180,180,180,0.09) !important;
+  }
+
+  .tab-hover {
+    transition: color 0.15s, border-color 0.15s;
+  }
+  .tab-hover:hover {
+    color: rgba(255,255,255,0.75) !important;
+  }
+  .tab-hover.tab-active {
+    color: #f0f0f0 !important;
+    border-bottom-color: #606060 !important;
   }
 }
