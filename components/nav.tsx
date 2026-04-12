@@ -10,12 +10,11 @@ import { timeAgo } from "@/lib/utils";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 
 const NAV_ITEMS = [
-  { href: "/",          label: "Overview"     },
-  { href: "/morning",   label: "Daily Brief"  },
-  { href: "/wallets",   label: "Wallets"      },
-  { href: "/signals",   label: "Signals"      },
-  { href: "/recipes",   label: "Recipes"      },
-  { href: "/imbalance", label: "Imbalance"    },
+  { href: "/",        label: "Overview"    },
+  { href: "/morning", label: "Daily Brief" },
+  { href: "/wallets", label: "Wallets"     },
+  { href: "/signals", label: "Signals"     },
+  { href: "/edge",    label: "Edge"        },
 ] as const;
 
 const LOGO = "HyperliquidFLOW";
