@@ -9,30 +9,13 @@ import { useQuery } from "@tanstack/react-query";
 import { timeAgo } from "@/lib/utils";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 
-const NAV_SECTIONS = [
-  {
-    label: "DASHBOARD",
-    items: [
-      { href: "/",          label: "Overview"    },
-      { href: "/signals",   label: "Signals"     },
-      { href: "/wallets",   label: "Wallets"     },
-      { href: "/scanner",   label: "Scanner"     },
-    ],
-  },
-  {
-    label: "STRATEGY",
-    items: [
-      { href: "/recipes",    label: "Recipes"     },
-      { href: "/morning",    label: "Daily Brief" },
-    ],
-  },
-  {
-    label: "RESEARCH",
-    items: [
-      { href: "/stalker",    label: "Stalker"     },
-      { href: "/contrarian", label: "Contrarian"  },
-    ],
-  },
+const NAV_ITEMS = [
+  { href: "/",          label: "Overview"     },
+  { href: "/morning",   label: "Daily Brief"  },
+  { href: "/wallets",   label: "Wallets"      },
+  { href: "/signals",   label: "Signals"      },
+  { href: "/recipes",   label: "Recipes"      },
+  { href: "/imbalance", label: "Imbalance"    },
 ] as const;
 
 const LOGO = "HyperliquidFLOW";
@@ -148,55 +131,40 @@ export function Nav() {
           </div>
         </div>
 
-        {/* Nav sections */}
-        {NAV_SECTIONS.map(({ label, items }) => (
-          <div key={label}>
-            <div
-              style={{
-                fontSize: "11px",
-                fontWeight: 700,
-                letterSpacing: "0.12em",
-                textTransform: "uppercase",
-                color: "rgba(255,255,255,0.22)",
-                padding: "16px 20px 6px",
-                userSelect: "none",
-              }}
-            >
-              {label}
-            </div>
-            {items.map(({ href, label: itemLabel }) => {
-              const active =
-                pathname === href ||
-                (href !== "/" && pathname.startsWith(href));
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  className="glow-btn"
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    padding: "10px 20px",
-                    fontSize: "14px",
-                    fontWeight: 500,
-                    color: active ? "#f0f0f0" : "rgba(255,255,255,0.44)",
-                    textDecoration: "none",
-                    borderLeft: active
-                      ? "2px solid rgba(151,253,229,0.7)"
-                      : "2px solid transparent",
-                    background: active
-                      ? "rgba(151,253,229,0.05)"
-                      : "transparent",
-                    transition: "color 0.15s, border-color 0.15s, background 0.15s",
-                    userSelect: "none",
-                  }}
-                >
-                  {itemLabel}
-                </Link>
-              );
-            })}
-          </div>
-        ))}
+        {/* Nav items */}
+        <div style={{ paddingTop: "8px" }}>
+          {NAV_ITEMS.map(({ href, label }) => {
+            const active =
+              pathname === href ||
+              (href !== "/" && pathname.startsWith(href));
+            return (
+              <Link
+                key={href}
+                href={href}
+                className="glow-btn"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  padding: "10px 20px",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  color: active ? "#f0f0f0" : "rgba(255,255,255,0.44)",
+                  textDecoration: "none",
+                  borderLeft: active
+                    ? "2px solid rgba(151,253,229,0.7)"
+                    : "2px solid transparent",
+                  background: active
+                    ? "rgba(151,253,229,0.05)"
+                    : "transparent",
+                  transition: "color 0.15s, border-color 0.15s, background 0.15s",
+                  userSelect: "none",
+                }}
+              >
+                {label}
+              </Link>
+            );
+          })}
+        </div>
 
         {/* Live footer */}
         <div

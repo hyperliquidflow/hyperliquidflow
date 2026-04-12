@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "HyperliquidFLOW — Smart Money Sentinel",
+  title: "HyperliquidFLOW: Smart Money Sentinel",
   description:
     "Free autonomous dashboard tracking the top 500 Hyperliquid wallets. For educational purposes only. Not financial advice.",
 };

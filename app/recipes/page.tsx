@@ -6,15 +6,15 @@ import { formatPct, timeAgo } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 
 const RECIPE_META: Record<string, { label: string; color: string; desc: string }> = {
-  momentum_stack:       { label: "Momentum Stack",       color: "#6a6a6a", desc: "≥8 wallets add >$500K same direction in <5 min" },
-  divergence_squeeze:   { label: "Divergence Squeeze",   color: "#6a6a6a", desc: "Exposure rising, price flat, liq buffer <15%" },
-  accumulation_reentry: { label: "Accumulation Re-Entry",color: "#6a6a6a", desc: "Winners re-enter after >8% drawdown in 4h" },
-  rotation_carry:       { label: "Rotation Carry",       color: "#6a6a6a", desc: "New position in positive-funding perp, >60% hist win" },
-  liq_rebound:          { label: "Liq Rebound",          color: "#6a6a6a", desc: "Cohort exposure drops — possible cascade (approx.)" },
-  streak_continuation:  { label: "Streak Continuation",  color: "#6a6a6a", desc: "5+ win streak with Sharpe proxy >0.6" },
-  funding_divergence:   { label: "Funding Divergence",   color: "#6a6a6a", desc: "Smart money vs retail OI divergence + extreme funding" },
-  whale_validated:      { label: "Whale Validated",      color: "#6a6a6a", desc: "Signal confirmed by ≥3 high-score wallets" },
-  anti_whale_trap:      { label: "Anti-Whale Trap",      color: "#6a6a6a", desc: "Rapid exposure reduction in negative regime" },
+  momentum_stack:       { label: "Whale Convergence",      color: "#6a6a6a", desc: "8+ wallets add $500K+ same direction in under 5 min" },
+  divergence_squeeze:   { label: "Silent Loading",          color: "#6a6a6a", desc: "Exposure rising, price flat, liq buffer below 15%" },
+  accumulation_reentry: { label: "Dip Conviction",          color: "#6a6a6a", desc: "High-score wallets re-enter after 8%+ drawdown in 4h" },
+  rotation_carry:       { label: "Funded Edge",             color: "#6a6a6a", desc: "New position in positive-funding perp with 60%+ hist win rate" },
+  liq_rebound:          { label: "Liquidation Flush",       color: "#6a6a6a", desc: "Smart Money exposure drops sharply, possible cascade (approx.)" },
+  streak_continuation:  { label: "Hot Streak",              color: "#6a6a6a", desc: "5+ trade win streak with Sharpe proxy above 0.6" },
+  funding_divergence:   { label: "Smart Money vs. Retail",  color: "#6a6a6a", desc: "Smart Money and non-Smart Money OI diverge with extreme funding" },
+  whale_validated:      { label: "Alpha Confirmation",      color: "#6a6a6a", desc: "Signal confirmed by 3+ high-score wallets" },
+  anti_whale_trap:      { label: "Smart Exit Signal",       color: "#6a6a6a", desc: "High-score wallet rapidly cutting exposure in adverse Market Vibes" },
 };
 
 import { color, card as C, type as T, space } from "@/lib/design-tokens";
@@ -75,9 +75,9 @@ function RecipeLabInner() {
 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "8px" }}>
                   {[
-                    { label: "Win Rate",  value: winRate != null ? formatPct(winRate) : "—", color: winColor },
+                    { label: "Win Rate",  value: winRate != null ? formatPct(winRate) : "n/a", color: winColor },
                     { label: "Signals",   value: `${signals}` },
-                    { label: "Avg EV",    value: ev != null ? (ev * 100).toFixed(0) : "—" },
+                    { label: "Avg EV",    value: ev != null ? (ev * 100).toFixed(0) : "n/a" },
                   ].map(({ label: l, value, color: c }) => (
                     <div key={l}>
                       <div style={{ fontSize: "9px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.32)", marginBottom: "3px" }}>{l}</div>
@@ -96,7 +96,7 @@ function RecipeLabInner() {
 
                 {signals === 0 && (
                   <div style={{ marginTop: "8px", fontSize: "10px", color: "rgba(255,255,255,0.32)" }}>
-                    No signals recorded yet — waiting for market conditions
+                    No signals recorded yet, waiting for market conditions
                   </div>
                 )}
 
@@ -118,15 +118,15 @@ function RecipeLabInner() {
           <div>
             <p style={{ ...S.muted, lineHeight: 1.7 }}>
               Each signal is logged to <code style={{ fontFamily: "var(--font-mono)", fontSize: "11px" }}>signals_history</code> at detection time.
-              Win/loss is measured by checking if the price moved in the signal's direction within the next 4 hours.
-              A win is defined as ≥0.5% favourable move. Performance is recalculated daily by the GitHub Actions scan.
+              Win/loss is measured by checking if the price moved in the signal direction within the next 4 hours.
+              A win is defined as a 0.5%+ favourable move. Performance is recalculated daily by the GitHub Actions scan.
             </p>
           </div>
           <div>
             <p style={{ ...S.muted, lineHeight: 1.7 }}>
               EV scores are computed per-signal using each wallet's historical win rate, average win/loss size,
               and estimated slippage from the L2 order book at signal time.
-              Recipes with &lt;10 historical signals show "—" for EV — insufficient data for reliable estimation.
+              Recipes with fewer than 10 historical signals show no EV score: insufficient data for a reliable estimate.
             </p>
           </div>
         </div>

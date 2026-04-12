@@ -52,9 +52,9 @@ function MorningScanInner() {
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "16px" }}>
-        {/* Cohort health */}
+        {/* Smart Money health */}
         <div style={S.card}>
-          <div style={S.hdr}><span style={S.label}>Cohort Health</span></div>
+          <div style={S.hdr}><span style={S.label}>Smart Money Health</span></div>
           <div style={{ padding: "16px 20px" }}>
             {[
               { label: "Active Wallets",    value: `${data.cohort_health.active_wallets}` },
@@ -109,7 +109,7 @@ function MorningScanInner() {
 
       {/* Top movers */}
       <div style={S.card}>
-        <div style={S.hdr}><span style={S.label}>Top Cohort Movers (24h)</span></div>
+        <div style={S.hdr}><span style={S.label}>Top Smart Money Movers (24h)</span></div>
         {data.top_movers.map((m, i) => {
           const dirColor = m.direction === "LONG" ? "#6aaa7a" : "#b06868";
           return (

@@ -8,15 +8,15 @@ import type { MarketTickerEntry } from "@/app/api/market-ticker/route";
 import { PageHeader } from "@/components/page-header";
 
 const RECIPE_LABELS: Record<string, string> = {
-  momentum_stack:       "Momentum Stack",
-  divergence_squeeze:   "Divergence Squeeze",
-  accumulation_reentry: "Accumulation Re-Entry",
-  rotation_carry:       "Rotation Carry",
-  liq_rebound:          "Liq Rebound",
-  streak_continuation:  "Streak Continuation",
-  funding_divergence:   "Funding Divergence",
-  whale_validated:      "Whale Validated",
-  anti_whale_trap:      "Anti-Whale Trap",
+  momentum_stack:       "Whale Convergence",
+  divergence_squeeze:   "Silent Loading",
+  accumulation_reentry: "Dip Conviction",
+  rotation_carry:       "Funded Edge",
+  liq_rebound:          "Liquidation Flush",
+  streak_continuation:  "Hot Streak",
+  funding_divergence:   "Smart Money vs. Retail",
+  whale_validated:      "Alpha Confirmation",
+  anti_whale_trap:      "Smart Exit Signal",
 };
 
 // Coin-specific sparkline paths taken directly from layout-3-siderail prototype.
@@ -213,8 +213,8 @@ function OverviewInner() {
         {/* ── Stat row ── */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "16px" }}>
           {[
-            { label: "Active Cohort",  value: `${data.wallet_count}`, sub: "wallets tracked" },
-            { label: "Book Value",     value: formatUsd(totalAv),      sub: "across cohort" },
+            { label: "Smart Money",    value: `${data.wallet_count}`, sub: "wallets tracked" },
+            { label: "Book Value",     value: formatUsd(totalAv),      sub: "across Smart Money" },
             { label: "Unrealised PnL", value: formatUsd(totalPnl), color: totalPnl >= 0 ? "#6aaa7a" : "#b06868", sub: "open positions" },
             { label: "Avg Score",      value: avgScore.toFixed(2),     sub: "out of 1.00" },
           ].map(({ label, value, sub, color }) => (
@@ -290,7 +290,7 @@ function OverviewInner() {
                 </div>
               ))}
               {data.recent_signals.length === 0 && (
-                <div style={{ padding: "32px 20px", textAlign: "center", ...S.muted }}>No signals yet — waiting for next refresh cycle</div>
+                <div style={{ padding: "32px 20px", textAlign: "center", ...S.muted }}>No signals yet, waiting for next refresh cycle</div>
               )}
             </div>
           </div>
@@ -310,7 +310,7 @@ function OverviewInner() {
                       {w.overall_score.toFixed(2)}
                     </span>
                   </div>
-                  <a href={`/stalker?address=${w.address}`} style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: "13px", color: "rgba(156,163,175,0.8)", marginTop: "4px", textDecoration: "none" }}>
+                  <a href={`/wallets?address=${w.address}`} style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: "13px", color: "rgba(156,163,175,0.8)", marginTop: "4px", textDecoration: "none" }}>
                     {truncateAddress(w.address)}
                   </a>
                   <div style={{ height: "2px", background: "rgba(255,255,255,0.06)", borderRadius: "1px", marginTop: "8px" }}>
@@ -322,13 +322,13 @@ function OverviewInner() {
           </div>
         </div>
 
-        {/* ── Bottom row: Regime history + Cohort exposure ── */}
+        {/* Bottom row: Market Vibes history + Smart Money exposure */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
 
-          {/* Regime History — 7-day dot timeline */}
+          {/* Market Vibes History - 7-day dot timeline */}
           <div style={S.card}>
             <div style={S.hdr}>
-              <span style={S.title}>Regime History</span>
+              <span style={S.title}>Market Vibes</span>
               <span style={{ ...S.link, cursor: "default" }}>7 days</span>
             </div>
             <div style={{ padding: "18px 20px 20px", display: "flex", alignItems: "flex-start", position: "relative" }}>
@@ -358,10 +358,10 @@ function OverviewInner() {
             </div>
           </div>
 
-          {/* Cohort Exposure — coin bars derived from signal activity */}
+          {/* Smart Money Exposure - coin bars derived from signal activity */}
           <div style={S.card}>
             <div style={S.hdr}>
-              <span style={S.title}>Cohort Exposure</span>
+              <span style={S.title}>Smart Money Exposure</span>
               <span style={{ ...S.link, cursor: "default" }}>by position size</span>
             </div>
             <div style={{ padding: "12px 20px 18px", display: "flex", flexDirection: "column", gap: "11px" }}>

@@ -8,15 +8,15 @@ import { PageHeader } from "@/components/page-header";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 
 const RECIPE_META: Record<string, { label: string; desc: string }> = {
-  momentum_stack:       { label: "Momentum Stack",     desc: "≥8 wallets add >$500K same direction in <5 min" },
-  divergence_squeeze:   { label: "Divergence Squeeze", desc: "Exposure rising, price flat, liq buffer <15%" },
-  accumulation_reentry: { label: "Accumulation Re-Entry", desc: "Winners re-enter after >8% drawdown in 4h" },
-  rotation_carry:       { label: "Rotation Carry",     desc: "New position in positive-funding perp, >60% hist win" },
-  liq_rebound:          { label: "Liq Rebound ⚠",      desc: "Cohort exposure drops — possible cascade (approx.)" },
-  streak_continuation:  { label: "Streak Continuation", desc: "5+ win streak with Sharpe proxy >0.6" },
-  funding_divergence:   { label: "Funding Divergence", desc: "Smart money vs retail OI divergence + extreme funding" },
-  whale_validated:      { label: "Whale Validated ✓",  desc: "Signal confirmed by ≥3 high-score wallets" },
-  anti_whale_trap:      { label: "Anti-Whale Trap",    desc: "Rapid exposure reduction in negative regime" },
+  momentum_stack:       { label: "Whale Convergence",        desc: "8+ wallets add $500K+ same direction in under 5 min" },
+  divergence_squeeze:   { label: "Silent Loading",           desc: "Exposure rising, price flat, liq buffer below 15%" },
+  accumulation_reentry: { label: "Dip Conviction",           desc: "High-score wallets re-enter after 8%+ drawdown in 4h" },
+  rotation_carry:       { label: "Funded Edge",              desc: "New position in positive-funding perp with 60%+ hist win rate" },
+  liq_rebound:          { label: "Liquidation Flush",        desc: "Smart Money exposure drops sharply, possible cascade (approx.)" },
+  streak_continuation:  { label: "Hot Streak",               desc: "5+ trade win streak with Sharpe proxy above 0.6" },
+  funding_divergence:   { label: "Smart Money vs. Retail",   desc: "Smart Money and non-Smart Money OI diverge with extreme funding" },
+  whale_validated:      { label: "Alpha Confirmation",       desc: "Signal confirmed by 3+ high-score wallets" },
+  anti_whale_trap:      { label: "Smart Exit Signal",        desc: "High-score wallet rapidly cutting exposure in adverse Market Vibes" },
 };
 
 const SIGNAL_TYPE_COLORS: Record<string, string> = {
@@ -64,7 +64,7 @@ function SignalsInner() {
     <>
       <PageHeader
         title="Signals"
-        subtitle={`All 9 recipes · ${data.recent_signals.length} recent signals`}
+        subtitle={`All 9 recipes, ${data.recent_signals.length} recent signals`}
         regime={data.regime}
       />
       <div style={{ ...S.page, paddingTop: "20px" }}>
@@ -167,7 +167,7 @@ function SignalsInner() {
                     <div style={S.muted}>EV</div>
                   </div>
                 ) : (
-                  <div style={{ ...S.muted, flexShrink: 0 }}>—</div>
+                  <div style={{ ...S.muted, flexShrink: 0 }}>n/a</div>
                 )}
               </div>
             );
