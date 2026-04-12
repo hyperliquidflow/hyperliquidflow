@@ -69,8 +69,21 @@ export default function RootLayout({
           zIndex: 0,
         }} />
         <GlowInit />
-        <Nav />
-        <main className="min-h-[calc(100vh-52px)]" style={{ position: "relative", zIndex: 1 }}>{children}</main>
+        <div style={{ display: "flex", minHeight: "100vh" }}>
+          <Nav />
+          <main
+            style={{
+              flex: 1,
+              minWidth: 0,
+              position: "relative",
+              zIndex: 1,
+              marginLeft: "200px",
+            }}
+            className="sidenav-main"
+          >
+            {children}
+          </main>
+        </div>
       </body>
     </html>
   );
