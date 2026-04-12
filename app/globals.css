@@ -161,6 +161,7 @@
   /* ── SideRail responsive layout ── */
   .sidenav {
     transition: transform 0.25s ease;
+    transform: translateX(0);
   }
   .sidenav-hamburger {
     display: none !important;
@@ -178,9 +179,6 @@
     .sidenav-hamburger {
       display: block !important;
     }
-    .sidenav-backdrop {
-      display: block !important;
-    }
   }
 
   /* ── SideRail logo stagger-lift ── */
@@ -189,16 +187,16 @@
     color: #f0f0f0;
   }
 
-  /* ── glow-pulse keyframe (used by live dot + regime chip) ── */
-  @keyframes glow-pulse {
-    0%, 100% { opacity: 1; }
-    50%       { opacity: 0.6; }
-  }
-
   /* ── sidenav-main mobile margin reset ── */
   @media (max-width: 768px) {
     .sidenav-main {
       margin-left: 0 !important;
     }
   }
+}
+
+/* ── glow-pulse keyframe ── */
+@keyframes glow-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.6; }
 }
