@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Layout 3 — Side Rail</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #060606;
+  --green: #6aaa7a;
+  --red: #b06868;
+  --amber: #f59e0b;
+  --blue: #60a5fa;
+  --purple: #c084fc;
+  --mint: rgba(151,253,229,0.85);
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'Geist Mono', monospace;
+}
+
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: #f0f0f0;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  display: flex;
+}
+
+/* BG */
+.bg-aura {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  /* Eased stops eliminate sRGB banding cross-browser — values follow
+     a cubic ease-out curve so each step matches perceptual falloff */
+  background:
+    radial-gradient(ellipse at 100% 100%,
+      rgba(151,253,229,0.20)  0%,
+      rgba(151,253,229,0.148) 19%,
+      rgba(151,253,229,0.108) 34%,
+      rgba(151,253,229,0.076) 47%,
+      rgba(151,253,229,0.055) 56.5%,
+      rgba(151,253,229,0.039) 65%,
+      rgba(151,253,229,0.025) 73%,
+      rgba(151,253,229,0.015) 80.2%,
+      rgba(151,253,229,0.008) 86.1%,
+      rgba(151,253,229,0.004) 91%,
+      rgba(151,253,229,0.002) 95.2%,
+      rgba(151,253,229,0.000) 100%),
+    radial-gradient(ellipse at 100% 100%,
+      rgba(7,39,35,0.30)  0%,
+      rgba(7,39,35,0.221) 19%,
+      rgba(7,39,35,0.162) 34%,
+      rgba(7,39,35,0.115) 47%,
+      rgba(7,39,35,0.083) 56.5%,
+      rgba(7,39,35,0.058) 65%,
+      rgba(7,39,35,0.038) 73%,
+      rgba(7,39,35,0.023) 80.2%,
+      rgba(7,39,35,0.013) 86.1%,
+      rgba(7,39,35,0.006) 91%,
+      rgba(7,39,35,0.002) 95.2%,
+      rgba(7,39,35,0.000) 100%);
+}
+.bg-grain {
+  /* Finer grain (0.90 freq) + opacity inside SVG = pure dithering,
+     no visible texture. Larger tile reduces repetition pattern. */
+  position: fixed; inset: 0; pointer-events: none; z-index: 0; opacity: 0.22;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'%3E%3Cfilter id='n' x='0' y='0'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.90' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.15'/%3E%3C/svg%3E");
+}
+
+/* Side nav */
+.sidenav {
+  width: 200px;
+  min-height: 100vh;
+  background: rgba(8,8,8,0.8);
+  border-right: 1px solid rgba(255,255,255,0.05);
+  display: flex; flex-direction: column;
+  position: fixed; left: 0; top: 0; bottom: 0;
+  z-index: 100;
+  padding: 24px 0;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.sidenav-logo {
+  padding: 0 20px 24px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  margin-bottom: 16px;
+}
+/* logo stagger lift */
+.sidenav-logo-main {
+  font-size: 18px; font-weight: 700; letter-spacing: 0.01em;
+  display: flex; gap: 0; cursor: default;
+}
+.sidenav-logo-main .c {
+  display: inline-block;
+  color: rgba(255,255,255,0.85);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), color 0.25s;
+}
+.sidenav-logo-main:hover .c { color: #f0f0f0; transform: translateY(-3px); }
+.sidenav-logo-main:hover .c:nth-child(1)  { transition-delay: 0ms; }
+.sidenav-logo-main:hover .c:nth-child(2)  { transition-delay: 20ms; }
+.sidenav-logo-main:hover .c:nth-child(3)  { transition-delay: 40ms; }
+.sidenav-logo-main:hover .c:nth-child(4)  { transition-delay: 60ms; }
+.sidenav-logo-main:hover .c:nth-child(5)  { transition-delay: 80ms; }
+.sidenav-logo-main:hover .c:nth-child(6)  { transition-delay: 100ms; }
+.sidenav-logo-main:hover .c:nth-child(7)  { transition-delay: 120ms; }
+.sidenav-logo-main:hover .c:nth-child(8)  { transition-delay: 140ms; }
+.sidenav-logo-main:hover .c:nth-child(9)  { transition-delay: 160ms; }
+.sidenav-logo-main:hover .c:nth-child(10) { transition-delay: 180ms; }
+.sidenav-logo-main:hover .c:nth-child(11) { transition-delay: 200ms; }
+.sidenav-logo-main:hover .c:nth-child(12) { transition-delay: 220ms; }
+.sidenav-logo-main:hover .c:nth-child(13) { transition-delay: 240ms; }
+.sidenav-logo-main:hover .c:nth-child(14) { transition-delay: 260ms; }
+.sidenav-logo-main:hover .c:nth-child(15) { transition-delay: 280ms; }
+.nav-section-label {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+  color: rgba(255,255,255,0.22); padding: 20px 20px 6px;
+}
+.nav-item {
+  display: flex; align-items: center;
+  padding: 10px 20px;
+  font-size: 14px; font-weight: 500;
+  color: rgba(255,255,255,0.42);
+  cursor: pointer; text-decoration: none;
+  border-left: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+  position: relative; overflow: hidden;
+}
+/* Shimmer on hover */
+.nav-item::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(
+    circle at var(--mx, 50%) var(--my, 50%),
+    rgba(255,255,255,0.07) 0%,
+    rgba(255,255,255,0.03) 40%,
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity 0.2s ease-out;
+  pointer-events: none;
+}
+.nav-item:hover::after { opacity: 1; }
+.nav-item:hover { color: rgba(255,255,255,0.75); }
+.nav-item.active {
+  color: #f0f0f0;
+  background: rgba(151,253,229,0.05);
+  border-left-color: rgba(151,253,229,0.7);
+}
+
+/* Live indicator at bottom */
+.sidenav-footer {
+  margin-top: auto;
+  width: 200px;
+  min-height: 72px;
+  padding: 0;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  text-align: center;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+}
+.live-row { display: inline-flex; align-items: center; gap: 8px; }
+.live-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green); box-shadow: 0 0 6px var(--green);
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+@keyframes glow-pulse { 0%,100%{opacity:1;box-shadow:0 0 6px var(--green)} 50%{opacity:0.6;box-shadow:0 0 12px var(--green)} }
+.live-text { font-size: 13px; color: rgba(255,255,255,0.5); }
+.live-time { font-size: 12px; color: rgba(255,255,255,0.28); margin-top: 3px; font-family: var(--font-mono); text-align: center; width: 100%; }
+
+/* Main area */
+.main {
+  margin-left: 200px;
+  flex: 1;
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+}
+
+/* Header strip */
+.main-header {
+  padding: 28px 32px 0;
+  display: flex; align-items: flex-start; justify-content: space-between;
+}
+.page-title { font-size: 26px; font-weight: 700; color: #f0f0f0; }
+.page-subtitle { font-size: 14px; color: rgba(255,255,255,0.38); margin-top: 4px; }
+.regime-chip {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 20px; border-radius: 10px;
+  background: rgba(106,170,122,0.08);
+  border: 1px solid rgba(106,170,122,0.2);
+}
+.regime-chip-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); animation: glow-pulse 2s ease-in-out infinite; }
+.regime-chip-label { font-size: 16px; font-weight: 700; color: var(--green); }
+.regime-chip-meta { font-size: 12px; color: rgba(255,255,255,0.36); margin-top: 1px; }
+
+/* Content */
+.content { padding: 24px 32px 32px; }
+
+/* Stat row */
+.stat-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+.stat-card {
+  padding: 20px;
+  background: rgba(12,12,12,0.7);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 12px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 2px 20px rgba(0,0,0,0.4);
+  transition: border-color 0.2s, background 0.2s;
+}
+.stat-card:hover { border-color: rgba(255,255,255,0.12); background: rgba(18,18,18,0.7); }
+.stat-label { font-size: 12px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.38); }
+.stat-value { font-size: 31px; font-weight: 700; margin-top: 10px; line-height: 1; font-variant-numeric: tabular-nums; }
+.stat-sub { font-size: 13px; color: rgba(255,255,255,0.32); margin-top: 6px; }
+
+/* Two col */
+.two-col { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; }
+
+/* Signal list */
+.card {
+  background: rgba(12,12,12,0.7);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 12px;
+  overflow: hidden;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 2px 20px rgba(0,0,0,0.4);
+}
+.card-hdr {
+  padding: 14px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  display: flex; align-items: center;
+}
+.card-title { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255,255,255,0.5); }
+.card-link { margin-left: auto; font-size: 13px; color: rgba(255,255,255,0.28); text-decoration: none; }
+.card-link:hover { color: rgba(255,255,255,0.6); }
+
+/* Signal rows — horizontal layout */
+.sig-row {
+  display: grid;
+  grid-template-columns: 28px 1fr auto auto auto;
+  align-items: center; gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  transition: background 0.12s;
+}
+.sig-row:hover { background: rgba(255,255,255,0.02); }
+.sig-row:last-child { border-bottom: none; }
+.sig-num { font-size: 12px; color: rgba(255,255,255,0.2); text-align: right; font-variant-numeric: tabular-nums; }
+.sig-main {}
+.sig-name { font-size: 16px; font-weight: 600; color: #f0f0f0; }
+.sig-sub { font-size: 13px; color: rgba(255,255,255,0.36); margin-top: 2px; }
+.sig-coin-tag {
+  font-size: 13px; font-weight: 700; padding: 2px 8px; border-radius: 5px;
+  background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.7);
+  font-family: var(--font-mono);
+}
+.sig-dir {
+  font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 4px;
+  letter-spacing: 0.04em;
+}
+.dir-long { background: rgba(106,170,122,0.1); color: var(--green); border: 1px solid rgba(106,170,122,0.2); }
+.dir-short { background: rgba(176,104,104,0.1); color: var(--red); border: 1px solid rgba(176,104,104,0.2); }
+.sig-ev { font-size: 13px; color: rgba(255,255,255,0.35); font-family: var(--font-mono); text-align: right; width: 46px; }
+
+/* Wallet card — stacked layout */
+.wallet-item {
+  padding: 14px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  transition: background 0.12s;
+}
+.wallet-item:hover { background: rgba(255,255,255,0.02); }
+.wallet-item:last-child { border-bottom: none; }
+.wallet-top { display: flex; align-items: center; justify-content: space-between; }
+.wallet-rank { font-size: 12px; color: rgba(255,255,255,0.22); }
+.wallet-score-num { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.wallet-addr { font-family: var(--font-mono); font-size: 13px; color: rgba(156,163,175,0.8); margin-top: 4px; }
+.wallet-bar { height: 2px; background: rgba(255,255,255,0.06); border-radius: 1px; margin-top: 8px; }
+.wallet-bar-fill { height: 100%; border-radius: 1px; transition: width 0.3s; }
+</style>
+</head>
+<body>
+<div class="bg-aura"></div>
+<div class="bg-grain"></div>
+
+<!-- Side nav -->
+<nav class="sidenav">
+  <div class="sidenav-logo">
+    <div class="sidenav-logo-main" id="sidelogo"></div>
+  </div>
+
+  <div class="nav-section-label">Dashboard</div>
+  <a class="nav-item active" href="#">Overview</a>
+  <a class="nav-item" href="#">Signals</a>
+  <a class="nav-item" href="#">Wallets</a>
+  <a class="nav-item" href="#">Scanner</a>
+
+  <div class="nav-section-label">Strategy</div>
+  <a class="nav-item" href="#">Recipes</a>
+  <a class="nav-item" href="#">Morning Brief</a>
+
+  <div class="nav-section-label">Research</div>
+  <a class="nav-item" href="#">Stalker</a>
+  <a class="nav-item" href="#">Contrarian</a>
+
+  <div class="sidenav-footer">
+    <div class="live-row">
+      <div class="live-dot"></div>
+      <div class="live-text">Monitoring</div>
+    </div>
+    <div class="live-time">Updated 4m ago</div>
+  </div>
+</nav>
+
+<!-- Main -->
+<div class="main">
+  <div class="main-header">
+    <div>
+      <div class="page-title">Overview</div>
+      <div class="page-subtitle">Real-time cohort intelligence · 47 wallets tracked</div>
+    </div>
+    <div class="regime-chip">
+      <div class="regime-chip-dot"></div>
+      <div>
+        <div class="regime-chip-label">BULLISH</div>
+        <div class="regime-chip-meta">BTC +2.34%</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="content">
+    <!-- Stats -->
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="stat-label">Active Cohort</div>
+        <div class="stat-value">47</div>
+        <div class="stat-sub">wallets tracked</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Book Value</div>
+        <div class="stat-value">$12.4M</div>
+        <div class="stat-sub">across cohort</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Unrealised PnL</div>
+        <div class="stat-value" style="color:var(--green);">+$284K</div>
+        <div class="stat-sub">open positions</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Avg Score</div>
+        <div class="stat-value">0.74</div>
+        <div class="stat-sub">out of 1.00</div>
+      </div>
+    </div>
+
+    <!-- Two column -->
+    <div class="two-col">
+      <!-- Signals -->
+      <div class="card">
+        <div class="card-hdr">
+          <span class="card-title">Recent Signals</span>
+          <a class="card-link" href="#">View all →</a>
+        </div>
+        <div>
+          <div class="sig-row">
+            <span class="sig-num">1</span>
+            <div class="sig-main"><div class="sig-name">Momentum Stack</div><div class="sig-sub">3 min ago</div></div>
+            <span class="sig-coin-tag">BTC</span>
+            <span class="sig-dir dir-long">LONG</span>
+            <span class="sig-ev">EV 82</span>
+          </div>
+          <div class="sig-row">
+            <span class="sig-num">2</span>
+            <div class="sig-main"><div class="sig-name">Divergence Squeeze</div><div class="sig-sub">11 min ago</div></div>
+            <span class="sig-coin-tag">ETH</span>
+            <span class="sig-dir dir-short">SHORT</span>
+            <span class="sig-ev">EV 71</span>
+          </div>
+          <div class="sig-row">
+            <span class="sig-num">3</span>
+            <div class="sig-main"><div class="sig-name">Whale Validated</div><div class="sig-sub">22 min ago</div></div>
+            <span class="sig-coin-tag">SOL</span>
+            <span class="sig-dir dir-long">LONG</span>
+            <span class="sig-ev">EV 68</span>
+          </div>
+          <div class="sig-row">
+            <span class="sig-num">4</span>
+            <div class="sig-main"><div class="sig-name">Accumulation Re-Entry</div><div class="sig-sub">35 min ago</div></div>
+            <span class="sig-coin-tag">ARB</span>
+            <span class="sig-dir dir-long">LONG</span>
+            <span class="sig-ev">EV 59</span>
+          </div>
+          <div class="sig-row">
+            <span class="sig-num">5</span>
+            <div class="sig-main"><div class="sig-name">Funding Divergence</div><div class="sig-sub">47 min ago</div></div>
+            <span class="sig-coin-tag">LINK</span>
+            <span class="sig-dir dir-short">SHORT</span>
+            <span class="sig-ev">EV 55</span>
+          </div>
+          <div class="sig-row">
+            <span class="sig-num">6</span>
+            <div class="sig-main"><div class="sig-name">Liq Rebound</div><div class="sig-sub">1h ago</div></div>
+            <span class="sig-coin-tag">AVAX</span>
+            <span class="sig-dir dir-long">LONG</span>
+            <span class="sig-ev">EV 51</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Wallets -->
+      <div class="card">
+        <div class="card-hdr">
+          <span class="card-title">Top Wallets</span>
+          <a class="card-link" href="#">Full report →</a>
+        </div>
+        <div>
+          <div class="wallet-item">
+            <div class="wallet-top">
+              <span class="wallet-rank">#1</span>
+              <span class="wallet-score-num" style="color:var(--green);">0.92</span>
+            </div>
+            <div class="wallet-addr">0x4f3a…c92e</div>
+            <div class="wallet-bar"><div class="wallet-bar-fill" style="width:92%;background:var(--green);"></div></div>
+          </div>
+          <div class="wallet-item">
+            <div class="wallet-top">
+              <span class="wallet-rank">#2</span>
+              <span class="wallet-score-num" style="color:var(--green);">0.88</span>
+            </div>
+            <div class="wallet-addr">0x1b8c…d441</div>
+            <div class="wallet-bar"><div class="wallet-bar-fill" style="width:88%;background:var(--green);"></div></div>
+          </div>
+          <div class="wallet-item">
+            <div class="wallet-top">
+              <span class="wallet-rank">#3</span>
+              <span class="wallet-score-num" style="color:var(--green);">0.81</span>
+            </div>
+            <div class="wallet-addr">0x7e2d…0f17</div>
+            <div class="wallet-bar"><div class="wallet-bar-fill" style="width:81%;background:var(--green);"></div></div>
+          </div>
+          <div class="wallet-item">
+            <div class="wallet-top">
+              <span class="wallet-rank">#4</span>
+              <span class="wallet-score-num">0.74</span>
+            </div>
+            <div class="wallet-addr">0xa39b…5522</div>
+            <div class="wallet-bar"><div class="wallet-bar-fill" style="width:74%;background:#606060;"></div></div>
+          </div>
+          <div class="wallet-item">
+            <div class="wallet-top">
+              <span class="wallet-rank">#5</span>
+              <span class="wallet-score-num">0.69</span>
+            </div>
+            <div class="wallet-addr">0x8c11…b33a</div>
+            <div class="wallet-bar"><div class="wallet-bar-fill" style="width:69%;background:#606060;"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Nav shimmer
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.addEventListener('mousemove', e => {
+      const r = el.getBoundingClientRect();
+      el.style.setProperty('--mx', ((e.clientX - r.left) / r.width * 100) + '%');
+      el.style.setProperty('--my', ((e.clientY - r.top) / r.height * 100) + '%');
+    });
+  });
+  // Logo stagger lift
+  const logo = document.getElementById('sidelogo');
+  'HyperliquidFLOW'.split('').forEach(ch => {
+    const s = document.createElement('span');
+    s.className = 'c';
+    s.textContent = ch;
+    logo.appendChild(s);
+  });
+</script>
+</body>
+</html>

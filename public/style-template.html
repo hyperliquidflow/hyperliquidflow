@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HyperliquidFLOW — Style Template</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   HYPERLIQUIDFLOW — MASTER STYLE TEMPLATE
+   All design tokens, components, and patterns in one isolated file.
+   Edit here, then export to the live app.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Reset ──────────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Google Fonts ────────────────────────────────────────────────────────── */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap');
+
+/* ══════════════════════════════════════════════════════════════════════════
+   DESIGN TOKENS
+   ══════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* Background */
+  --bg:              #060606;
+  --bg-card:         rgba(14, 14, 14, 0.65);
+  --bg-input:        #141414;
+  --bg-nav:          rgba(9, 9, 9, 0.96);
+
+  /* Borders */
+  --border-card:     rgba(255, 255, 255, 0.07);
+  --border-subtle:   rgba(180, 180, 180, 0.06);
+  --border-input:    rgba(180, 180, 180, 0.12);
+  --border-active:   rgba(255, 255, 255, 0.18);
+
+  /* Text */
+  --text-primary:    #f0f0f0;
+  --text-secondary:  rgba(255, 255, 255, 0.69);
+  --text-muted:      rgba(255, 255, 255, 0.44);
+  --text-dim:        rgba(255, 255, 255, 0.28);
+
+  /* Signal colours */
+  --green:           #6aaa7a;
+  --red:             #b06868;
+  --amber:           #f59e0b;
+  --blue:            #60a5fa;
+  --purple:          #c084fc;
+  --neutral:         #9ca3af;
+
+  /* Shadows */
+  --shadow-card:     0 4px 24px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04);
+  --shadow-btn:      0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08);
+  --shadow-pill:     0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05);
+
+  /* Glass blur */
+  --blur-card:       blur(20px) saturate(160%);
+  --blur-nav:        blur(12px) saturate(160%);
+
+  /* Typography */
+  --font-sans:       'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono:       'Geist Mono', 'SF Mono', monospace;
+
+  /* Aura accent (corner glow) */
+  --aura-r: 151; --aura-g: 253; --aura-b: 229;
+}
+
+/* ── Base ────────────────────────────────────────────────────────────────── */
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--text-primary);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BACKGROUND SYSTEM
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Corner aura — scrim-gradient (eased stops eliminate banding) */
+.bg-aura {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse at 100% 100%,
+      rgba(151,253,229,0.20) 0%,   rgba(151,253,229,0.148) 19%,
+      rgba(151,253,229,0.108) 34%, rgba(151,253,229,0.076) 47%,
+      rgba(151,253,229,0.055) 56.5%,rgba(151,253,229,0.039) 65%,
+      rgba(151,253,229,0.025) 73%, rgba(151,253,229,0.015) 80.2%,
+      rgba(151,253,229,0.008) 86.1%,rgba(151,253,229,0.004) 91%,
+      rgba(151,253,229,0.002) 95.2%,rgba(151,253,229,0.000) 100%),
+    radial-gradient(ellipse at 100% 100%,
+      rgba(7,39,35,0.30) 0%,   rgba(7,39,35,0.221) 19%,
+      rgba(7,39,35,0.162) 34%, rgba(7,39,35,0.115) 47%,
+      rgba(7,39,35,0.083) 56.5%,rgba(7,39,35,0.058) 65%,
+      rgba(7,39,35,0.038) 73%, rgba(7,39,35,0.023) 80.2%,
+      rgba(7,39,35,0.013) 86.1%,rgba(7,39,35,0.006) 91%,
+      rgba(7,39,35,0.002) 95.2%,rgba(7,39,35,0.001) 98.2%,
+      rgba(7,39,35,0.000) 100%);
+}
+
+/* Grain — desaturated SVG feTurbulence, dithers residual banding */
+.bg-grain {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  opacity: 0.22;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E");
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   NAVIGATION
+   ══════════════════════════════════════════════════════════════════════════ */
+.nav {
+  position: sticky; top: 0; z-index: 200;
+  height: 52px;
+  padding: 0 28px;
+  background: var(--bg-nav);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-subtle);
+  display: flex; align-items: center; gap: 16px;
+}
+
+.nav-logo {
+  font-size: 15px; font-weight: 700; color: var(--text-primary); flex-shrink: 0;
+}
+
+.nav-divider {
+  width: 1px; height: 20px; background: var(--border-subtle); flex-shrink: 0;
+}
+
+.nav-links {
+  display: flex; align-items: center; gap: 2px; overflow-x: auto;
+}
+
+.nav-link {
+  position: relative; overflow: hidden;
+  font-size: 12px; font-weight: 500;
+  color: var(--text-muted);
+  text-decoration: none;
+  padding: 5px 10px;
+  border-radius: 5px;
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.nav-link:hover { color: rgba(255,255,255,0.75); }
+.nav-link.active {
+  color: var(--text-primary);
+  background: rgba(112,112,112,0.10);
+  border-color: var(--border-active);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SHIMMER EFFECT  (cursor-responsive; requires GlowInit JS below)
+   Apply class="glow-btn" to any element.
+   ══════════════════════════════════════════════════════════════════════════ */
+.glow-btn {
+  position: relative;
+  overflow: hidden;
+}
+.glow-btn::after {
+  content: ''; position: absolute; inset: 0;
+  background: radial-gradient(
+    circle at var(--gx, 50%) var(--gy, 50%),
+    rgba(235,235,235,0.13) 0%,
+    rgba(200,200,200,0.06) 35%,
+    transparent 65%
+  );
+  opacity: 0;
+  transition: opacity 0.9s ease-out;
+  pointer-events: none;
+  border-radius: inherit;
+}
+.glow-btn:hover::after {
+  opacity: 1;
+  transition: opacity 0.12s ease-in;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   CARDS
+   ══════════════════════════════════════════════════════════════════════════ */
+.card {
+  background: var(--bg-card);
+  backdrop-filter: var(--blur-card);
+  -webkit-backdrop-filter: var(--blur-card);
+  border: 1px solid var(--border-card);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+
+/* Card with hover (clickable cards — recipe grid etc.) */
+.card-hover {
+  transition: border-color 0.15s, background 0.15s;
+  cursor: pointer;
+}
+.card-hover:hover {
+  border-color: rgba(255,255,255,0.13) !important;
+  background: rgba(22,22,22,0.72) !important;
+}
+
+.card-header {
+  border-bottom: 1px solid var(--border-subtle);
+  padding: 16px 20px;
+  display: flex; align-items: center; gap: 8px;
+}
+
+.card-body { padding: 16px 20px; }
+
+/* Regime / coloured card variant */
+.card-regime {
+  padding: 20px 24px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TYPOGRAPHY HELPERS
+   ══════════════════════════════════════════════════════════════════════════ */
+.label {
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.muted  { color: var(--text-muted);     font-size: 11px; }
+.small  { color: var(--text-secondary); font-size: 11px; }
+.mono   { font-family: var(--font-mono); font-size: 11px; }
+.tabnum { font-variant-numeric: tabular-nums; }
+
+.val-lg { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.val-md { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.val-sm { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.text-green   { color: var(--green);   }
+.text-red     { color: var(--red);     }
+.text-amber   { color: var(--amber);   }
+.text-blue    { color: var(--blue);    }
+.text-purple  { color: var(--purple);  }
+.text-neutral { color: var(--neutral); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   BUTTONS
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* Primary action button (Lookup, Submit, etc.) */
+.btn-primary {
+  position: relative; overflow: hidden;
+  padding: 10px 20px; border-radius: 7px; cursor: pointer;
+  background: linear-gradient(135deg, #1e1e1e 0%, #2e2e2e 100%);
+  border: 1px solid rgba(255,255,255,0.10);
+  color: var(--text-primary); font-size: 13px; font-weight: 700;
+  box-shadow: var(--shadow-btn);
+  transition: opacity 0.15s;
+}
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Dark glass pill (sort controls, regime badge, etc.) */
+.btn-glass {
+  position: relative; overflow: hidden;
+  padding: 5px 12px; border-radius: 7px; cursor: pointer;
+  background: var(--bg-card);
+  backdrop-filter: var(--blur-nav);
+  -webkit-backdrop-filter: var(--blur-nav);
+  border: 1px solid rgba(255,255,255,0.09);
+  color: var(--text-muted);
+  font-size: 11px; font-weight: 600;
+  box-shadow: var(--shadow-pill);
+  transition: color 0.15s, border-color 0.15s;
+}
+.btn-glass.active, .btn-glass:focus {
+  color: var(--text-primary);
+  border-color: rgba(255,255,255,0.22);
+}
+.btn-glass:hover {
+  color: rgba(255,255,255,0.78);
+  border-color: rgba(255,255,255,0.16);
+}
+
+/* iOS-style frosted pill (watch list chips, coin tags, etc.) */
+.ios-pill {
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 7px;
+  color: var(--text-muted);
+  font-size: 12px; font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  box-shadow: var(--shadow-pill);
+  text-decoration: none; display: inline-block;
+}
+.ios-pill:hover {
+  background: rgba(255,255,255,0.10) !important;
+  border-color: rgba(255,255,255,0.16) !important;
+  color: rgba(255,255,255,0.78) !important;
+}
+.ios-pill.active {
+  background: rgba(255,255,255,0.15) !important;
+  border-color: rgba(255,255,255,0.26) !important;
+  color: var(--text-primary) !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.12) !important;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SIGNAL TYPE PILL  (ENTRY / EXIT / SCALE_IN / FLIP / ALERT)
+   ══════════════════════════════════════════════════════════════════════════ */
+.signal-pill {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
+  padding: 3px 7px; border-radius: 4px; flex-shrink: 0;
+  /* set --pill-color inline per signal type */
+  background: color-mix(in srgb, var(--pill-color) 8%, transparent);
+  color: var(--pill-color);
+  border: 1px solid color-mix(in srgb, var(--pill-color) 19%, transparent);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   STATUS DOT  (regime / direction indicator)
+   ══════════════════════════════════════════════════════════════════════════ */
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  /* set background + optional box-shadow inline */
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TABS  (within-page tab bars)
+   ══════════════════════════════════════════════════════════════════════════ */
+.tab-bar {
+  display: flex;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.tab {
+  padding: 12px 20px; font-size: 13px; font-weight: 500;
+  color: var(--text-muted);
+  background: none; border: none; cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  text-transform: capitalize;
+  transition: color 0.15s, border-color 0.15s;
+}
+.tab:hover { color: rgba(255,255,255,0.75); }
+.tab.active { color: var(--text-primary); border-bottom-color: #606060; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   TABLE
+   ══════════════════════════════════════════════════════════════════════════ */
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--text-muted);
+  padding: 12px 16px; text-align: left;
+  background: #0f0f0f;
+}
+.data-table td {
+  font-size: 12px; padding: 12px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.data-table tbody tr {
+  transition: background 0.1s;
+}
+.data-table tbody tr:hover { background: rgba(180,180,180,0.03); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   FORM INPUTS
+   ══════════════════════════════════════════════════════════════════════════ */
+.input {
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  border-radius: 6px; color: var(--text-primary);
+  font-size: 13px; padding: 10px 14px; outline: none;
+  transition: border-color 0.15s;
+  width: 100%;
+}
+.input:focus { border-color: rgba(255,255,255,0.26); }
+.input::placeholder { color: var(--text-muted); }
+
+.select {
+  background: var(--bg-input);
+  border: 1px solid var(--border-input);
+  border-radius: 5px; color: var(--text-primary);
+  font-size: 12px; padding: 6px 10px; outline: none;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   METRIC STAT ROW  (key: value pairs inside cards)
+   ══════════════════════════════════════════════════════════════════════════ */
+.stat-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.stat-row:last-child { border-bottom: none; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   PAGE SHELL
+   ══════════════════════════════════════════════════════════════════════════ */
+.page {
+  padding: 28px;
+  max-width: 1400px;
+  margin: 0 auto;
+  position: relative; z-index: 1;
+}
+
+.page-title { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+.page-sub   { color: var(--text-muted); font-size: 11px; margin-top: 2px; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SCORE BAR  (wallet score visual)
+   ══════════════════════════════════════════════════════════════════════════ */
+.score-bar-track {
+  width: 80px; height: 4px; background: rgba(180,180,180,0.10); border-radius: 2px; overflow: hidden;
+}
+.score-bar-fill {
+  height: 100%; border-radius: 2px;
+  /* set width and background inline */
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   EV BADGE
+   ══════════════════════════════════════════════════════════════════════════ */
+.ev-badge {
+  text-align: right;
+}
+.ev-badge .ev-value { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ev-badge .ev-label { font-size: 10px; color: var(--text-muted); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   LAYOUT TEMPLATE PAGE (this file only)
+   ══════════════════════════════════════════════════════════════════════════ */
+.template-page {
+  max-width: 1100px; margin: 0 auto; padding: 32px 28px 80px;
+  position: relative; z-index: 1;
+}
+.section { margin-bottom: 56px; }
+.section-title {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+  color: rgba(255,255,255,0.22); margin-bottom: 16px;
+  padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.row   { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
+.col   { display: flex; flex-direction: column; gap: 10px; }
+.w-300 { width: 300px; }
+.w-240 { width: 240px; }
+.w-200 { width: 200px; }
+.w-160 { width: 160px; }
+.flex1 { flex: 1; }
+</style>
+</head>
+<body>
+
+<!-- ── Fixed background layers ── -->
+<div class="bg-aura"></div>
+<div class="bg-grain"></div>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     NAVIGATION
+     ══════════════════════════════════════════════════════════════════════ -->
+<nav class="nav">
+  <div class="nav-logo">HyperliquidFLOW</div>
+  <div class="nav-divider"></div>
+  <div class="nav-links" id="nav-links">
+    <a class="nav-link glow-btn active" href="#">Overview</a>
+    <a class="nav-link glow-btn" href="#">Whale Report</a>
+    <a class="nav-link glow-btn" href="#">Signals</a>
+    <a class="nav-link glow-btn" href="#">Contrarian</a>
+    <a class="nav-link glow-btn" href="#">Wallet Stalker</a>
+    <a class="nav-link glow-btn" href="#">Morning Scan</a>
+    <a class="nav-link glow-btn" href="#">Recipes</a>
+    <a class="nav-link glow-btn" href="#">Scanner</a>
+  </div>
+</nav>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     TEMPLATE CONTENT
+     ══════════════════════════════════════════════════════════════════════ -->
+<div class="template-page">
+
+  <!-- ── 1. REGIME BANNER ────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title">1 · Regime Banner</div>
+    <div class="card card-regime" style="background:rgba(106,170,122,0.07); border-color:rgba(106,170,122,0.13); margin-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:16px;">
+        <div class="status-dot" style="background:#6aaa7a; box-shadow:0 0 8px #6aaa7a;"></div>
+        <div>
+          <div style="font-size:18px;font-weight:700;color:#6aaa7a;">BULLISH</div>
+          <div class="muted">Market regime · BTC 24h: +2.4%</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,auto);gap:24px;">
+        <div style="text-align:right;"><div class="muted" style="margin-bottom:2px;">Wallets</div><div class="val-lg">247</div></div>
+        <div style="text-align:right;"><div class="muted" style="margin-bottom:2px;">Cohort AUM</div><div class="val-lg" style="color:#6aaa7a;">$1.24B</div></div>
+        <div style="text-align:right;"><div class="muted" style="margin-bottom:2px;">Avg Score</div><div class="val-lg">0.71</div></div>
+        <div style="text-align:right;"><div class="muted" style="margin-bottom:2px;">Signals 24h</div><div class="val-lg">38</div></div>
+      </div>
+    </div>
+    <!-- Bear variant -->
+    <div class="card card-regime" style="background:rgba(176,104,104,0.07); border-color:rgba(176,104,104,0.13);">
+      <div style="display:flex;align-items:center;gap:16px;">
+        <div class="status-dot" style="background:#b06868; box-shadow:0 0 8px #b06868;"></div>
+        <div>
+          <div style="font-size:18px;font-weight:700;color:#b06868;">BEARISH</div>
+          <div class="muted">Market regime · BTC 24h: −3.1%</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(2,auto);gap:24px;">
+        <div style="text-align:right;"><div class="muted" style="margin-bottom:2px;">30d PnL</div><div class="val-lg" style="color:#b06868;">−$82K</div></div>
+        <div style="text-align:right;"><div class="muted" style="margin-bottom:2px;">Win Rate</div><div class="val-lg">44%</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 2. METRIC STAT CARDS ─────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title">2 · Metric Stat Cards</div>
+    <div class="row">
+      <div class="card" style="padding:20px;width:160px;">
+        <div class="label">Total AUM</div>
+        <div class="val-lg" style="margin-top:6px;color:#6aaa7a;">$1.24B</div>
+        <div class="muted" style="margin-top:4px;">+2.4% 24h</div>
+      </div>
+      <div class="card" style="padding:20px;width:160px;">
+        <div class="label">Avg Score</div>
+        <div class="val-lg" style="margin-top:6px;">0.71</div>
+        <div class="muted" style="margin-top:4px;">247 active wallets</div>
+      </div>
+      <div class="card" style="padding:20px;width:160px;">
+        <div class="label">uPnL</div>
+        <div class="val-lg" style="margin-top:6px;color:#b06868;">−$14.2K</div>
+        <div class="muted" style="margin-top:4px;">unrealized</div>
+      </div>
+      <div class="card" style="padding:20px;width:160px;">
+        <div class="label">Win Streak</div>
+        <div class="val-lg" style="margin-top:6px;color:#f59e0b;">7</div>
+        <div class="muted" style="margin-top:4px;">consecutive wins</div>
+      </div>
+      <div class="card" style="padding:20px;width:160px;">
+        <div class="label">Profit Factor</div>
+        <div class="val-lg" style="margin-top:6px;">2.34</div>
+        <div class="muted" style="margin-top:4px;">ratio</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 3. GLASS CARD WITH HEADER ─────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title">3 · Card With Header + Stat Rows</div>
+    <div class="row">
+      <div class="card w-300">
+        <div class="card-header"><span class="label">Margin Summary</span></div>
+        <div class="card-body">
+          <div class="stat-row"><span class="muted">Account Value</span><span style="font-size:12px;font-variant-numeric:tabular-nums;">$482,310</span></div>
+          <div class="stat-row"><span class="muted">Total Notional</span><span style="font-size:12px;font-variant-numeric:tabular-nums;">$1,240,000</span></div>
+          <div class="stat-row"><span class="muted">Margin Used</span><span style="font-size:12px;font-variant-numeric:tabular-nums;">$96,400</span></div>
+          <div class="stat-row"><span class="muted">Withdrawable</span><span style="font-size:12px;font-variant-numeric:tabular-nums;color:#6aaa7a;">$385,910</span></div>
+        </div>
+      </div>
+      <div class="card w-300">
+        <div class="card-header"><span class="label">Performance</span></div>
+        <div class="card-body">
+          <div class="stat-row"><span class="muted">Win Rate</span><span style="font-size:12px;">68.4%</span></div>
+          <div class="stat-row"><span class="muted">Trade Count</span><span style="font-size:12px;">142</span></div>
+          <div class="stat-row"><span class="muted">Profit Factor</span><span style="font-size:12px;">2.34</span></div>
+          <div class="stat-row"><span class="muted">Current Streak</span><span style="font-size:12px;">7 W</span></div>
+        </div>
+      </div>
+      <div class="card w-240">
+        <div class="card-header"><span class="label">Cohort Health</span></div>
+        <div class="card-body">
+          <div class="stat-row"><span class="muted">Active Wallets</span><span style="font-size:12px;">247</span></div>
+          <div class="stat-row"><span class="muted">Avg Score</span><span style="font-size:12px;">0.71</span></div>
+          <div class="stat-row"><span class="muted">In Profit</span><span style="font-size:12px;color:#6aaa7a;">183</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 4. BUTTONS ────────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title">4 · Buttons</div>
+    <div class="row" style="align-items:center;">
+      <!-- Primary -->
+      <button class="btn-primary glow-btn">Lookup</button>
+      <!-- Glass dark (sort pills) -->
+      <button class="btn-glass glow-btn active">Score</button>
+      <button class="btn-glass glow-btn">AUM</button>
+      <button class="btn-glass glow-btn">uPnL</button>
+      <button class="btn-glass glow-btn">Win Rate</button>
+      <!-- iOS pill (watch list / coin chips) -->
+      <a class="ios-pill" style="padding:5px 12px;">BTC</a>
+      <a class="ios-pill active" style="padding:5px 12px;">ETH</a>
+      <a class="ios-pill" style="padding:5px 12px;">HYPE</a>
+      <a class="ios-pill" style="padding:5px 12px;">SOL</a>
+      <!-- Regime badge (glow-btn variant) -->
+      <div class="glow-btn" style="font-size:11px;font-weight:700;padding:5px 12px;border-radius:7px;background:rgba(14,14,14,0.65);backdrop-filter:blur(12px) saturate(160%);color:#9ca3af;border:1px solid rgba(156,163,175,0.25);box-shadow:0 1px 3px rgba(0,0,0,0.4),inset 0 1px 0 rgba(255,255,255,0.05);">
+        RANGING · BTC +0.0%
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 5. RECIPE CARDS (clickable grid) ──────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title">5 · Recipe Cards (Clickable Grid)</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+      <button class="card card-hover glow-btn" style="padding:16px 18px;text-align:left;border-color:rgba(255,255,255,0.26);background:rgba(96,96,96,0.10);">
+        <div style="font-size:12px;font-weight:600;margin-bottom:6px;">Momentum Stack</div>
+        <div class="muted" style="line-height:1.5;">≥8 wallets add &gt;$500K same direction in &lt;5 min</div>
+      </button>
+      <button class="card card-hover glow-btn" style="padding:16px 18px;text-align:left;">
+        <div style="font-size:12px;font-weight:600;margin-bottom:6px;">Divergence Squeeze</div>
+        <div class="muted" style="line-height:1.5;">Exposure rising, price flat, liq buffer &lt;15%</div>
+      </button>
+      <button class="card card-hover glow-btn" style="padding:16px 18px;text-align:left;">
+        <div style="font-size:12px;font-weight:600;margin-bottom:6px;">Accumulation Re-Entry</div>
+        <div class="muted" style="line-height:1.5;">Winners re-enter after &gt;8% drawdown in 4h</div>
+      </button>
+      <button class="card card-hover glow-btn" style="padding:16px 18px;text-align:left;">
+        <div style="font-size:12px;font-weight:600;margin-bottom:6px;">Rotation Carry</div>
+        <div class="muted" style="line-height:1.5;">New position in positive-funding perp, &gt;60% hist win</div>
+      </button>
+      <button class="card card-hover glow-btn" style="padding:16px 18px;text-align:left;">
+        <div style="font-size:12px;font-weight:600;margin-bottom:6px;">Liq Rebound ⚠</div>
+        <div class="muted" style="line-height:1.5;">Cohort exposure drops — possible cascade (approx.)</div>
+      </button>
+      <button class="card card-hover glow-btn" style="padding:16px 18px;text-align:left;">
+        <div style="font-size:12px;font-weight:600;margin-bottom:6px;">Whale Validated ✓</div>
+        <div class="muted" style="line-height:1.5;">Signal confirmed by ≥3 high-score wallets</div>
+      </button>
+    </div>
+  </div>
+
+  <!-- ── 6. SIGNAL FEED ROWS ───────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title">6 · Signal Feed Rows</div>
+    <div class="card">
+      <!-- ENTRY -->
+      <div style="padding:14px 20px;border-bottom:1px solid var(--border-subtle);display:flex;align-items:flex-start;gap:16px;">
+        <div class="signal-pill" style="--pill-color:#6aaa7a;margin-top:2px;">ENTRY</div>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <span style="font-size:13px;font-weight:600;">Momentum Stack</span>
+            <span style="font-size:13px;font-weight:700;">·</span>
+            <span style="font-size:13px;font-weight:700;color:#6aaa7a;">BTC</span>
+            <span style="font-size:10px;font-weight:700;color:#6aaa7a;letter-spacing:0.08em;">LONG</span>
+          </div>
+          <div class="muted" style="margin-top:3px;">≥8 wallets add >$500K same direction · wallet 0x1a2b…3c4d · 4 min ago</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.58);margin-top:4px;">8 wallets added $2.4M BTC long exposure in 3.2 min</div>
+        </div>
+        <div class="ev-badge" style="flex-shrink:0;">
+          <div class="ev-value" style="color:#6aaa7a;">82</div>
+          <div class="ev-label">EV</div>
+        </div>
+      </div>
+      <!-- EXIT -->
+      <div style="padding:14px 20px;border-bottom:1px solid var(--border-subtle);display:flex;align-items:flex-start;gap:16px;">
+        <div class="signal-pill" style="--pill-color:#b06868;margin-top:2px;">EXIT</div>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:13px;font-weight:600;">Anti-Whale Trap</span>
+            <span style="font-size:13px;font-weight:700;">·</span>
+            <span style="font-size:13px;font-weight:700;color:#b06868;">ETH</span>
+            <span style="font-size:10px;font-weight:700;color:#b06868;letter-spacing:0.08em;">SHORT</span>
+          </div>
+          <div class="muted" style="margin-top:3px;">Rapid exposure reduction in negative regime · wallet 0xde4f…8a2c · 12 min ago</div>
+        </div>
+        <div class="ev-badge" style="flex-shrink:0;">
+          <div class="ev-value" style="color:#f59e0b;">47</div>
+          <div class="ev-label">EV</div>
+        </div>
+      </div>
+      <!-- SCALE_IN -->
+      <div style="padding:14px 20px;display:flex;align-items:flex-start;gap:16px;">
+        <div class="signal-pill" style="--pill-color:#60a5fa;margin-top:2px;">SCALE_IN</div>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:13px;font-weight:600;">Streak Continuation</span>
+            <span style="font-size:13px;font-weight:700;">·</span>
+            <span style="font-size:13px;font-weight:700;color:#60a5fa;">SOL</span>
+            <span style="font-size:10px;font-weight:700;color:#60a5fa;letter-spacing:0.08em;">LONG</span>
+          </div>
+          <div class="muted" style="margin-top:3px;">5+ win streak with Sharpe proxy >0.6 · wallet 0x77cc…1d3e · 28 min ago</div>
+        </div>
+        <div style="color:var(--text-muted);flex-shrink:0;">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 7. TABS + TABLE ───────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title">7 · Tabs + Data Table</div>
+    <!-- Sort pills -->
+    <div style="display:flex;gap:8px;margin-bottom:16px;">
+      <button class="btn-glass glow-btn active">Score</button>
+      <button class="btn-glass glow-btn">AUM</button>
+      <button class="btn-glass glow-btn">uPnL</button>
+      <button class="btn-glass glow-btn">Win Rate</button>
+    </div>
+    <div class="card">
+      <div class="tab-bar">
+        <button class="tab active">Top 50</button>
+        <button class="tab">In Position</button>
+        <button class="tab">All Wallets</button>
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>#</th><th>Wallet</th><th>Score</th><th>AUM</th><th>uPnL</th><th>Win Rate</th><th>Positions</th><th>Liq Buffer</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="color:rgba(255,255,255,0.32);width:40px;">1</td>
+            <td><span class="mono" style="color:#9ca3af;">0x1a2b…3c4d</span></td>
+            <td>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:13px;font-weight:700;color:#6aaa7a;">0.91</span>
+                <div class="score-bar-track"><div class="score-bar-fill" style="width:91%;background:#6aaa7a;"></div></div>
+              </div>
+            </td>
+            <td class="tabnum">$482K</td>
+            <td class="tabnum" style="color:#6aaa7a;">+$14.2K</td>
+            <td>68%</td>
+            <td>3</td>
+            <td style="color:#6aaa7a;">24%</td>
+          </tr>
+          <tr>
+            <td style="color:rgba(255,255,255,0.32);">2</td>
+            <td><span class="mono" style="color:#9ca3af;">0xde4f…8a2c</span></td>
+            <td>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:13px;font-weight:700;color:#f59e0b;">0.74</span>
+                <div class="score-bar-track"><div class="score-bar-fill" style="width:74%;background:#f59e0b;"></div></div>
+              </div>
+            </td>
+            <td class="tabnum">$218K</td>
+            <td class="tabnum" style="color:#b06868;">−$3.1K</td>
+            <td>52%</td>
+            <td>1</td>
+            <td style="color:#f59e0b;">11%</td>
+          </tr>
+          <tr>
+            <td style="color:rgba(255,255,255,0.32);">3</td>
+            <td><span class="mono" style="color:#9ca3af;">0x77cc…1d3e</span></td>
+            <td>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:13px;font-weight:700;color:#9ca3af;">0.58</span>
+                <div class="score-bar-track"><div class="score-bar-fill" style="width:58%;background:#9ca3af;"></div></div>
+              </div>
+            </td>
+            <td class="tabnum">$94K</td>
+            <td class="tabnum" style="color:var(--text-muted);">$0</td>
+            <td>48%</td>
+            <td>0</td>
+            <td style="color:var(--text-muted);">—</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ── 8. FORM INPUTS ────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title">8 · Form Inputs</div>
+    <div class="row">
+      <div style="flex:1;max-width:480px;display:flex;gap:10px;">
+        <input class="input" placeholder="0x… wallet address" style="font-family:var(--font-mono);" />
+        <button class="btn-primary glow-btn" style="flex-shrink:0;">Lookup</button>
+      </div>
+      <select class="select">
+        <option>All Recipes</option>
+        <option>Momentum Stack</option>
+        <option>Divergence Squeeze</option>
+      </select>
+      <select class="select">
+        <option>All Directions</option>
+        <option>Long</option>
+        <option>Short</option>
+      </select>
+      <input class="input" placeholder="Filter coin…" style="width:120px;" />
+    </div>
+  </div>
+
+  <!-- ── 9. TYPOGRAPHY ─────────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title">9 · Typography Scale</div>
+    <div class="col">
+      <div style="font-size:18px;font-weight:700;">Page Title — 18px / 700</div>
+      <div style="font-size:15px;font-weight:700;">Logo / Nav Brand — 15px / 700</div>
+      <div style="font-size:13px;font-weight:600;">Card Content — 13px / 600</div>
+      <div style="font-size:12px;">Table Body — 12px / 400</div>
+      <div style="font-size:11px;color:var(--text-secondary);">Secondary Text — 11px</div>
+      <div class="muted">Muted / Helper — 11px rgba(255,255,255,0.44)</div>
+      <div class="label">Section Label — 10px / 700 / uppercase</div>
+      <div class="mono">0x1a2b3c4d5e6f7890 — Mono 11px</div>
+    </div>
+  </div>
+
+  <!-- ── 10. COLOUR PALETTE ─────────────────────────────────────────────────── -->
+  <div class="section">
+    <div class="section-title">10 · Colour Palette</div>
+    <div class="row">
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:center;">
+        <div style="width:56px;height:32px;border-radius:6px;background:#6aaa7a;"></div>
+        <div class="muted" style="font-size:10px;">Green</div>
+        <div class="mono">#6aaa7a</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:center;">
+        <div style="width:56px;height:32px;border-radius:6px;background:#b06868;"></div>
+        <div class="muted" style="font-size:10px;">Red</div>
+        <div class="mono">#b06868</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:center;">
+        <div style="width:56px;height:32px;border-radius:6px;background:#f59e0b;"></div>
+        <div class="muted" style="font-size:10px;">Amber</div>
+        <div class="mono">#f59e0b</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:center;">
+        <div style="width:56px;height:32px;border-radius:6px;background:#60a5fa;"></div>
+        <div class="muted" style="font-size:10px;">Blue</div>
+        <div class="mono">#60a5fa</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:center;">
+        <div style="width:56px;height:32px;border-radius:6px;background:#c084fc;"></div>
+        <div class="muted" style="font-size:10px;">Purple</div>
+        <div class="mono">#c084fc</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:center;">
+        <div style="width:56px;height:32px;border-radius:6px;background:#9ca3af;"></div>
+        <div class="muted" style="font-size:10px;">Neutral</div>
+        <div class="mono">#9ca3af</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:center;">
+        <div style="width:56px;height:32px;border-radius:6px;background:#97fde5;"></div>
+        <div class="muted" style="font-size:10px;">Aura</div>
+        <div class="mono">#97fde5</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:center;">
+        <div style="width:56px;height:32px;border-radius:6px;background:#060606;border:1px solid rgba(255,255,255,0.12);"></div>
+        <div class="muted" style="font-size:10px;">Base BG</div>
+        <div class="mono">#060606</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px;align-items:center;">
+        <div style="width:56px;height:32px;border-radius:6px;background:rgba(14,14,14,0.65);border:1px solid rgba(255,255,255,0.07);backdrop-filter:blur(20px);"></div>
+        <div class="muted" style="font-size:10px;">Card BG</div>
+        <div class="mono" style="font-size:9px;">rgba(14,14,14,0.65)</div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /template-page -->
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     GLOW-BTN ENGINE  (cursor-responsive shimmer)
+     ══════════════════════════════════════════════════════════════════════ -->
+<script>
+  document.addEventListener('mousemove', (e) => {
+    document.querySelectorAll('.glow-btn').forEach((btn) => {
+      const r = btn.getBoundingClientRect();
+      btn.style.setProperty('--gx', ((e.clientX - r.left) / r.width  * 100).toFixed(1) + '%');
+      btn.style.setProperty('--gy', ((e.clientY - r.top)  / r.height * 100).toFixed(1) + '%');
+    });
+  });
+
+  // Nav active state on click
+  document.querySelectorAll('.nav-link').forEach((link) => {
+    link.addEventListener('click', (e) => {
+      e.preventDefault();
+      document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+      link.classList.add('active');
+    });
+  });
+
+  // Tab active state on click
+  document.querySelectorAll('.tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      tab.closest('.tab-bar').querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+    });
+  });
+
+  // btn-glass active state on click (sort pills)
+  document.querySelectorAll('.btn-glass').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      btn.closest('div').querySelectorAll('.btn-glass').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>
