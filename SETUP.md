@@ -90,17 +90,15 @@ Open http://localhost:3000
 
 ## Dashboard Pages
 
-| URL           | Description                                    |
-|---------------|------------------------------------------------|
-| `/`           | Overview: regime, cohort health, top signals   |
-| `/wallets`    | Full Whale Report: top 500 wallets by score    |
-| `/signals`    | Signal Feed: all 9 recipes, live, filterable   |
-| `/contrarian` | Smart Money vs. Rekt Money + Smart Trade Plan  |
-| `/deep-dive`  | Single Token Deep Dive: candles, funding, OI   |
-| `/stalker`    | Wallet Stalker: any address → full history     |
-| `/morning`    | Morning Alpha Scan: daily briefing             |
-| `/recipes`    | Recipe Lab: performance stats for all 9 recipes|
-| `/scanner`    | Discovery status, scan pipeline, top wallets   |
+| URL           | Description                                          |
+|---------------|------------------------------------------------------|
+| `/`           | Overview: regime, cohort health, top signals         |
+| `/morning`    | Daily Brief: morning alpha narrative, daily snapshot |
+| `/wallets`    | Wallets: leaderboard, discovery, wallet lookup       |
+| `/signals`    | Signals: live signal feed + divergence scanner (two tabs) |
+| `/edge`       | Edge: signal recipe performance stats                |
+| `/scanner`    | Scanner: discovery pipeline status, top candidates   |
+| `/deep-dive`  | Deep Dive: single token candles, funding, OI         |
 
 ---
 
@@ -121,4 +119,4 @@ Open http://localhost:3000
 
 - The leaderboard endpoint `{ "type": "leaderboard" }` is unverified. Check the scan logs in GitHub Actions → Artifacts → `scan-summary.json` after the first run.
 - If the leaderboard API fails, the scrape fallback activates. Check `/scanner` for discovery source.
-- "Smart Trade Plan" on the Contrarian page is rule-based (ATR levels + Kelly sizing) — not an LLM.
+- "Smart Trade Plan" on the Divergence tab is rule-based (ATR levels + Kelly sizing) — not an LLM.
