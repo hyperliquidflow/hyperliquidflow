@@ -33,9 +33,17 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 // ── Qualification thresholds ──────────────────────────────────────────────────
 const WIN_RATE_THRESHOLD = 0.52;
 const MIN_TRADES_30D     = 30;
-const MAX_WALLETS_TO_SCORE = 5000; // wallets scored per run (~11 min at current rate)
+const MAX_WALLETS_TO_SCORE = 5000; // ceiling — pre-filter brings actual pool to ~1-3k
 const CONCURRENCY          = 1;   // serial — prevents burst that triggers 429
 const DELAY_BETWEEN_MS     = 800; // ms between each API call — ~1.25 req/s
+
+// ── Leaderboard pre-filter ────────────────────────────────────────────────────
+// Applied to leaderboard data before any fills API calls. Collapses 33k wallets
+// to high-signal candidates using data already present in the leaderboard response.
+// Tune these; currently targets roughly the top 5-10% of leaderboard by performance.
+const PRE_QUALIFY_MIN_MONTH_ROI   = 0.03;  // ≥3% monthly ROI
+const PRE_QUALIFY_MIN_MONTH_PNL   = 1_000; // ≥$1k monthly realized PnL
+const PRE_QUALIFY_MIN_ALLTIME_ROI = 0.0;   // net-positive all-time (filters out lucky months)
 
 // ── In-process semaphore (valid here — long-running Node.js process, not serverless) ──
 class Semaphore {
@@ -86,6 +94,21 @@ async function hlPost<T>(body: unknown, timeoutMs = 15_000): Promise<T> {
     clearTimeout(timer);
     throw err;
   }
+}
+
+// ── Leaderboard pre-qualification ────────────────────────────────────────────
+
+function leaderboardPreQualifies(row: Record<string, unknown>): boolean {
+  const perfs = row.windowPerformances as Array<[string, Record<string, string>]> | undefined;
+  if (!perfs) return false;
+  const month   = perfs.find(([w]) => w === "month")?.[1];
+  const allTime = perfs.find(([w]) => w === "allTime")?.[1];
+  if (!month || !allTime) return false;
+  return (
+    parseFloat(month.roi   ?? "0") >= PRE_QUALIFY_MIN_MONTH_ROI &&
+    parseFloat(month.pnl   ?? "0") >= PRE_QUALIFY_MIN_MONTH_PNL &&
+    parseFloat(allTime.roi ?? "0") >= PRE_QUALIFY_MIN_ALLTIME_ROI
+  );
 }
 
 // ── Discovery: primary path (stats-data leaderboard GET) ─────────────────────
@@ -168,7 +191,15 @@ async function fetchLeaderboardAddresses(): Promise<string[]> {
     return monthRoi(b) - monthRoi(a);
   });
 
-  return typedRows
+  // Pre-filter: drop low-signal wallets using leaderboard data already in hand.
+  // This collapses 33k wallets to ~1-3k candidates without any extra API calls.
+  const preQualified = typedRows.filter(leaderboardPreQualifies);
+  console.log(
+    `[discovery] pre-filter: ${preQualified.length}/${typedRows.length} wallets pass ` +
+    `(ROI≥${PRE_QUALIFY_MIN_MONTH_ROI * 100}%, PnL≥$${PRE_QUALIFY_MIN_MONTH_PNL}, allTimeROI≥0)`
+  );
+
+  return preQualified
     .map((e) => e[addressField] as string)
     .filter((a) => /^0x[a-fA-F0-9]{40}$/.test(a));
 }
@@ -339,17 +370,32 @@ async function main(): Promise<void> {
     summary.discovery_source = "database_rescore";
   }
 
-  // ── Step 3: Pick next batch to score from DB (cycles through all wallets) ──
-  // Wallets never scanned (null) come first; then stalest scan date.
-  // Since we insert in monthly-ROI order, new wallets surface best traders first.
-  const { data: toScore } = await supabase
+  // ── Step 3: Build the score batch ────────────────────────────────────────────
+  // Tier 1 — always rescan currently-active wallets to keep recommendations fresh.
+  // Tier 2 — pre-filtered leaderboard candidates not yet in tier 1, stalest first.
+  const { data: activeRows } = await supabase
     .from("wallets")
     .select("address")
-    .order("last_scanned_at", { ascending: true, nullsFirst: true })
-    .limit(MAX_WALLETS_TO_SCORE);
+    .eq("is_active", true);
 
-  const scoreAddresses = (toScore ?? []).map((w) => w.address);
-  console.log(`[scan] scoring ${scoreAddresses.length} wallets (concurrency: ${CONCURRENCY})`);
+  const activeAddresses = new Set((activeRows ?? []).map((w) => w.address));
+
+  const { data: candidateRows } = await supabase
+    .from("wallets")
+    .select("address")
+    .eq("is_active", false)
+    .order("last_scanned_at", { ascending: true, nullsFirst: true })
+    .limit(MAX_WALLETS_TO_SCORE - activeAddresses.size);
+
+  const scoreAddresses = [
+    ...Array.from(activeAddresses),
+    ...(candidateRows ?? []).map((w) => w.address),
+  ];
+  console.log(
+    `[scan] scoring ${scoreAddresses.length} wallets ` +
+    `(${activeAddresses.size} active + ${scoreAddresses.length - activeAddresses.size} candidates, ` +
+    `concurrency: ${CONCURRENCY})`
+  );
 
   const results = await Promise.allSettled(
     scoreAddresses.map(async (address) => {
