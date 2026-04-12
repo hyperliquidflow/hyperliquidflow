@@ -17,12 +17,14 @@ const RECIPE_META: Record<string, { label: string; color: string; desc: string }
   anti_whale_trap:      { label: "Anti-Whale Trap",      color: "#6a6a6a", desc: "Rapid exposure reduction in negative regime" },
 };
 
+import { color, card as C, type as T, space } from "@/lib/design-tokens";
+
 const S = {
-  page:  { padding: "32px", maxWidth: "1200px", margin: "0 auto" },
-  card:  { background: "rgba(12,12,12,0.7)", backdropFilter: "blur(20px) saturate(160%)", WebkitBackdropFilter: "blur(20px) saturate(160%)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", overflow: "hidden" as const, boxShadow: "0 2px 20px rgba(0,0,0,0.4)" },
-  hdr:   { borderBottom: "1px solid rgba(180,180,180,0.06)", padding: "16px 20px" },
-  label: { fontSize: "12px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.44)" },
-  muted: { color: "rgba(255,255,255,0.44)", fontSize: "13px" },
+  page:  { padding: space.pagePaddingX },
+  card:  { ...C.base },
+  hdr:   { ...C.header },
+  label: { ...T.cardTitle },
+  muted: { color: color.textMuted, fontSize: "13px" },
 };
 
 interface RecipeStats {
@@ -86,7 +88,7 @@ function RecipeLabInner() {
 
                 {winRate != null && (
                   <div style={{ marginTop: "12px" }}>
-                    <div style={{ width: "100%", height: "3px", background: "rgba(180,180,180,0.1)", borderRadius: "2px" }}>
+                    <div style={{ width: "100%", height: "3px", background: "rgba(255,255,255,0.08)", borderRadius: "2px" }}>
                       <div style={{ width: `${winRate * 100}%`, height: "100%", background: winColor, borderRadius: "2px", transition: "width 0.4s" }} />
                     </div>
                   </div>

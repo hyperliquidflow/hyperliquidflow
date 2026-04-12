@@ -28,12 +28,14 @@ const SIGNAL_TYPE_COLORS: Record<string, string> = {
   ALERT:    "#9ca3af",
 };
 
+import { color, card as C, type as T, space } from "@/lib/design-tokens";
+
 const S = {
-  page:  { padding: "32px", maxWidth: "1400px", margin: "0 auto" },
-  card:  { background: "rgba(12,12,12,0.7)", backdropFilter: "blur(20px) saturate(160%)", WebkitBackdropFilter: "blur(20px) saturate(160%)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", overflow: "hidden" as const, boxShadow: "0 2px 20px rgba(0,0,0,0.4)" },
-  label: { fontSize: "12px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.44)" },
-  muted: { color: "rgba(255,255,255,0.44)", fontSize: "13px" },
-  mono:  { fontFamily: "var(--font-mono)", fontSize: "13px" },
+  page:  { padding: space.pagePaddingX },
+  card:  { ...C.base },
+  label: { ...T.cardTitle },
+  muted: { color: color.textMuted, fontSize: "13px" },
+  mono:  { fontFamily: "'Geist Mono', monospace", fontSize: "13px" },
 };
 
 function SignalsInner() {
@@ -69,13 +71,13 @@ function SignalsInner() {
       {/* Filters */}
       <div style={{ display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap" as const, alignItems: "center" }}>
         <select value={filterRecipe} onChange={(e) => setFilterRecipe(e.target.value)}
-          style={{ background: "#141414", border: "1px solid rgba(180,180,180,0.12)", borderRadius: "5px", color: "#f0f0f0", padding: "6px 10px", fontSize: "12px", outline: "none" }}>
+          style={{ background: "#141414", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "5px", color: "#f0f0f0", padding: "6px 10px", fontSize: "12px", outline: "none" }}>
           <option value="all">All Recipes</option>
           {uniqueRecipes.map((r) => <option key={r} value={r}>{RECIPE_META[r]?.label ?? r}</option>)}
         </select>
 
         <select value={filterDir} onChange={(e) => setFilterDir(e.target.value)}
-          style={{ background: "#141414", border: "1px solid rgba(180,180,180,0.12)", borderRadius: "5px", color: "#f0f0f0", padding: "6px 10px", fontSize: "12px", outline: "none" }}>
+          style={{ background: "#141414", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "5px", color: "#f0f0f0", padding: "6px 10px", fontSize: "12px", outline: "none" }}>
           <option value="all">All Directions</option>
           <option value="LONG">Long</option>
           <option value="SHORT">Short</option>
@@ -84,7 +86,7 @@ function SignalsInner() {
 
         <input value={filterCoin} onChange={(e) => setFilterCoin(e.target.value)}
           placeholder="Filter coin…"
-          style={{ background: "#141414", border: "1px solid rgba(180,180,180,0.12)", borderRadius: "5px", color: "#f0f0f0", padding: "6px 10px", fontSize: "12px", outline: "none", width: "120px" }} />
+          style={{ background: "#141414", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "5px", color: "#f0f0f0", padding: "6px 10px", fontSize: "12px", outline: "none", width: "120px" }} />
 
         <span style={S.muted}>{signals.length} results</span>
       </div>
@@ -118,7 +120,7 @@ function SignalsInner() {
             return (
               <div key={i} style={{
                 padding: "14px 20px",
-                borderBottom: "1px solid rgba(180,180,180,0.06)",
+                borderBottom: "1px solid rgba(255,255,255,0.04)",
                 display: "flex",
                 alignItems: "flex-start",
                 gap: "16px",

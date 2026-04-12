@@ -6,12 +6,14 @@ import { useQuery } from "@tanstack/react-query";
 import { timeAgo, formatUsd, formatPct } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 
+import { color, card as C, type as T, space } from "@/lib/design-tokens";
+
 const S = {
-  page:  { padding: "32px", maxWidth: "900px", margin: "0 auto" },
-  card:  { background: "rgba(12,12,12,0.7)", backdropFilter: "blur(20px) saturate(160%)", WebkitBackdropFilter: "blur(20px) saturate(160%)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", overflow: "hidden" as const, boxShadow: "0 2px 20px rgba(0,0,0,0.4)" },
-  hdr:   { borderBottom: "1px solid rgba(180,180,180,0.06)", padding: "16px 20px", display: "flex", alignItems: "center", gap: "12px" },
-  label: { fontSize: "12px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.44)" },
-  muted: { color: "rgba(255,255,255,0.44)", fontSize: "13px" },
+  page:  { padding: space.pagePaddingX },
+  card:  { ...C.base },
+  hdr:   { ...C.header, gap: "12px" },
+  label: { ...T.cardTitle },
+  muted: { color: color.textMuted, fontSize: "13px" },
   body:  { fontSize: "14px", color: "rgba(255,255,255,0.82)", lineHeight: 1.7 },
 };
 
@@ -59,7 +61,7 @@ function MorningScanInner() {
               { label: "Avg Score",         value: data.cohort_health.avg_score.toFixed(2) },
               { label: "Wallets in Profit", value: `${data.cohort_health.wallets_in_profit}` },
             ].map(({ label, value }) => (
-              <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid rgba(180,180,180,0.06)" }}>
+              <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                 <span style={S.muted}>{label}</span>
                 <span style={{ fontSize: "13px", fontWeight: 600 }}>{value}</span>
               </div>
@@ -91,7 +93,7 @@ function MorningScanInner() {
           data.top_signals.map((sig, i) => {
             const dirColor = sig.direction === "LONG" ? "#6aaa7a" : sig.direction === "SHORT" ? "#b06868" : "#9ca3af";
             return (
-              <div key={i} style={{ padding: "12px 20px", borderBottom: "1px solid rgba(180,180,180,0.06)", display: "flex", alignItems: "center", gap: "12px" }}>
+              <div key={i} style={{ padding: "12px 20px", borderBottom: "1px solid rgba(255,255,255,0.04)", display: "flex", alignItems: "center", gap: "12px" }}>
                 <div style={{ width: "7px", height: "7px", borderRadius: "50%", background: dirColor, flexShrink: 0 }} />
                 <span style={{ fontSize: "12px", fontWeight: 600 }}>{sig.recipe}</span>
                 <span style={{ fontSize: "12px", color: dirColor, fontWeight: 700 }}>{sig.coin}</span>
@@ -111,7 +113,7 @@ function MorningScanInner() {
         {data.top_movers.map((m, i) => {
           const dirColor = m.direction === "LONG" ? "#6aaa7a" : "#b06868";
           return (
-            <div key={i} style={{ padding: "12px 20px", borderBottom: "1px solid rgba(180,180,180,0.06)", display: "flex", alignItems: "center", gap: "12px" }}>
+            <div key={i} style={{ padding: "12px 20px", borderBottom: "1px solid rgba(255,255,255,0.04)", display: "flex", alignItems: "center", gap: "12px" }}>
               <span style={{ fontSize: "13px", fontWeight: 700 }}>{m.coin}</span>
               <span style={{ fontSize: "10px", fontWeight: 700, padding: "2px 7px", borderRadius: "4px",
                 background: `${dirColor}14`, color: dirColor, border: `1px solid ${dirColor}25` }}>

@@ -5,14 +5,16 @@ import { useState, useCallback } from "react";
 import { formatUsd, formatPct, timeAgo, truncateAddress, isValidAddress } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 
+import { color, card as C, type as T, space } from "@/lib/design-tokens";
+
 const S = {
-  page:  { padding: "32px", maxWidth: "1100px", margin: "0 auto" },
-  card:  { background: "rgba(12,12,12,0.7)", backdropFilter: "blur(20px) saturate(160%)", WebkitBackdropFilter: "blur(20px) saturate(160%)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", overflow: "hidden" as const, boxShadow: "0 2px 20px rgba(0,0,0,0.4)" },
-  hdr:   { borderBottom: "1px solid rgba(180,180,180,0.06)", padding: "16px 20px" },
-  label: { fontSize: "12px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.44)" },
-  muted: { color: "rgba(255,255,255,0.44)", fontSize: "13px" },
-  mono:  { fontFamily: "var(--font-mono)", fontSize: "13px" },
-  td:    { padding: "10px 14px", borderBottom: "1px solid rgba(180,180,180,0.06)", fontSize: "13px" },
+  page:  { padding: space.pagePaddingX },
+  card:  { ...C.base },
+  hdr:   { ...C.header },
+  label: { ...T.cardTitle },
+  muted: { color: color.textMuted, fontSize: "13px" },
+  mono:  { fontFamily: "'Geist Mono', monospace", fontSize: "13px" },
+  td:    { padding: "10px 14px", borderBottom: `1px solid ${color.divider}`, fontSize: "13px" },
 };
 
 interface WalletProfile {
@@ -90,7 +92,7 @@ function StalkerInner() {
           onKeyDown={(e) => e.key === "Enter" && lookup(address)}
           placeholder="0x… wallet address"
           style={{
-            flex: 1, background: "#141414", border: "1px solid rgba(180,180,180,0.12)",
+            flex: 1, background: "#141414", border: "1px solid rgba(255,255,255,0.1)",
             borderRadius: "6px", color: "#f0f0f0", fontFamily: "var(--font-mono)",
             fontSize: "13px", padding: "10px 14px", outline: "none",
           }}
@@ -168,7 +170,7 @@ function WalletProfileCard({ profile }: { profile: WalletProfile }) {
 
       {/* Tabs */}
       <div style={S.card}>
-        <div style={{ display: "flex", borderBottom: "1px solid rgba(180,180,180,0.06)" }}>
+        <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
           {(["overview", "positions", "trades"] as const).map((t) => (
             <button key={t} onClick={() => setTab(t)}
               className={`tab-hover${tab === t ? " tab-active" : ""}`}
@@ -193,7 +195,7 @@ function WalletProfileCard({ profile }: { profile: WalletProfile }) {
                   ["Margin Used",     formatUsd(parseFloat(profile.state.totalMarginUsed))],
                   ["Withdrawable",    formatUsd(parseFloat(profile.state.withdrawable))],
                 ].map(([k, v]) => (
-                  <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(180,180,180,0.06)" }}>
+                  <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                     <span style={S.muted}>{k}</span>
                     <span style={{ fontSize: "12px", fontVariantNumeric: "tabular-nums" }}>{v}</span>
                   </div>
@@ -207,7 +209,7 @@ function WalletProfileCard({ profile }: { profile: WalletProfile }) {
                   ["Profit Factor",  profile.stats.profit_factor.toFixed(2)],
                   ["Current Streak", `${profile.stats.current_streak} ${profile.stats.is_win_streak ? "W" : "L"}`],
                 ].map(([k, v]) => (
-                  <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(180,180,180,0.06)" }}>
+                  <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                     <span style={S.muted}>{k}</span>
                     <span style={{ fontSize: "12px" }}>{v}</span>
                   </div>

@@ -7,15 +7,17 @@ import { formatUsd, formatPct, truncateAddress } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 
+import { color, card as C, type as T, space } from "@/lib/design-tokens";
+
 const S = {
-  page:  { padding: "32px", maxWidth: "1400px", margin: "0 auto" },
-  card:  { background: "rgba(12,12,12,0.7)", backdropFilter: "blur(20px) saturate(160%)", WebkitBackdropFilter: "blur(20px) saturate(160%)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", overflow: "hidden" as const, boxShadow: "0 2px 20px rgba(0,0,0,0.4)" },
-  hdr:   { borderBottom: "1px solid rgba(180,180,180,0.06)", padding: "16px 20px", display: "flex", alignItems: "center", gap: "8px" },
-  label: { fontSize: "12px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.44)" },
-  muted: { color: "rgba(255,255,255,0.44)", fontSize: "13px" },
-  mono:  { fontFamily: "var(--font-mono)", fontSize: "13px" },
-  th:    { fontSize: "12px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.44)", padding: "12px 16px", textAlign: "left" as const },
-  td:    { fontSize: "13px", padding: "12px 16px", borderBottom: "1px solid rgba(180,180,180,0.06)" },
+  page:  { padding: space.pagePaddingX },
+  card:  { ...C.base },
+  hdr:   { ...C.header, gap: "8px" },
+  label: { ...T.cardTitle },
+  muted: { color: color.textMuted, fontSize: "13px" },
+  mono:  { fontFamily: "'Geist Mono', monospace", fontSize: "13px" },
+  th:    { fontSize: "12px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.5)", padding: "12px 16px", textAlign: "left" as const },
+  td:    { fontSize: "13px", padding: "12px 16px", borderBottom: `1px solid ${color.divider}` },
 };
 
 type SortKey = "overall_score" | "account_value" | "unrealized_pnl" | "win_rate";
@@ -47,7 +49,7 @@ function WhaleReportInner() {
       />
       <div style={{ ...S.page, paddingTop: "20px" }}>
       {/* Tabs */}
-      <div style={{ display: "flex", borderBottom: "1px solid rgba(180,180,180,0.06)", marginBottom: "20px", gap: "0" }}>
+      <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.04)", marginBottom: "20px", gap: "0" }}>
         {(["top50", "active", "all"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={`tab-hover${tab === t ? " tab-active" : ""}`}
@@ -106,7 +108,7 @@ function WhaleReportInner() {
                 </td>
                 <td style={S.td}>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <div style={{ width: "48px", height: "3px", background: "rgba(180,180,180,0.1)", borderRadius: "2px" }}>
+                    <div style={{ width: "48px", height: "3px", background: "rgba(255,255,255,0.08)", borderRadius: "2px" }}>
                       <div style={{ width: `${w.overall_score * 100}%`, height: "100%", background: w.overall_score >= 0.7 ? "#6aaa7a" : w.overall_score >= 0.5 ? "#606060" : "#b06868", borderRadius: "2px" }} />
                     </div>
                     <span style={{ fontSize: "11px", fontWeight: 600, color: "#f0f0f0" }}>{w.overall_score.toFixed(2)}</span>

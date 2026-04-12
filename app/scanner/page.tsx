@@ -5,14 +5,16 @@ import { useQuery } from "@tanstack/react-query";
 import { timeAgo, formatPct } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 
+import { color, card as C, type as T, space } from "@/lib/design-tokens";
+
 const S = {
-  page:  { padding: "32px", maxWidth: "1000px", margin: "0 auto" },
-  card:  { background: "rgba(12,12,12,0.7)", backdropFilter: "blur(20px) saturate(160%)", WebkitBackdropFilter: "blur(20px) saturate(160%)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", overflow: "hidden" as const, boxShadow: "0 2px 20px rgba(0,0,0,0.4)" },
-  hdr:   { borderBottom: "1px solid rgba(180,180,180,0.06)", padding: "16px 20px", display: "flex", alignItems: "center", gap: "12px" },
-  label: { fontSize: "12px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.44)" },
-  muted: { color: "rgba(255,255,255,0.44)", fontSize: "13px" },
-  mono:  { fontFamily: "var(--font-mono)", fontSize: "13px" },
-  td:    { padding: "10px 14px", borderBottom: "1px solid rgba(180,180,180,0.06)", fontSize: "13px" },
+  page:  { padding: space.pagePaddingX },
+  card:  { ...C.base },
+  hdr:   { ...C.header, gap: "12px" },
+  label: { ...T.cardTitle },
+  muted: { color: color.textMuted, fontSize: "13px" },
+  mono:  { fontFamily: "'Geist Mono', monospace", fontSize: "13px" },
+  td:    { padding: "10px 14px", borderBottom: `1px solid ${color.divider}`, fontSize: "13px" },
 };
 
 interface ScannerStats {
@@ -65,7 +67,7 @@ function ScannerInner() {
             {data.scan_pipeline.map((step, i) => {
               const color = step.status === "ok" ? "#6aaa7a" : step.status === "warn" ? "#f59e0b" : "#b06868";
               return (
-                <div key={i} style={{ padding: "12px 20px", borderBottom: "1px solid rgba(180,180,180,0.06)", display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                <div key={i} style={{ padding: "12px 20px", borderBottom: "1px solid rgba(255,255,255,0.04)", display: "flex", alignItems: "flex-start", gap: "10px" }}>
                   <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: color, marginTop: "4px", flexShrink: 0 }} />
                   <div>
                     <div style={{ fontSize: "12px", fontWeight: 600, color: "#f0f0f0" }}>{step.step}</div>
@@ -96,7 +98,7 @@ function ScannerInner() {
               ))}
             </div>
 
-            <div style={{ marginTop: "20px", padding: "12px 14px", background: "rgba(96,96,96,0.05)", borderRadius: "6px", border: "1px solid rgba(180,180,180,0.08)" }}>
+            <div style={{ marginTop: "20px", padding: "12px 14px", background: "rgba(96,96,96,0.05)", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.07)" }}>
               <div style={{ ...S.label, marginBottom: "6px" }}>Setup required</div>
               <p style={{ ...S.muted, lineHeight: 1.6 }}>
                 Add <code style={S.mono}>SUPABASE_URL</code>, <code style={S.mono}>SUPABASE_SERVICE_ROLE_KEY</code>, and <code style={S.mono}>HYPERLIQUID_API_URL</code> to GitHub Secrets (Settings → Secrets → Actions). Repo must be <strong style={{ color: "#f0f0f0" }}>public</strong> for 2,000 free minutes/month.

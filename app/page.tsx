@@ -40,13 +40,15 @@ const SPARKLINE: Record<string, { pts: string; fill: string }> = {
   },
 };
 
+import { color, card as C, type as T, space } from "@/lib/design-tokens";
+
 const S = {
-  page:  { padding: "32px" },
-  card:  { background: "rgba(12,12,12,0.7)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", overflow: "hidden" as const, boxShadow: "0 2px 20px rgba(0,0,0,0.4)" },
-  hdr:   { borderBottom: "1px solid rgba(255,255,255,0.05)", padding: "14px 20px", display: "flex", alignItems: "center" },
-  title: { fontSize: "13px", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.5)" },
-  link:  { marginLeft: "auto", fontSize: "13px", color: "rgba(255,255,255,0.28)", textDecoration: "none" } as const,
-  muted: { fontSize: "13px", color: "rgba(255,255,255,0.32)" },
+  page:  { padding: space.pagePaddingX },
+  card:  { ...C.base },
+  hdr:   { ...C.header },
+  title: { ...T.cardTitle },
+  link:  { ...T.cardLink, marginLeft: "auto" } as const,
+  muted: { fontSize: "13px", color: color.textMuted },
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -8,12 +8,14 @@ import { useQuery } from "@tanstack/react-query";
 import { formatUsd, formatPct } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 
+import { color, card as C, type as T, space } from "@/lib/design-tokens";
+
 const S = {
-  page:  { padding: "32px", maxWidth: "1100px", margin: "0 auto" },
-  card:  { background: "rgba(12,12,12,0.7)", backdropFilter: "blur(20px) saturate(160%)", WebkitBackdropFilter: "blur(20px) saturate(160%)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", overflow: "hidden" as const, boxShadow: "0 2px 20px rgba(0,0,0,0.4)" },
-  hdr:   { borderBottom: "1px solid rgba(180,180,180,0.06)", padding: "16px 20px" },
-  label: { fontSize: "12px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.44)" },
-  muted: { color: "rgba(255,255,255,0.44)", fontSize: "13px" },
+  page:  { padding: space.pagePaddingX },
+  card:  { ...C.base },
+  hdr:   { ...C.header },
+  label: { ...T.cardTitle },
+  muted: { color: color.textMuted, fontSize: "13px" },
 };
 
 interface ContrarianData {
@@ -71,7 +73,7 @@ function ContrarianInner() {
                   onClick={() => setSelected(isSelected ? null : idea.coin)}
                   style={{
                     width: "100%", textAlign: "left", padding: "16px 20px",
-                    borderBottom: "1px solid rgba(180,180,180,0.06)",
+                    borderBottom: "1px solid rgba(255,255,255,0.04)",
                     background: isSelected ? "rgba(96,96,96,0.06)" : "transparent",
                     border: "none", cursor: "pointer", display: "block",
                   }}>
@@ -93,7 +95,7 @@ function ContrarianInner() {
                       </span>
                     </div>
                     <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "8px" }}>
-                      <div style={{ width: "40px", height: "3px", background: "rgba(180,180,180,0.1)", borderRadius: "2px" }}>
+                      <div style={{ width: "40px", height: "3px", background: "rgba(255,255,255,0.08)", borderRadius: "2px" }}>
                         <div style={{ width: `${idea.confidence * 100}%`, height: "100%", background: confColor, borderRadius: "2px" }} />
                       </div>
                       <span style={{ fontSize: "11px", color: confColor, fontWeight: 600 }}>{formatPct(idea.confidence)}</span>
@@ -115,7 +117,7 @@ function ContrarianInner() {
             </div>
             {selectedIdea.trade_plan ? (
               <div style={{ padding: "20px" }}>
-                <div style={{ marginBottom: "20px", padding: "12px 16px", background: "rgba(96,96,96,0.06)", borderRadius: "6px", border: "1px solid rgba(180,180,180,0.08)" }}>
+                <div style={{ marginBottom: "20px", padding: "12px 16px", background: "rgba(96,96,96,0.06)", borderRadius: "6px", border: "1px solid rgba(255,255,255,0.07)" }}>
                   <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.69)", lineHeight: 1.7 }}>
                     Following smart money <strong style={{ color: selectedIdea.smart_direction === "LONG" ? "#6aaa7a" : "#b06868" }}>{selectedIdea.smart_direction}</strong> on {selectedIdea.coin}.<br/>
                     {selectedIdea.reason}
@@ -130,7 +132,7 @@ function ContrarianInner() {
                   { label: "Kelly Size",    value: selectedIdea.trade_plan.kelly_size,  color: "#9ca3af" },
                   { label: "Funding Rate",  value: selectedIdea.trade_plan.funding_rate, color: "#f59e0b" },
                 ].map(({ label, value, color }) => (
-                  <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid rgba(180,180,180,0.06)" }}>
+                  <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                     <span style={S.muted}>{label}</span>
                     <span style={{ fontSize: "13px", fontWeight: 600, color }}>{value}</span>
                   </div>
