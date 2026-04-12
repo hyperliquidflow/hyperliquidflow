@@ -90,7 +90,7 @@ export function Nav() {
           zIndex: 99,
           backdropFilter: "blur(2px)",
           WebkitBackdropFilter: "blur(2px)",
-          display: open ? undefined : "none",
+          display: open ? "block" : "none",
         }}
       />
 
