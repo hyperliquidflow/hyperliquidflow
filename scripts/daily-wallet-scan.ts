@@ -33,9 +33,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 // ── Qualification thresholds ──────────────────────────────────────────────────
 const WIN_RATE_THRESHOLD = 0.52;
 const MIN_TRADES_30D     = 30;
-const MAX_WALLETS_TO_SCORE = 5000; // ceiling — pre-filter brings actual pool to ~1-3k
-const CONCURRENCY          = 1;   // serial — prevents burst that triggers 429
-const DELAY_BETWEEN_MS     = 800; // ms between each API call — ~1.25 req/s
+const MAX_WALLETS_TO_SCORE = 5000; // ceiling — pre-filter brings actual pool to ~6k, 2-run cycle
+const CONCURRENCY          = 3;   // 3 concurrent → ~3.3 req/s, within Hyperliquid public limits
+const DELAY_BETWEEN_MS     = 600; // ms delay per slot before firing — keeps bursts smooth
 
 // ── Leaderboard pre-filter ────────────────────────────────────────────────────
 // Applied to leaderboard data before any fills API calls. Collapses 33k wallets
