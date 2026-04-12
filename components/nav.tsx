@@ -64,7 +64,8 @@ export function Nav() {
                 padding: "5px 10px",
                 borderRadius: "5px",
                 background: active ? "rgba(112,112,112,0.1)" : "transparent",
-                transition: "color 0.15s, background 0.15s",
+                border: active ? "1px solid rgba(255,255,255,0.18)" : "1px solid transparent",
+                transition: "color 0.15s, background 0.15s, border-color 0.15s",
                 whiteSpace: "nowrap",
               }}
             >
