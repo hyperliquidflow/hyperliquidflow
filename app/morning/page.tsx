@@ -81,7 +81,8 @@ function MorningScanInner() {
           <div style={{ padding: "16px 20px", display: "flex", flexWrap: "wrap" as const, gap: "8px" }}>
             {data.watch_list.map((coin) => (
               <a key={coin} href={`/deep-dive?coin=${coin}`}
-                style={{ padding: "5px 12px", background: "rgba(96,96,96,0.1)", border: "1px solid rgba(96,96,96,0.3)", borderRadius: "4px", fontSize: "12px", fontWeight: 700, color: "#f0f0f0", textDecoration: "none" }}>
+                className="ios-pill"
+                style={{ padding: "5px 12px", fontSize: "12px", textDecoration: "none" }}>
                 {coin}
               </a>
             ))}

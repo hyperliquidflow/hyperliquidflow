@@ -68,11 +68,8 @@ function DeepDiveInner() {
         <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" as const }}>
           {quickCoins.map((c) => (
             <button key={c} onClick={() => { setCoin(c); setInput(c); }}
-              className="pill-btn-hover"
-              style={{ padding: "5px 12px", fontSize: "11px", fontWeight: 600, borderRadius: "4px", cursor: "pointer",
-                background: coin === c ? "rgba(96,96,96,0.2)" : "transparent",
-                border: `1px solid ${coin === c ? "rgba(96,96,96,0.5)" : "rgba(180,180,180,0.1)"}`,
-                color: coin === c ? "#f0f0f0" : "rgba(255,255,255,0.58)" }}>
+              className={`ios-pill${coin === c ? " ios-active" : ""}`}
+              style={{ padding: "5px 12px", fontSize: "11px" }}>
               {c}
             </button>
           ))}
@@ -81,11 +78,8 @@ function DeepDiveInner() {
         <div style={{ display: "flex", gap: "4px", marginLeft: "auto" }}>
           {INTERVALS.map((iv) => (
             <button key={iv} onClick={() => setInterval(iv)}
-              className="pill-btn-hover"
-              style={{ padding: "5px 12px", fontSize: "11px", fontWeight: 600, borderRadius: "4px", cursor: "pointer",
-                background: interval === iv ? "rgba(96,96,96,0.2)" : "transparent",
-                border: `1px solid ${interval === iv ? "rgba(96,96,96,0.5)" : "rgba(180,180,180,0.1)"}`,
-                color: interval === iv ? "#f0f0f0" : "rgba(255,255,255,0.58)" }}>
+              className={`ios-pill${interval === iv ? " ios-active" : ""}`}
+              style={{ padding: "5px 12px", fontSize: "11px" }}>
               {iv}
             </button>
           ))}

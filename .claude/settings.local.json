@@ -10,7 +10,10 @@
       "WebFetch(domain:hyperliquidflow-hyperliquidflows-projects.vercel.app)",
       "Bash(open /Users/ahimsa/Documents/Lakshmi/public/glow-test.html)",
       "Bash(npx tsc:*)",
-      "Bash(grep -n 'background: \"#0f0f0f\"' /Users/ahimsa/Documents/Lakshmi/app/*/page.tsx /Users/ahimsa/Documents/Lakshmi/app/page.tsx)"
+      "Bash(grep -n 'background: \"#0f0f0f\"' /Users/ahimsa/Documents/Lakshmi/app/*/page.tsx /Users/ahimsa/Documents/Lakshmi/app/page.tsx)",
+      "Bash(sed -n '60,80p' /Users/ahimsa/Documents/Lakshmi/app/wallets/page.tsx)",
+      "Bash(sed -n '88,105p' /Users/ahimsa/Documents/Lakshmi/app/signals/page.tsx)",
+      "Bash(sed -n '82,90p' /Users/ahimsa/Documents/Lakshmi/app/morning/page.tsx)"
     ]
   }
 }

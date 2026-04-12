@@ -67,14 +67,8 @@ function WhaleReportInner() {
       <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
         {(["overall_score", "account_value", "unrealized_pnl", "win_rate"] as SortKey[]).map((k) => (
           <button key={k} onClick={() => setSort(k)}
-            className="pill-btn-hover"
-            style={{
-              padding: "5px 12px", fontSize: "11px", fontWeight: 600,
-              background: sort === k ? "rgba(96,96,96,0.2)" : "transparent",
-              border: `1px solid ${sort === k ? "rgba(96,96,96,0.5)" : "rgba(180,180,180,0.12)"}`,
-              borderRadius: "5px", color: sort === k ? "#f0f0f0" : "rgba(255,255,255,0.44)",
-              cursor: "pointer",
-            }}>
+            className={`ios-pill${sort === k ? " ios-active" : ""}`}
+            style={{ padding: "5px 12px", fontSize: "11px" }}>
             {k === "overall_score" ? "Score" : k === "account_value" ? "AUM" : k === "unrealized_pnl" ? "uPnL" : "Win Rate"}
           </button>
         ))}
