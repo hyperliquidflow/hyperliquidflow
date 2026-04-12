@@ -30,14 +30,17 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${geistMono.variable}`}>
       <body className="bg-[#090909] text-[#f0f0f0] font-[family-name:var(--font-inter)] antialiased min-h-screen">
-        {/* Corner aura — full-viewport div, hue-matched transparent to avoid ring artifact */}
+        {/* Corner aura — layered dual-gradient, no ring artifact */}
         <div aria-hidden="true" style={{
           position: "fixed",
           bottom: 0,
           right: 0,
           width: "100vw",
           height: "100vh",
-          background: "radial-gradient(ellipse at 100% 100%, rgba(151,253,229,0.18) 0%, rgba(7,39,35,0.16) 28%, rgba(7,39,35,0) 62%)",
+          backgroundImage: [
+            "radial-gradient(ellipse at 95% 95%, rgba(151,253,229,0.2) 0%, rgba(151,253,229,0.05) 40%, transparent 70%)",
+            "radial-gradient(ellipse at 95% 95%, rgba(7,39,35,0.3) 0%, transparent 60%)",
+          ].join(", "),
           pointerEvents: "none",
           zIndex: 0,
         }} />
