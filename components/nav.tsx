@@ -233,7 +233,7 @@ export function Nav() {
                 userSelect: "none",
               }}
             >
-              LIVE
+              Monitoring
             </span>
           </div>
           {data?.updated_at && (

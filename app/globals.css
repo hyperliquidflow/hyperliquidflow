@@ -200,3 +200,8 @@
   0%, 100% { opacity: 1; }
   50%       { opacity: 0.6; }
 }
+
+@keyframes bar-pulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(106,170,122,0.35); opacity: 1; }
+  50%      { box-shadow: 0 0 16px rgba(106,170,122,0.6); opacity: 0.8; }
+}
