@@ -28,7 +28,7 @@ export function PageHeader({ title, subtitle, regime }: PageHeaderProps) {
           {title}
         </h1>
         {subtitle && (
-          <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.38)", marginTop: "4px", margin: 0 }}>
+          <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.38)", marginTop: "4px" }}>
             {subtitle}
           </p>
         )}
