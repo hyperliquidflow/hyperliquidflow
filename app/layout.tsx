@@ -1,4 +1,20 @@
 // app/layout.tsx
+// Generates a stepped radial gradient (flat bands + discrete jumps) to eliminate
+// browser banding. Opacity follows a cosine (ease-out-sine) curve per step.
+function steppedRadial(r: number, g: number, b: number, maxA: number, endPct: number, steps = 12): string {
+  const s: string[] = [`rgba(${r},${g},${b},${maxA}) 0%`];
+  for (let i = 1; i < steps; i++) {
+    const t     = i / steps;
+    const alpha = +(maxA * Math.cos(t * Math.PI / 2)).toFixed(4);
+    const pos   = +(t * endPct).toFixed(1);
+    const flat  = +((t + 0.5 / steps) * endPct).toFixed(1);
+    s.push(`rgba(${r},${g},${b},${alpha}) ${pos}%`);
+    s.push(`rgba(${r},${g},${b},${alpha}) ${flat}%`);
+  }
+  s.push(`rgba(${r},${g},${b},0) ${endPct}%`);
+  return `radial-gradient(ellipse at 100% 100%, ${s.join(", ")})`;
+}
+
 import type { Metadata } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -30,7 +46,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${geistMono.variable}`}>
       <body className="bg-[#090909] text-[#f0f0f0] font-[family-name:var(--font-inter)] antialiased min-h-screen">
-        {/* Corner aura — ease-out-sine baked into stops (cos curve), hue-matched transparents */}
+        {/* Corner aura — stepped radial gradient (12 flat bands) eliminates browser banding */}
         <div aria-hidden="true" style={{
           position: "fixed",
           bottom: 0,
@@ -38,10 +54,8 @@ export default function RootLayout({
           width: "100vw",
           height: "100vh",
           backgroundImage: [
-            // Teal accent: 0.20→0 over 70%, cosine-eased stops
-            "radial-gradient(ellipse at 100% 100%, rgba(151,253,229,0.20) 0%, rgba(151,253,229,0.19) 14%, rgba(151,253,229,0.16) 28%, rgba(151,253,229,0.12) 42%, rgba(151,253,229,0.06) 56%, rgba(151,253,229,0) 70%)",
-            // Dark teal bloom: 0.30→0 over 60%, cosine-eased stops
-            "radial-gradient(ellipse at 100% 100%, rgba(7,39,35,0.30) 0%, rgba(7,39,35,0.28) 12%, rgba(7,39,35,0.24) 24%, rgba(7,39,35,0.18) 36%, rgba(7,39,35,0.09) 48%, rgba(7,39,35,0) 60%)",
+            steppedRadial(151, 253, 229, 0.20, 70),
+            steppedRadial(7, 39, 35, 0.30, 60),
           ].join(", "),
           pointerEvents: "none",
           zIndex: 0,
