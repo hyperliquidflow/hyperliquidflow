@@ -8,7 +8,7 @@ import { QueryProvider } from "@/components/query-provider";
 
 const S = {
   page:  { padding: "28px", maxWidth: "900px", margin: "0 auto" },
-  card:  { background: "#0f0f0f", border: "1px solid rgba(180,180,180,0.12)", borderRadius: "10px", overflow: "hidden" as const },
+  card:  { background: "rgba(14,14,14,0.65)", backdropFilter: "blur(20px) saturate(160%)", WebkitBackdropFilter: "blur(20px) saturate(160%)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "10px", overflow: "hidden" as const, boxShadow: "0 4px 24px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04)" },
   hdr:   { borderBottom: "1px solid rgba(180,180,180,0.06)", padding: "16px 20px", display: "flex", alignItems: "center", gap: "12px" },
   label: { fontSize: "10px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.44)" },
   muted: { color: "rgba(255,255,255,0.44)", fontSize: "11px" },

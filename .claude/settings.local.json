@@ -3,7 +3,14 @@
     "allow": [
       "Bash(npm install:*)",
       "Bash(npm run:*)",
-      "Bash(ls /Users/ahimsa/Documents/Lakshmi/.env*)"
+      "Bash(ls /Users/ahimsa/Documents/Lakshmi/.env*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "WebFetch(domain:hyperliquidflow-hyperliquidflows-projects.vercel.app)",
+      "Bash(open /Users/ahimsa/Documents/Lakshmi/public/glow-test.html)",
+      "Bash(npx tsc:*)",
+      "Bash(grep -n 'background: \"#0f0f0f\"' /Users/ahimsa/Documents/Lakshmi/app/*/page.tsx /Users/ahimsa/Documents/Lakshmi/app/page.tsx)"
     ]
   }
 }

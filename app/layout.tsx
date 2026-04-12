@@ -43,7 +43,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${inter.variable} ${geistMono.variable}`}>
-      <body className="bg-[#090909] text-[#f0f0f0] font-[family-name:var(--font-inter)] antialiased min-h-screen">
+      <body className="bg-[#060606] text-[#f0f0f0] font-[family-name:var(--font-inter)] antialiased min-h-screen">
         {/* Corner aura — scrim-gradient technique, eased stops kill browser banding */}
         <div aria-hidden="true" style={{
           position: "fixed",
