@@ -6,13 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { formatUsd, formatPct, timeAgo, truncateAddress } from "@/lib/utils";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 import { QueryProvider } from "@/components/query-provider";
-
-// ── Regime colours (template-grey palette) ────────────────────────────────────
-const REGIME_STYLES = {
-  BULL:    { color: "#6aaa7a", bg: "rgba(106,170,122,0.07)", label: "BULLISH" },
-  BEAR:    { color: "#b06868", bg: "rgba(176,104,104,0.07)", label: "BEARISH" },
-  RANGING: { color: "#9ca3af", bg: "rgba(156,163,175,0.07)", label: "RANGING" },
-};
+import { PageHeader } from "@/components/page-header";
 
 const RECIPE_LABELS: Record<string, string> = {
   momentum_stack:       "Momentum Stack",
@@ -47,7 +41,6 @@ function OverviewInner() {
   });
 
   const regime = data?.regime ?? "RANGING";
-  const rs = REGIME_STYLES[regime];
 
   if (isLoading) return <LoadingState />;
   if (error)     return <ErrorState message={String(error)} />;
@@ -60,32 +53,14 @@ function OverviewInner() {
     : 0;
 
   return (
-    <div style={S.page}>
-      {/* ── Regime Banner ── */}
-      <div style={{
-        ...S.card,
-        background: rs.bg,
-        border: `1px solid ${rs.color}22`,
-        padding: "20px 24px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        marginBottom: "20px",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: rs.color, boxShadow: `0 0 8px ${rs.color}` }} />
-          <div>
-            <div style={{ fontSize: "18px", fontWeight: 700, color: rs.color }}>{rs.label}</div>
-            <div style={S.muted}>Market regime · BTC 24h: {data.btc_return_24h >= 0 ? "+" : ""}{formatPct(data.btc_return_24h)}</div>
-          </div>
-        </div>
-        <div style={{ textAlign: "right" }}>
-          <div style={S.small}>Updated {timeAgo(data.updated_at)}</div>
-          <div style={S.muted}>{data.wallet_count} wallets active</div>
-        </div>
-      </div>
-
-      {/* ── Stat Cards ── */}
+    <>
+      <PageHeader
+        title="Overview"
+        subtitle={`${data.wallet_count} wallets · BTC 24h: ${data.btc_return_24h >= 0 ? "+" : ""}${formatPct(data.btc_return_24h)}`}
+        regime={regime}
+      />
+      <div style={{ ...S.page, paddingTop: "20px" }}>
+        {/* ── Stat Cards ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "20px" }}>
         {[
           { label: "Active Cohort",     value: `${data.wallet_count}`,           sub: "wallets tracked" },
@@ -168,7 +143,8 @@ function OverviewInner() {
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 
