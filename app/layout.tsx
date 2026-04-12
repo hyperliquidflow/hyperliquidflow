@@ -30,7 +30,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${geistMono.variable}`}>
       <body className="bg-[#090909] text-[#f0f0f0] font-[family-name:var(--font-inter)] antialiased min-h-screen">
-        {/* Corner aura — layered dual-gradient, no ring artifact */}
+        {/* Corner aura — layered dual-gradient anchored to corner */}
         <div aria-hidden="true" style={{
           position: "fixed",
           bottom: 0,
@@ -38,9 +38,18 @@ export default function RootLayout({
           width: "100vw",
           height: "100vh",
           backgroundImage: [
-            "radial-gradient(ellipse at 95% 95%, rgba(151,253,229,0.2) 0%, rgba(151,253,229,0.05) 40%, transparent 70%)",
-            "radial-gradient(ellipse at 95% 95%, rgba(7,39,35,0.3) 0%, transparent 60%)",
+            "radial-gradient(ellipse at 100% 100%, rgba(151,253,229,0.2) 0%, rgba(151,253,229,0.05) 40%, rgba(151,253,229,0) 70%)",
+            "radial-gradient(ellipse at 100% 100%, rgba(7,39,35,0.3) 0%, rgba(7,39,35,0) 60%)",
           ].join(", "),
+          pointerEvents: "none",
+          zIndex: 0,
+        }} />
+        {/* Grain overlay — dithers gradient banding */}
+        <div aria-hidden="true" style={{
+          position: "fixed",
+          inset: 0,
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E")`,
+          opacity: 0.04,
           pointerEvents: "none",
           zIndex: 0,
         }} />
