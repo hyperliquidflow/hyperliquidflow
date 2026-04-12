@@ -7,6 +7,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { formatUsd, formatPct } from "@/lib/utils";
 import { QueryProvider } from "@/components/query-provider";
+import { PageHeader } from "@/components/page-header";
 
 const S = {
   page:  { padding: "28px", maxWidth: "1100px", margin: "0 auto" },
@@ -45,12 +46,12 @@ function ContrarianInner() {
   const selectedIdea = data.ideas.find((i) => i.coin === selected);
 
   return (
-    <div style={S.page}>
-      <div style={{ marginBottom: "20px" }}>
-        <h1 style={{ fontSize: "18px", fontWeight: 700, color: "#f0f0f0" }}>Smart Money vs. Rekt Money</h1>
-        <p style={S.muted}>Coins where smart-money cohort and non-cohort OI diverge · rule-based Smart Trade Plan · not financial advice</p>
-      </div>
-
+    <>
+      <PageHeader
+        title="Contrarian"
+        subtitle="Smart Money vs. Rekt Money — divergence scanner"
+      />
+      <div style={{ ...S.page, paddingTop: "20px" }}>
       <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 1fr" : "1fr", gap: "16px" }}>
         {/* Divergence list */}
         <div style={S.card}>
@@ -151,6 +152,7 @@ function ContrarianInner() {
         )}
       </div>
     </div>
+    </>
   );
 }
 

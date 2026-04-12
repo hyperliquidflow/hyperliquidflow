@@ -5,6 +5,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { formatUsd, formatPct, truncateAddress } from "@/lib/utils";
 import { QueryProvider } from "@/components/query-provider";
+import { PageHeader } from "@/components/page-header";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 
 const S = {
@@ -40,12 +41,12 @@ function WhaleReportInner() {
   const displayed = tab === "top50" ? wallets.slice(0, 50) : tab === "active" ? wallets.filter(w => w.position_count > 0) : wallets;
 
   return (
-    <div style={S.page}>
-      <div style={{ marginBottom: "20px" }}>
-        <h1 style={{ fontSize: "18px", fontWeight: 700, color: "#f0f0f0" }}>Full Whale Report</h1>
-        <p style={S.muted}>Top Hyperliquid wallets ranked by performance · {data.wallet_count} active</p>
-      </div>
-
+    <>
+      <PageHeader
+        title="Whale Report"
+        subtitle={`Top wallets by composite score · ${data.wallet_count} active`}
+      />
+      <div style={{ ...S.page, paddingTop: "20px" }}>
       {/* Tabs */}
       <div style={{ display: "flex", borderBottom: "1px solid rgba(180,180,180,0.06)", marginBottom: "20px", gap: "0" }}>
         {(["top50", "active", "all"] as const).map((t) => (
@@ -127,6 +128,7 @@ function WhaleReportInner() {
         </table>
       </div>
     </div>
+    </>
   );
 }
 

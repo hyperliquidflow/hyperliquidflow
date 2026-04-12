@@ -4,6 +4,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { formatPct, timeAgo } from "@/lib/utils";
 import { QueryProvider } from "@/components/query-provider";
+import { PageHeader } from "@/components/page-header";
 
 const RECIPE_META: Record<string, { label: string; color: string; desc: string }> = {
   momentum_stack:       { label: "Momentum Stack",       color: "#6a6a6a", desc: "≥8 wallets add >$500K same direction in <5 min" },
@@ -51,12 +52,12 @@ function RecipeLabInner() {
   });
 
   return (
-    <div style={S.page}>
-      <div style={{ marginBottom: "20px" }}>
-        <h1 style={{ fontSize: "18px", fontWeight: 700, color: "#f0f0f0" }}>Recipe Lab</h1>
-        <p style={S.muted}>9 signal recipes · historical performance · auto-tracked from signals_history</p>
-      </div>
-
+    <>
+      <PageHeader
+        title="Recipes"
+        subtitle="Signal recipe performance"
+      />
+      <div style={{ ...S.page, paddingTop: "20px" }}>
       {/* Performance grid */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", marginBottom: "24px" }}>
         {allRecipes.map(({ id, label, color, desc, perf }) => {
@@ -130,6 +131,7 @@ function RecipeLabInner() {
         </div>
       </div>
     </div>
+    </>
   );
 }
 

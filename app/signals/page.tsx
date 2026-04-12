@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { timeAgo, truncateAddress } from "@/lib/utils";
 import { QueryProvider } from "@/components/query-provider";
+import { PageHeader } from "@/components/page-header";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 
 const RECIPE_META: Record<string, { label: string; desc: string }> = {
@@ -59,12 +60,13 @@ function SignalsInner() {
   const uniqueRecipes = [...new Set(data.recent_signals.map((s) => s.recipe_id))];
 
   return (
-    <div style={S.page}>
-      <div style={{ marginBottom: "20px" }}>
-        <h1 style={{ fontSize: "18px", fontWeight: 700, color: "#f0f0f0" }}>Signal Feed</h1>
-        <p style={S.muted}>All 9 recipe detections · live updates every 60s · {data.recent_signals.length} recent signals</p>
-      </div>
-
+    <>
+      <PageHeader
+        title="Signals"
+        subtitle={`All 9 recipes · ${data.recent_signals.length} recent signals`}
+        regime={data.regime}
+      />
+      <div style={{ ...S.page, paddingTop: "20px" }}>
       {/* Filters */}
       <div style={{ display: "flex", gap: "10px", marginBottom: "20px", flexWrap: "wrap" as const, alignItems: "center" }}>
         <select value={filterRecipe} onChange={(e) => setFilterRecipe(e.target.value)}
@@ -172,6 +174,7 @@ function SignalsInner() {
         )}
       </div>
     </div>
+    </>
   );
 }
 

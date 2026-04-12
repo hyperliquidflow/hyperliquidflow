@@ -5,6 +5,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { timeAgo, formatUsd, formatPct } from "@/lib/utils";
 import { QueryProvider } from "@/components/query-provider";
+import { PageHeader } from "@/components/page-header";
 
 const S = {
   page:  { padding: "28px", maxWidth: "900px", margin: "0 auto" },
@@ -36,23 +37,13 @@ function MorningScanInner() {
 
   if (isLoading || !data) return <div style={{ padding: "28px", ...S.muted }}>Loading morning scan…</div>;
 
-  const regimeColor = data.regime === "BULL" ? "#6aaa7a" : data.regime === "BEAR" ? "#b06868" : "#9ca3af";
-
   return (
-    <div style={S.page}>
-      <div style={{ marginBottom: "24px", display: "flex", alignItems: "baseline", gap: "16px" }}>
-        <div>
-          <h1 style={{ fontSize: "18px", fontWeight: 700, color: "#f0f0f0" }}>Morning Alpha Scan</h1>
-          <p style={S.muted}>Generated daily at 02:30 UTC · {timeAgo(data.generated_at)}</p>
-        </div>
-        <div className="glow-btn" style={{ marginLeft: "auto", fontSize: "11px", fontWeight: 700, padding: "5px 12px", borderRadius: "7px",
-          background: `rgba(14,14,14,0.65)`, backdropFilter: "blur(12px) saturate(160%)", WebkitBackdropFilter: "blur(12px) saturate(160%)",
-          color: regimeColor, border: `1px solid ${regimeColor}40`,
-          boxShadow: `0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)` }}>
-          {data.regime} · BTC {data.btc_return_24h >= 0 ? "+" : ""}{formatPct(data.btc_return_24h)}
-        </div>
-      </div>
-
+    <>
+      <PageHeader
+        title="Daily Brief"
+        subtitle={`Generated daily at 02:30 UTC · ${timeAgo(data.generated_at)}`}
+      />
+      <div style={{ ...S.page, paddingTop: "20px" }}>
       {/* Summary */}
       <div style={{ ...S.card, padding: "20px 24px", marginBottom: "16px" }}>
         <div style={{ ...S.label, marginBottom: "12px" }}>Daily Briefing</div>
@@ -133,6 +124,7 @@ function MorningScanInner() {
         })}
       </div>
     </div>
+    </>
   );
 }
 

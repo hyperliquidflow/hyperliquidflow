@@ -4,6 +4,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { timeAgo, formatPct } from "@/lib/utils";
 import { QueryProvider } from "@/components/query-provider";
+import { PageHeader } from "@/components/page-header";
 
 const S = {
   page:  { padding: "28px", maxWidth: "1000px", margin: "0 auto" },
@@ -36,12 +37,12 @@ function ScannerInner() {
   if (isLoading || !data) return <div style={{ padding: "28px", ...S.muted }}>Loading scanner stats…</div>;
 
   return (
-    <div style={S.page}>
-      <div style={{ marginBottom: "20px" }}>
-        <h1 style={{ fontSize: "18px", fontWeight: 700, color: "#f0f0f0" }}>Wallet Scanner</h1>
-        <p style={S.muted}>Daily discovery at 02:00 UTC · GitHub Actions · leaderboard → win rate filter → cohort</p>
-      </div>
-
+    <>
+      <PageHeader
+        title="Scanner"
+        subtitle="Daily discovery at 02:00 UTC · GitHub Actions"
+      />
+      <div style={{ ...S.page, paddingTop: "20px" }}>
       {/* Stats row */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "20px" }}>
         {[
@@ -140,6 +141,7 @@ function ScannerInner() {
         </table>
       </div>
     </div>
+    </>
   );
 }
 

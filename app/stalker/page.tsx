@@ -4,6 +4,7 @@
 import { useState, useCallback } from "react";
 import { formatUsd, formatPct, timeAgo, truncateAddress, isValidAddress } from "@/lib/utils";
 import { QueryProvider } from "@/components/query-provider";
+import { PageHeader } from "@/components/page-header";
 
 const S = {
   page:  { padding: "28px", maxWidth: "1100px", margin: "0 auto" },
@@ -76,12 +77,12 @@ function StalkerInner() {
   }, []);
 
   return (
-    <div style={S.page}>
-      <div style={{ marginBottom: "24px" }}>
-        <h1 style={{ fontSize: "18px", fontWeight: 700, color: "#f0f0f0" }}>Wallet Stalker</h1>
-        <p style={S.muted}>Drop any Hyperliquid address to see full trading history and verdict</p>
-      </div>
-
+    <>
+      <PageHeader
+        title="Wallet Stalker"
+        subtitle="Drop any address, get full history + verdict"
+      />
+      <div style={{ ...S.page, paddingTop: "20px" }}>
       {/* Input */}
       <div style={{ display: "flex", gap: "10px", marginBottom: "24px" }}>
         <input
@@ -113,6 +114,7 @@ function StalkerInner() {
 
       {profile && <WalletProfileCard profile={profile} />}
     </div>
+    </>
   );
 }
 
