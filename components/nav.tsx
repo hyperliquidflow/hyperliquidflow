@@ -12,7 +12,6 @@ const NAV_LINKS = [
   { href: "/wallets",     label: "Whale Report"   },
   { href: "/signals",     label: "Signals"     },
   { href: "/contrarian",  label: "Contrarian"  },
-  { href: "/deep-dive",   label: "Deep Dive"   },
   { href: "/stalker",     label: "Wallet Stalker" },
   { href: "/morning",     label: "Morning Scan" },
   { href: "/recipes",     label: "Recipes"     },
@@ -56,6 +55,7 @@ export function Nav() {
             <Link
               key={href}
               href={href}
+              className="glow-btn"
               style={{
                 fontSize: "12px",
                 fontWeight: 500,

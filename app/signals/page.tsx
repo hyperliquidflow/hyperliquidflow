@@ -92,9 +92,9 @@ function SignalsInner() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px", marginBottom: "20px" }}>
         {Object.entries(RECIPE_META).map(([id, { label, desc }]) => (
           <button key={id} onClick={() => setFilterRecipe(filterRecipe === id ? "all" : id)}
-            className="card-hover"
+            className="card-hover glow-btn"
             style={{ ...S.card, padding: "16px 18px", textAlign: "left" as const, cursor: "pointer",
-              border: filterRecipe === id ? "1px solid #606060" : "1px solid rgba(180,180,180,0.12)",
+              border: filterRecipe === id ? "1px solid rgba(255,255,255,0.26)" : "1px solid rgba(255,255,255,0.07)",
               background: filterRecipe === id ? "rgba(96,96,96,0.10)" : "#0f0f0f" }}>
             <div style={{ fontSize: "12px", fontWeight: 600, color: "#f0f0f0", marginBottom: "6px" }}>{label}</div>
             <div style={{ ...S.muted, lineHeight: 1.5 }}>{desc}</div>

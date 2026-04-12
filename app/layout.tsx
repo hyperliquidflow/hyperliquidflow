@@ -17,6 +17,7 @@ import type { Metadata } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/nav";
+import { GlowInit } from "@/components/glow-init";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -67,6 +68,7 @@ export default function RootLayout({
           pointerEvents: "none",
           zIndex: 0,
         }} />
+        <GlowInit />
         <Nav />
         <main className="min-h-[calc(100vh-52px)]" style={{ position: "relative", zIndex: 1 }}>{children}</main>
       </body>

@@ -92,6 +92,18 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* ── Cursor-responsive shimmer (add class="glow-btn" + GlowInit in layout) ── */
+  .glow-btn { position: relative; overflow: hidden; }
+  .glow-btn::after {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(
+      circle at var(--gx, 50%) var(--gy, 50%),
+      rgba(235,235,235,0.13) 0%, rgba(200,200,200,0.06) 35%, transparent 65%
+    );
+    opacity: 0; transition: opacity 0.9s ease-out; pointer-events: none; border-radius: inherit;
+  }
+  .glow-btn:hover::after { opacity: 1; transition: opacity 0.12s ease-in; }
+
   /* ── iOS-style glass pill buttons ── */
   .ios-pill {
     backdrop-filter: blur(12px) saturate(180%);

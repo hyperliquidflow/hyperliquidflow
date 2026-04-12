@@ -45,8 +45,10 @@ function MorningScanInner() {
           <h1 style={{ fontSize: "18px", fontWeight: 700, color: "#f0f0f0" }}>Morning Alpha Scan</h1>
           <p style={S.muted}>Generated daily at 02:30 UTC · {timeAgo(data.generated_at)}</p>
         </div>
-        <div style={{ marginLeft: "auto", fontSize: "11px", fontWeight: 700, padding: "4px 10px", borderRadius: "4px",
-          background: `${regimeColor}14`, color: regimeColor, border: `1px solid ${regimeColor}30` }}>
+        <div className="glow-btn" style={{ marginLeft: "auto", fontSize: "11px", fontWeight: 700, padding: "5px 12px", borderRadius: "7px",
+          background: `rgba(14,14,14,0.65)`, backdropFilter: "blur(12px) saturate(160%)", WebkitBackdropFilter: "blur(12px) saturate(160%)",
+          color: regimeColor, border: `1px solid ${regimeColor}40`,
+          boxShadow: `0 1px 3px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.05)` }}>
           {data.regime} · BTC {data.btc_return_24h >= 0 ? "+" : ""}{formatPct(data.btc_return_24h)}
         </div>
       </div>

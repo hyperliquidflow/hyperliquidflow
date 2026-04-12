@@ -66,7 +66,7 @@ function RecipeLabInner() {
           const winColor = winRate != null ? (winRate >= 0.6 ? "#909090" : winRate >= 0.5 ? "#747474" : "#585858") : "#505050";
 
           return (
-            <div key={id} className="card-hover" style={{ ...S.card, borderLeft: `3px solid ${color}` }}>
+            <div key={id} className="card-hover glow-btn" style={{ ...S.card, borderLeft: `3px solid ${color}` }}>
               <div style={{ padding: "16px 16px 12px" }}>
                 <div style={{ fontSize: "12px", fontWeight: 700, color: "#f0f0f0", marginBottom: "4px" }}>{label}</div>
                 <div style={{ ...S.muted, fontSize: "10px", marginBottom: "14px" }}>{desc}</div>
