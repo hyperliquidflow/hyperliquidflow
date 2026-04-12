@@ -21,14 +21,14 @@ const RECIPE_LABELS: Record<string, string> = {
 
 // ── Styles (mirror template-grey tokens) ─────────────────────────────────────
 const S = {
-  page:    { padding: "28px", maxWidth: "1400px", margin: "0 auto" },
-  card:    { background: "rgba(14,14,14,0.65)", backdropFilter: "blur(20px) saturate(160%)", WebkitBackdropFilter: "blur(20px) saturate(160%)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "10px", overflow: "hidden" as const, boxShadow: "0 4px 24px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04)" },
+  page:    { padding: "32px", maxWidth: "1400px", margin: "0 auto" },
+  card:    { background: "rgba(12,12,12,0.7)", backdropFilter: "blur(20px) saturate(160%)", WebkitBackdropFilter: "blur(20px) saturate(160%)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", overflow: "hidden" as const, boxShadow: "0 2px 20px rgba(0,0,0,0.4)" },
   hdr:     { borderBottom: "1px solid rgba(180,180,180,0.06)", padding: "16px 20px", display: "flex", alignItems: "center", gap: "8px" },
-  label:   { fontSize: "10px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.44)" },
-  val:     { fontSize: "22px", fontWeight: 700, fontVariantNumeric: "tabular-nums" as const },
-  small:   { fontSize: "11px", color: "rgba(255,255,255,0.69)" },
-  muted:   { color: "rgba(255,255,255,0.44)", fontSize: "11px" },
-  mono:    { fontFamily: "var(--font-mono)", fontSize: "11px" },
+  label:   { fontSize: "12px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.44)" },
+  val:     { fontSize: "31px", fontWeight: 700, fontVariantNumeric: "tabular-nums" as const },
+  small:   { fontSize: "13px", color: "rgba(255,255,255,0.69)" },
+  muted:   { color: "rgba(255,255,255,0.44)", fontSize: "13px" },
+  mono:    { fontFamily: "var(--font-mono)", fontSize: "13px" },
 };
 
 function OverviewInner() {
