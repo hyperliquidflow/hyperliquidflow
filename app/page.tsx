@@ -41,7 +41,7 @@ const SPARKLINE: Record<string, { pts: string; fill: string }> = {
 };
 
 const S = {
-  page:  { padding: "32px", maxWidth: "1400px", margin: "0 auto" },
+  page:  { padding: "32px" },
   card:  { background: "rgba(12,12,12,0.7)", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", overflow: "hidden" as const, boxShadow: "0 2px 20px rgba(0,0,0,0.4)" },
   hdr:   { borderBottom: "1px solid rgba(255,255,255,0.05)", padding: "14px 20px", display: "flex", alignItems: "center" },
   title: { fontSize: "13px", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" as const, color: "rgba(255,255,255,0.5)" },
@@ -440,7 +440,7 @@ function DirBadge({ direction }: { direction: string | null }) {
 
 function LoadingState() {
   return (
-    <div style={{ padding: "32px", maxWidth: "1400px", margin: "0 auto", display: "flex", flexDirection: "column", gap: "12px" }}>
+    <div style={{ padding: "32px", display: "flex", flexDirection: "column", gap: "12px" }}>
       {[...Array(4)].map((_, i) => (
         <div key={i} style={{ background: "rgba(12,12,12,0.7)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", height: "80px", opacity: 0.4 }} />
       ))}
@@ -450,7 +450,7 @@ function LoadingState() {
 
 function ErrorState({ message }: { message: string }) {
   return (
-    <div style={{ padding: "32px", maxWidth: "1400px", margin: "0 auto" }}>
+    <div style={{ padding: "32px" }}>
       <div style={{ background: "rgba(12,12,12,0.7)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", padding: "32px", textAlign: "center", color: "#b06868" }}>
         Failed to load data: {message}
       </div>
