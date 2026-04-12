@@ -18,6 +18,7 @@ import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/nav";
 import { GlowInit } from "@/components/glow-init";
+import { QueryProvider } from "@/components/query-provider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -69,21 +70,23 @@ export default function RootLayout({
           zIndex: 0,
         }} />
         <GlowInit />
-        <div style={{ display: "flex", minHeight: "100vh" }}>
-          <Nav />
-          <main
-            style={{
-              flex: 1,
-              minWidth: 0,
-              position: "relative",
-              zIndex: 1,
-              marginLeft: "200px",
-            }}
-            className="sidenav-main"
-          >
-            {children}
-          </main>
-        </div>
+        <QueryProvider>
+          <div style={{ display: "flex", minHeight: "100vh" }}>
+            <Nav />
+            <main
+              style={{
+                flex: 1,
+                minWidth: 0,
+                position: "relative",
+                zIndex: 1,
+                marginLeft: "200px",
+              }}
+              className="sidenav-main"
+            >
+              {children}
+            </main>
+          </div>
+        </QueryProvider>
       </body>
     </html>
   );

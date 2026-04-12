@@ -3,7 +3,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { formatPct, timeAgo } from "@/lib/utils";
-import { QueryProvider } from "@/components/query-provider";
 import { PageHeader } from "@/components/page-header";
 
 const RECIPE_META: Record<string, { label: string; color: string; desc: string }> = {
@@ -136,5 +135,5 @@ function RecipeLabInner() {
 }
 
 export default function RecipesPage() {
-  return <QueryProvider><RecipeLabInner /></QueryProvider>;
+  return <RecipeLabInner />;
 }

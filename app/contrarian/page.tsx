@@ -6,7 +6,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { formatUsd, formatPct } from "@/lib/utils";
-import { QueryProvider } from "@/components/query-provider";
 import { PageHeader } from "@/components/page-header";
 
 const S = {
@@ -157,5 +156,5 @@ function ContrarianInner() {
 }
 
 export default function ContrarianPage() {
-  return <QueryProvider><ContrarianInner /></QueryProvider>;
+  return <ContrarianInner />;
 }

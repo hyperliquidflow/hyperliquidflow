@@ -3,7 +3,6 @@
 
 import { useState, useCallback } from "react";
 import { formatUsd, formatPct, timeAgo, truncateAddress, isValidAddress } from "@/lib/utils";
-import { QueryProvider } from "@/components/query-provider";
 import { PageHeader } from "@/components/page-header";
 
 const S = {
@@ -278,5 +277,5 @@ function WalletProfileCard({ profile }: { profile: WalletProfile }) {
 }
 
 export default function StalkerPage() {
-  return <QueryProvider><StalkerInner /></QueryProvider>;
+  return <StalkerInner />;
 }

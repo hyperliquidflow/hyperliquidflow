@@ -4,7 +4,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { formatUsd, formatPct, truncateAddress } from "@/lib/utils";
-import { QueryProvider } from "@/components/query-provider";
 import { PageHeader } from "@/components/page-header";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 
@@ -136,5 +135,5 @@ function WhaleReportInner() {
 import { useState } from "react";
 
 export default function WhaleReportPage() {
-  return <QueryProvider><WhaleReportInner /></QueryProvider>;
+  return <WhaleReportInner />;
 }

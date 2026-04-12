@@ -4,7 +4,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { timeAgo, formatUsd, formatPct } from "@/lib/utils";
-import { QueryProvider } from "@/components/query-provider";
 import { PageHeader } from "@/components/page-header";
 
 const S = {
@@ -129,5 +128,5 @@ function MorningScanInner() {
 }
 
 export default function MorningScanPage() {
-  return <QueryProvider><MorningScanInner /></QueryProvider>;
+  return <MorningScanInner />;
 }

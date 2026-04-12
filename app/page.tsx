@@ -5,7 +5,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { formatUsd, formatPct, timeAgo, truncateAddress } from "@/lib/utils";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
-import { QueryProvider } from "@/components/query-provider";
 import { PageHeader } from "@/components/page-header";
 
 const RECIPE_LABELS: Record<string, string> = {
@@ -191,9 +190,5 @@ function ErrorState({ message }: { message: string }) {
 
 // ── Export with provider ──────────────────────────────────────────────────────
 export default function OverviewPage() {
-  return (
-    <QueryProvider>
-      <OverviewInner />
-    </QueryProvider>
-  );
+  return <OverviewInner />;
 }

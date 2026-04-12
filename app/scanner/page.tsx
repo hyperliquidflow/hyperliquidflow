@@ -3,7 +3,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { timeAgo, formatPct } from "@/lib/utils";
-import { QueryProvider } from "@/components/query-provider";
 import { PageHeader } from "@/components/page-header";
 
 const S = {
@@ -146,5 +145,5 @@ function ScannerInner() {
 }
 
 export default function ScannerPage() {
-  return <QueryProvider><ScannerInner /></QueryProvider>;
+  return <ScannerInner />;
 }

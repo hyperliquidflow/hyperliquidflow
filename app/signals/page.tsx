@@ -4,7 +4,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { timeAgo, truncateAddress } from "@/lib/utils";
-import { QueryProvider } from "@/components/query-provider";
 import { PageHeader } from "@/components/page-header";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 
@@ -179,5 +178,5 @@ function SignalsInner() {
 }
 
 export default function SignalsPage() {
-  return <QueryProvider><SignalsInner /></QueryProvider>;
+  return <SignalsInner />;
 }
