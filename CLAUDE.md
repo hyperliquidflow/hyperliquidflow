@@ -51,7 +51,7 @@ Browser (React)
 
 - `refresh-cohort` — Vercel Cron endpoint; triggers background scoring + signal detection via Next.js `after()`
 - `cohort-state` — Client polls this; reads KV, fires background refresh if stale >5 min
-- `morning-scan`, `contrarian`, `wallet-profile`, `scanner-stats`, `recipe-performance`, `top-markets`, `deep-dive`
+- `morning-scan`, `contrarian` (powers the Divergence tab in `/signals`; reads KV, fires background refresh if stale), `wallet-profile`, `scanner-stats`, `recipe-performance`, `top-markets`, `deep-dive`
 
 ### Key Data Separation
 
