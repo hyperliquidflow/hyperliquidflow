@@ -6,18 +6,7 @@ import { formatUsd, formatPct, timeAgo, truncateAddress } from "@/lib/utils";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 import type { MarketTickerEntry } from "@/app/api/market-ticker/route";
 import { PageHeader } from "@/components/page-header";
-
-const RECIPE_LABELS: Record<string, string> = {
-  momentum_stack:       "Whale Convergence",
-  divergence_squeeze:   "Silent Loading",
-  accumulation_reentry: "Dip Conviction",
-  rotation_carry:       "Funded Edge",
-  liq_rebound:          "Liquidation Flush",
-  streak_continuation:  "Hot Streak",
-  funding_divergence:   "Smart Money vs. Retail",
-  whale_validated:      "Alpha Confirmation",
-  anti_whale_trap:      "Smart Exit Signal",
-};
+import { RECIPE_META } from "@/lib/recipe-meta";
 
 // Coin-specific sparkline paths taken directly from layout-3-siderail prototype.
 // Shape is fixed per coin; stroke colour reflects live 24h direction.
@@ -279,7 +268,7 @@ function OverviewInner() {
                 }}>
                   <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.2)", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{i + 1}</span>
                   <div>
-                    <div style={{ fontSize: "16px", fontWeight: 600, color: "#f0f0f0" }}>{RECIPE_LABELS[sig.recipe_id] ?? sig.recipe_id}</div>
+                    <div style={{ fontSize: "16px", fontWeight: 600, color: "#f0f0f0" }}>{RECIPE_META[sig.recipe_id]?.label ?? sig.recipe_id}</div>
                     <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.36)", marginTop: "2px" }}>{timeAgo(sig.detected_at)}</div>
                   </div>
                   <span style={{ fontSize: "13px", fontWeight: 700, padding: "2px 8px", borderRadius: "5px", background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.7)" }}>{sig.coin}</span>
