@@ -1,18 +1,16 @@
 // app/layout.tsx
-// Generates a stepped radial gradient (flat bands + discrete jumps) to eliminate
-// browser banding. Opacity follows a cosine (ease-out-sine) curve per step.
-function steppedRadial(r: number, g: number, b: number, maxA: number, endPct: number, steps = 12): string {
-  const s: string[] = [`rgba(${r},${g},${b},${maxA}) 0%`];
-  for (let i = 1; i < steps; i++) {
-    const t     = i / steps;
-    const alpha = +(maxA * Math.cos(t * Math.PI / 2)).toFixed(4);
-    const pos   = +(t * endPct).toFixed(1);
-    const flat  = +((t + 0.5 / steps) * endPct).toFixed(1);
-    s.push(`rgba(${r},${g},${b},${alpha}) ${pos}%`);
-    s.push(`rgba(${r},${g},${b},${alpha}) ${flat}%`);
-  }
-  s.push(`rgba(${r},${g},${b},0) ${endPct}%`);
-  return `radial-gradient(ellipse at 100% 100%, ${s.join(", ")})`;
+// Scrim-gradient: eased opacity coordinates that eliminate browser banding
+// (same technique as PostCSS scrim-gradient plugin, applied to radial)
+const SCRIM = [
+  [0,    1.000], [19,   0.738], [34,   0.541], [47,   0.382],
+  [56.5, 0.278], [65,   0.194], [73,   0.126], [80.2, 0.075],
+  [86.1, 0.042], [91,   0.021], [95.2, 0.008], [98.2, 0.002],
+  [100,  0.000],
+] as const;
+
+function scrimRadial(r: number, g: number, b: number, maxA: number): string {
+  const stops = SCRIM.map(([pct, f]) => `rgba(${r},${g},${b},${+(maxA * f).toFixed(4)}) ${pct}%`);
+  return `radial-gradient(ellipse at 100% 100%, ${stops.join(", ")})`;
 }
 
 import type { Metadata } from "next";
@@ -46,7 +44,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${geistMono.variable}`}>
       <body className="bg-[#090909] text-[#f0f0f0] font-[family-name:var(--font-inter)] antialiased min-h-screen">
-        {/* Corner aura — stepped radial gradient (12 flat bands) eliminates browser banding */}
+        {/* Corner aura — scrim-gradient technique, eased stops kill browser banding */}
         <div aria-hidden="true" style={{
           position: "fixed",
           bottom: 0,
@@ -54,8 +52,8 @@ export default function RootLayout({
           width: "100vw",
           height: "100vh",
           backgroundImage: [
-            steppedRadial(151, 253, 229, 0.20, 70),
-            steppedRadial(7, 39, 35, 0.30, 60),
+            scrimRadial(151, 253, 229, 0.20),
+            scrimRadial(7, 39, 35, 0.30),
           ].join(", "),
           pointerEvents: "none",
           zIndex: 0,
