@@ -4,6 +4,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { formatUsd, formatPct, timeAgo, truncateAddress } from "@/lib/utils";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
+import type { MarketTickerEntry } from "@/app/api/market-ticker/route";
 import { PageHeader } from "@/components/page-header";
 
 const RECIPE_LABELS: Record<string, string> = {
@@ -78,6 +79,13 @@ function OverviewInner() {
     staleTime: 55_000,
   });
 
+  const { data: ticker } = useQuery<MarketTickerEntry[]>({
+    queryKey: ["market-ticker"],
+    queryFn: () => fetch("/api/market-ticker").then((r) => r.json()),
+    refetchInterval: 60_000,
+    staleTime: 55_000,
+  });
+
   if (isLoading) return <LoadingState />;
   if (error)     return <ErrorState message={String(error)} />;
   if (!data)     return null;
@@ -101,6 +109,46 @@ function OverviewInner() {
         subtitle={`${data.wallet_count} wallets · BTC 24h: ${data.btc_return_24h >= 0 ? "+" : ""}${formatPct(data.btc_return_24h)}`}
         regime={regime}
       />
+      {/* ── Market ticker strip ── */}
+      {ticker && ticker.length > 0 && (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: `repeat(${ticker.length}, 1fr)`,
+          margin: "20px 32px 0",
+          background: "rgba(255,255,255,0.03)",
+          border: "1px solid rgba(255,255,255,0.07)",
+          borderRadius: "12px",
+          overflow: "hidden",
+          backdropFilter: "blur(16px)",
+          WebkitBackdropFilter: "blur(16px)",
+          boxShadow: "0 2px 20px rgba(0,0,0,0.4)",
+        }}>
+          {ticker.map((t, i) => {
+            const pos = t.change24h >= 0;
+            return (
+              <div key={t.coin} style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "14px",
+                padding: "14px 18px",
+                borderRight: i < ticker.length - 1 ? "1px solid rgba(255,255,255,0.05)" : undefined,
+              }}>
+                <div>
+                  <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", color: "rgba(255,255,255,0.38)", textTransform: "uppercase" }}>{t.coin}</div>
+                  <div style={{ fontSize: "15px", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: "#f0f0f0", marginTop: "3px", whiteSpace: "nowrap" }}>
+                    ${t.price >= 1000 ? t.price.toLocaleString("en-US", { maximumFractionDigits: 0 }) : t.price.toFixed(2)}
+                  </div>
+                </div>
+                <Sparkline positive={pos} />
+                <div style={{ marginLeft: "auto", fontSize: "12px", fontWeight: 700, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", color: pos ? "#6aaa7a" : "#b06868" }}>
+                  {pos ? "+" : ""}{formatPct(t.change24h)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       <div style={{ ...S.page, paddingTop: "20px" }}>
 
         {/* ── Stat row ── */}
@@ -278,6 +326,29 @@ function OverviewInner() {
 }
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
+
+function Sparkline({ positive }: { positive: boolean }) {
+  const color = positive ? "#6aaa7a" : "#b06868";
+  const id = positive ? "sg-pos" : "sg-neg";
+  const pts = positive
+    ? "0,14 4,13 8,11 12,12 16,9 20,7 24,8 28,5 32,4 36,5 40,2 44,3 48,1 50,0"
+    : "0,2 4,3 8,1 12,4 16,3 20,6 24,5 28,8 32,7 36,10 40,11 44,13 48,14 50,16";
+  const fill = positive
+    ? "M0,19 L0,14 L4,13 L8,11 L12,12 L16,9 L20,7 L24,8 L28,5 L32,4 L36,5 L40,2 L44,3 L48,1 L50,0 L50,19 Z"
+    : "M0,19 L0,2 L4,3 L8,1 L12,4 L16,3 L20,6 L24,5 L28,8 L32,7 L36,10 L40,11 L44,13 L48,14 L50,16 L50,19 Z";
+  return (
+    <svg viewBox="0 0 50 20" width="62" height="20" preserveAspectRatio="none" style={{ flexShrink: 0, opacity: 0.8 }}>
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.28" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={fill} fill={`url(#${id})`} />
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
 
 function DirBadge({ direction }: { direction: string | null }) {
   if (!direction) return <span style={{ width: "46px" }} />;

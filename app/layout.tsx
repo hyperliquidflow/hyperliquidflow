@@ -1,18 +1,4 @@
 // app/layout.tsx
-// Scrim-gradient: eased opacity coordinates that eliminate browser banding
-// (same technique as PostCSS scrim-gradient plugin, applied to radial)
-const SCRIM = [
-  [0,    1.000], [19,   0.738], [34,   0.541], [47,   0.382],
-  [56.5, 0.278], [65,   0.194], [73,   0.126], [80.2, 0.075],
-  [86.1, 0.042], [91,   0.021], [95.2, 0.008], [98.2, 0.002],
-  [100,  0.000],
-] as const;
-
-function scrimRadial(r: number, g: number, b: number, maxA: number): string {
-  const stops = SCRIM.map(([pct, f]) => `rgba(${r},${g},${b},${+(maxA * f).toFixed(4)}) ${pct}%`);
-  return `radial-gradient(ellipse at 100% 100%, ${stops.join(", ")})`;
-}
-
 import type { Metadata } from "next";
 import { Inter, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -46,17 +32,24 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${inter.variable} ${geistMono.variable}`}>
       <body className="bg-[#060606] text-[#f0f0f0] font-[family-name:var(--font-inter)] antialiased min-h-screen">
-        {/* Corner aura — scrim-gradient technique, eased stops kill browser banding */}
+        {/* Corner aura — oklch interpolation: perceptual color space eliminates sRGB banding */}
         <div aria-hidden="true" style={{
           position: "fixed",
-          bottom: 0,
-          right: 0,
-          width: "100vw",
-          height: "100vh",
-          backgroundImage: [
-            scrimRadial(151, 253, 229, 0.20),
-            scrimRadial(7, 39, 35, 0.30),
-          ].join(", "),
+          inset: 0,
+          background: `
+            radial-gradient(ellipse at 100% 100% in oklch,
+              oklch(32%  0.06  170)  0%,
+              oklch(25%  0.045 170) 18%,
+              oklch(20%  0.032 170) 32%,
+              oklch(15%  0.022 170) 45%,
+              oklch(12%  0.014 170) 57%,
+              oklch(8%   0.008 170) 68%,
+              oklch(6%   0.004 170) 78%,
+              oklch(3.5% 0     0)  100%),
+            radial-gradient(ellipse at 100% 100% in oklab,
+              oklch(16%  0.04  170)  0%,
+              oklch(3.5% 0     0)  100%)
+          `,
           pointerEvents: "none",
           zIndex: 0,
         }} />
@@ -64,7 +57,7 @@ export default function RootLayout({
         <div aria-hidden="true" style={{
           position: "fixed",
           inset: 0,
-          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)' opacity='1'/%3E%3C/svg%3E")`,
+          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300' viewBox='0 0 300 300'%3E%3Cfilter id='n' x='0' y='0'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.90' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.15'/%3E%3C/svg%3E")`,
           opacity: 0.22,
           pointerEvents: "none",
           zIndex: 0,
