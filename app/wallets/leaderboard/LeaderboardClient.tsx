@@ -9,6 +9,23 @@ import { PageHeader } from "@/components/page-header";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 import { color, card as C, type as T, space } from "@/lib/design-tokens";
 
+function TierBadge({ tier }: { tier: string | null | undefined }) {
+  if (!tier) return null;
+  return (
+    <span className="ios-pill" style={{
+      fontSize: "11px",
+      fontWeight: 600,
+      letterSpacing: "0.04em",
+      textTransform: "uppercase" as const,
+      marginLeft: "6px",
+      cursor: "default",
+      padding: "2px 8px",
+    }}>
+      {tier}
+    </span>
+  );
+}
+
 const S = {
   page:  { padding: space.pagePaddingX },
   card:  { ...C.base },
@@ -128,10 +145,13 @@ export function LeaderboardClient({ initialData }: { initialData: CohortCachePay
                     onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
                     <td style={{ ...S.td, color: "rgba(255,255,255,0.32)" }}>{i + 1}</td>
                     <td style={S.td}>
-                      <button onClick={() => router.push(`/wallets/discovery?address=${w.address}`)}
-                        style={{ ...S.mono, color: color.neutral, background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" as const }}>
-                        {truncateAddress(w.address)}
-                      </button>
+                      <div style={{ display: "flex", alignItems: "center" }}>
+                        <button onClick={() => router.push(`/wallets/discovery?address=${w.address}`)}
+                          style={{ ...S.mono, color: color.neutral, background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" as const }}>
+                          {truncateAddress(w.address)}
+                        </button>
+                        <TierBadge tier={w.equity_tier} />
+                      </div>
                     </td>
                     <td style={S.td}>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
