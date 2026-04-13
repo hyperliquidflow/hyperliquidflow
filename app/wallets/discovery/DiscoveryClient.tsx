@@ -4,8 +4,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { formatUsd, formatPct, truncateAddress, timeAgo, isValidAddress } from "@/lib/utils";
-import { PageHeader } from "@/components/page-header";
-import { color, card as C, type as T, space } from "@/lib/design-tokens";
+import { color, card as C, type as T, space, radius, anim } from "@/lib/design-tokens";
 
 const S = {
   page:  { padding: space.pagePaddingX },
@@ -178,6 +177,7 @@ export function DiscoveryClient({ initialScannerData }: { initialScannerData: Sc
   const [profile,      setProfile]       = useState<WalletProfile | null>(null);
   const [lookupLoading,setLookupLoading] = useState(false);
   const [lookupError,  setLookupError]   = useState<string | null>(null);
+  const [searchFocused, setSearchFocused] = useState(false);
 
   const doLookup = useCallback(async (addr: string) => {
     if (!isValidAddress(addr)) { setLookupError("Invalid address (must be 0x + 40 hex chars)"); return; }
@@ -200,25 +200,33 @@ export function DiscoveryClient({ initialScannerData }: { initialScannerData: Sc
 
   return (
     <>
-      <PageHeader title="Discovery" />
-      <div style={{ ...S.page, paddingTop: "20px" }}>
-        <div style={{ ...S.card, padding: "16px 20px", marginBottom: "20px" }}>
-          <div style={{ ...S.label, marginBottom: "12px" }}>Wallet Lookup</div>
-          <div style={{ display: "flex", gap: "10px" }}>
+      <div style={{ padding: "28px 32px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <h1 style={{ fontSize: "26px", fontWeight: 700, color: color.text, margin: 0 }}>Discovery</h1>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "6px" }}>
+          <div style={{ display: "flex", alignItems: "center", background: color.card, border: `1px solid ${searchFocused ? color.borderHover : color.border}`, borderRadius: radius.input, overflow: "hidden", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", transition: "border-color 0.2s" }}>
             <input
               value={lookupAddr}
               onChange={(e) => setLookupAddr(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && doLookup(lookupAddr)}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => setSearchFocused(false)}
               placeholder="0x... wallet address"
-              style={{ flex: 1, background: color.inputBg, border: `1px solid ${color.inputBorder}`, borderRadius: "6px", color: color.text, fontFamily: "var(--font-mono)", fontSize: "13px", padding: "10px 14px", outline: "none" }}
+              style={{ background: "transparent", border: "none", outline: "none", color: color.text, fontFamily: "'Geist Mono', monospace", fontSize: "13px", padding: "10px 14px", width: "360px" }}
             />
-            <button onClick={() => doLookup(lookupAddr)} disabled={lookupLoading} className="glow-btn"
-              style={{ padding: "0 20px", borderRadius: "7px", cursor: lookupLoading ? "not-allowed" : "pointer", background: color.card, border: `1px solid ${color.inputBorder}`, color: color.text, fontSize: "13px", fontWeight: 700, opacity: lookupLoading ? 0.5 : 1 }}>
-              {lookupLoading ? "Loading..." : "Lookup"}
+            <div style={{ width: "1px", height: "20px", background: color.border, flexShrink: 0 }} />
+            <button
+              onClick={() => doLookup(lookupAddr)}
+              disabled={lookupLoading}
+              className="glow-btn"
+              style={{ padding: "0 16px", minHeight: "40px", cursor: lookupLoading ? "not-allowed" : "pointer", background: "transparent", border: "none", color: lookupLoading ? color.textFaint : color.textMuted, fontFamily: "'DM Sans', system-ui, sans-serif", fontSize: "13px", fontWeight: 700, whiteSpace: "nowrap", transition: "color 0.15s" }}
+            >
+              {lookupLoading ? "Loading..." : "Search"}
             </button>
           </div>
-          {lookupError && <div style={{ color: color.red, fontSize: "13px", marginTop: "10px" }}>{lookupError}</div>}
+          {lookupError && <div style={{ color: color.red, fontSize: "13px" }}>{lookupError}</div>}
         </div>
+      </div>
+      <div style={{ ...S.page, paddingTop: "20px" }}>
 
         {profile && <div style={{ marginBottom: "24px" }}><WalletProfileCard profile={profile} /></div>}
 
