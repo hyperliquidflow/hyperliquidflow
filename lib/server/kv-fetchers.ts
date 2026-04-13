@@ -26,18 +26,6 @@ export async function fetchMarketTicker(): Promise<MarketTickerEntry[] | null> {
   } catch { return null; }
 }
 
-export async function fetchDailyScan(): Promise<unknown> {
-  try {
-    return parse<unknown>(await kv.get("daily:scan"));
-  } catch { return null; }
-}
-
-export async function fetchMorningScan(): Promise<unknown> {
-  try {
-    return parse<unknown>(await kv.get("morning:scan"));
-  } catch { return null; }
-}
-
 export async function fetchContrarianState(): Promise<unknown> {
   try {
     return parse<unknown>(await kv.get("contrarian:latest"));

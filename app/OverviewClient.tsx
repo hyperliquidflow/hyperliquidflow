@@ -89,6 +89,24 @@ function buildCoinExposure(signals: Signal[]) {
   return sorted.map(([coin, count]) => ({ coin, pct: Math.round((count / total) * 100) }));
 }
 
+function buildTopMovers(signals: Signal[]) {
+  const counts: Record<string, { count: number; long: number; short: number }> = {};
+  for (const s of signals) {
+    if (!counts[s.coin]) counts[s.coin] = { count: 0, long: 0, short: 0 };
+    counts[s.coin].count++;
+    if (s.direction === "LONG") counts[s.coin].long++;
+    else if (s.direction === "SHORT") counts[s.coin].short++;
+  }
+  return Object.entries(counts)
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 5)
+    .map(([coin, { count, long, short }]) => ({
+      coin,
+      count,
+      direction: long >= short ? "LONG" : "SHORT",
+    }));
+}
+
 function RealSparkline({ data, positive, index }: { data: number[]; positive: boolean; index: number }) {
   const clr    = positive ? color.green : color.red;
   const gradId = `sg-real-${index}`;
@@ -199,6 +217,7 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
   const heatmap      = buildHeatmap(data.recent_signals);
   const regimeHist   = buildRegimeHistory(data.recent_signals, regime);
   const coinExposure = buildCoinExposure(data.recent_signals);
+  const topMovers    = buildTopMovers(data.recent_signals);
 
   return (
     <>
@@ -353,7 +372,7 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px" }}>
           <div style={S.card}>
             <div style={S.hdr}>
               <span style={S.title}>Market Vibes</span>
@@ -375,6 +394,39 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
                   </div>
                 );
               })}
+            </div>
+          </div>
+
+          <div style={S.card}>
+            <div style={S.hdr}>
+              <span style={S.title}>Top Smart Money Movers</span>
+              <span style={{ ...S.link, cursor: "default" }}>24h</span>
+            </div>
+            <div style={{ padding: "12px 20px 16px", display: "flex", flexDirection: "column" }}>
+              {topMovers.length > 0 ? topMovers.map(({ coin, count, direction }, i, arr) => {
+                const isLong = direction === "LONG";
+                const dirColor = isLong ? color.green : color.red;
+                return (
+                  <div key={coin} style={{
+                    display: "flex", alignItems: "center", gap: "10px",
+                    padding: "10px 0",
+                    borderBottom: i < arr.length - 1 ? `1px solid ${color.divider}` : undefined,
+                  }}>
+                    <span style={{ fontSize: "13px", fontWeight: 700, color: color.text, minWidth: "38px" }}>{coin}</span>
+                    <span style={{
+                      ...T.sigDir,
+                      background: isLong ? color.longBg : color.shortBg,
+                      color: dirColor,
+                      border: `1px solid ${isLong ? color.longBorder : color.shortBorder}`,
+                    }}>{direction}</span>
+                    <span style={{ marginLeft: "auto", fontSize: "11px", color: color.textMuted, fontVariantNumeric: "tabular-nums" }}>
+                      {count} signal{count !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                );
+              }) : (
+                <div style={{ ...S.muted, paddingTop: "8px" }}>No signal data yet</div>
+              )}
             </div>
           </div>
 

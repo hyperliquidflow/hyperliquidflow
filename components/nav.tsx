@@ -18,7 +18,6 @@ type NavEntry    = NavFlat | NavSection;
 
 const NAV: NavEntry[] = [
   { href: "/",      label: "Overview"    },
-  { href: "/brief", label: "Daily Brief" },
   {
     section:  "wallets",
     label:    "Wallets",
