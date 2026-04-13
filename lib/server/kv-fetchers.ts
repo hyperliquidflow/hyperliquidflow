@@ -71,16 +71,21 @@ export interface ScannerStats {
   discovery_source: string | null;
   top_win_rates: Array<{ address: string; win_rate: number; trade_count_30d: number; realized_pnl_30d: number }>;
   scan_pipeline: Array<{ step: string; status: "ok" | "warn" | "error"; detail: string }>;
+  tier_breakdown: Array<{ tier: string; count: number }>;
 }
 
 export async function fetchScannerStats(): Promise<ScannerStats | null> {
   try {
-    const [walletStats, topWinRates] = await Promise.all([
+    const [walletStats, topWinRates, tierSnaps] = await Promise.all([
       supabase.from("wallets").select("is_active, win_rate, last_scanned_at, discovery_source, realized_pnl_30d"),
       supabase.from("wallets").select("address, win_rate, trade_count_30d, realized_pnl_30d")
         .not("win_rate", "is", null)
         .order("win_rate", { ascending: false })
         .limit(20),
+      supabase.from("cohort_snapshots")
+        .select("wallet_id, equity_tier, snapshot_time")
+        .not("equity_tier", "is", null)
+        .order("snapshot_time", { ascending: false }),
     ]);
     const wallets = walletStats.data ?? [];
     const active   = wallets.filter((w) => w.is_active);
@@ -101,11 +106,25 @@ export async function fetchScannerStats(): Promise<ScannerStats | null> {
       { step: "Supabase pg_cron Cleanup", status: "ok" as const,
         detail: "Retains 2 snapshots/wallet, 30d signals, 90d recipe perf. Keeps DB under 500 MB." },
     ];
+    const TIERS = ["Elite", "Major", "Large", "Mid", "Small", "Micro", "Dust"] as const;
+    const latestTierByWallet = new Map<string, string>();
+    for (const row of tierSnaps.data ?? []) {
+      if (!latestTierByWallet.has(row.wallet_id) && row.equity_tier) {
+        latestTierByWallet.set(row.wallet_id, row.equity_tier);
+      }
+    }
+    const tierCounts: Record<string, number> = {};
+    for (const t of TIERS) tierCounts[t] = 0;
+    for (const t of latestTierByWallet.values()) {
+      if (tierCounts[t] !== undefined) tierCounts[t]++;
+    }
+    const tier_breakdown = TIERS.map((t) => ({ tier: t, count: tierCounts[t] }));
     return {
       total_discovered: wallets.length, total_active: active.length, total_inactive: inactive.length,
       avg_win_rate: avgWinRate, last_scan_at: lastScan, discovery_source: source,
       top_win_rates: (topWinRates.data ?? []) as ScannerStats["top_win_rates"],
       scan_pipeline: pipeline,
+      tier_breakdown,
     };
   } catch { return null; }
 }
