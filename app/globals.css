@@ -231,6 +231,15 @@
 }
 
 @keyframes slide-up-ghost {
-  0%, 100% { opacity: 0.08; transform: translateY(3px); }
-  45%, 55% { opacity: 0.52; transform: translateY(0); }
+  0%, 100% { opacity: 0.08; }
+  45%, 55% { opacity: 0.52; }
+}
+
+/* Page content fade-in — applied when real content mounts after a skeleton */
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-enter {
+  animation: page-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
 }

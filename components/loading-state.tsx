@@ -352,6 +352,70 @@ export function EdgeLoadingState() {
   );
 }
 
+// DISCOVERY (app/wallets/discovery/page.tsx)
+
+export function DiscoveryLoadingState() {
+  return (
+    <>
+      <GhostPageHeader />
+      <div style={{ padding: pagePad, paddingTop: "20px" } as React.CSSProperties}>
+
+        {/* 4-col stat cards */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 12, marginBottom: 20 }}>
+          {[0, 0.12, 0.24, 0.36].map((d, i) => (
+            <div key={i} style={{ ...shell, ...ghost(d), padding: 18 }}>
+              <div style={boneDim("55%", 8)} />
+              <div style={{ ...bone("65%", 26), marginTop: 8 }} />
+            </div>
+          ))}
+        </div>
+
+        {/* 2-col: pipeline + last scan */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 20 }}>
+          <div style={shell}>
+            <GhostCardHdr />
+            {[0, 0.1, 0.2, 0.3, 0.4].map((d, i) => (
+              <div key={i} style={{ ...ghost(d), padding: "12px 20px", borderBottom: "1px solid rgba(255,255,255,0.04)", display: "flex", alignItems: "flex-start", gap: 10 }}>
+                <div style={{ width: 6, height: 6, borderRadius: "50%", background: "rgba(255,255,255,0.1)", marginTop: 4, flexShrink: 0 }} />
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
+                  <div style={bone("55%", 9)} />
+                  <div style={boneDim("80%", 8)} />
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={shell}>
+            <GhostCardHdr />
+            <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 12 }}>
+              {[0, 0.1, 0.2, 0.3, 0.4].map((d, i) => (
+                <div key={i} style={{ ...ghost(d), display: "flex", justifyContent: "space-between" }}>
+                  <div style={boneDim(80, 8)} />
+                  <div style={bone(100, 8)} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Top discovered table */}
+        <div style={shell}>
+          <GhostCardHdr />
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} style={{ ...ghost(i * 0.1), display: "flex", alignItems: "center", gap: 0, padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+              <div style={{ width: 32, flexShrink: 0 }}><div style={boneDim(16, 8)} /></div>
+              <div style={{ flex: 2, paddingRight: 16 }}><div style={bone(120, 9)} /></div>
+              <div style={{ flex: 1, paddingRight: 16 }}><div style={bone(44, 9)} /></div>
+              <div style={{ flex: 1, paddingRight: 16 }}><div style={boneDim(32, 8)} /></div>
+              <div style={{ flex: 1 }}><div style={boneDim(56, 8)} /></div>
+            </div>
+          ))}
+        </div>
+
+      </div>
+    </>
+  );
+}
+
 // Generic fallback
 
 export function LoadingState() {

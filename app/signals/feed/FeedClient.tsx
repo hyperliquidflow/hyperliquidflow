@@ -63,7 +63,7 @@ export function FeedClient({ initialData }: { initialData: CohortCachePayload | 
   const uniqueRecipes = data ? [...new Set(data.recent_signals.map((s) => s.recipe_id))] : [];
 
   return (
-    <>
+    <div className="page-enter">
       <PageHeader title="Feed" subtitle="Smart Money activity and divergence scanner" regime={data?.regime} />
       <div style={{ ...S.page, paddingTop: "20px" }}>
 
@@ -170,6 +170,6 @@ export function FeedClient({ initialData }: { initialData: CohortCachePayload | 
           )}
         </div>
       </div>
-    </>
+    </div>
   );
 }

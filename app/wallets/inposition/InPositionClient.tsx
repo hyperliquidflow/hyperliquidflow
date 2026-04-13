@@ -71,7 +71,7 @@ export function InPositionClient({ initialData }: { initialData: CohortCachePayl
     : null;
 
   return (
-    <>
+    <div className="page-enter">
       <PageHeader
         title="In Position"
         subtitle={inPosition ? `${inPosition.length} wallets with open positions right now` : "Wallets with open positions right now"}
@@ -158,6 +158,6 @@ export function InPositionClient({ initialData }: { initialData: CohortCachePayl
           )}
         </div>
       </div>
-    </>
+    </div>
   );
 }

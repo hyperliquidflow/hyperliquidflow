@@ -199,7 +199,7 @@ export function DiscoveryClient({ initialScannerData }: { initialScannerData: Sc
   }, [doLookup]);
 
   return (
-    <>
+    <div className="page-enter">
       <div style={{ padding: "28px 32px 0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <h1 style={{ fontSize: "26px", fontWeight: 700, color: color.text, margin: 0 }}>Discovery</h1>
         <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "6px" }}>
@@ -319,6 +319,6 @@ export function DiscoveryClient({ initialScannerData }: { initialScannerData: Sc
           </>
         )}
       </div>
-    </>
+    </div>
   );
 }

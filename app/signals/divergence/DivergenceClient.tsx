@@ -52,7 +52,7 @@ export function DivergenceClient({ initialData }: { initialData: unknown }) {
   const selectedIdea = data?.ideas.find((i) => i.coin === selected);
 
   return (
-    <>
+    <div className="page-enter">
       <PageHeader title="Divergence" subtitle="Smart money vs retail positioning gaps" />
       <div style={{ ...S.page, paddingTop: "20px" }}>
         <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 1fr" : "1fr", gap: "16px" }}>
@@ -165,6 +165,6 @@ export function DivergenceClient({ initialData }: { initialData: unknown }) {
           )}
         </div>
       </div>
-    </>
+    </div>
   );
 }

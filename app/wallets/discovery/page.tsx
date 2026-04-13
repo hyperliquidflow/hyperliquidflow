@@ -1,11 +1,8 @@
 // app/wallets/discovery/page.tsx — server component: prefetch scanner stats
+import { fetchScannerStats } from "@/lib/server/kv-fetchers";
 import { DiscoveryClient } from "./DiscoveryClient";
 
 export default async function DiscoveryPage() {
-  let initialScannerData = null;
-  try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/api/scanner-stats`, { next: { revalidate: 300 } });
-    if (res.ok) initialScannerData = await res.json();
-  } catch { /* serve without initial data */ }
+  const initialScannerData = await fetchScannerStats();
   return <DiscoveryClient initialScannerData={initialScannerData} />;
 }

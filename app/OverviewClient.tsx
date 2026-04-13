@@ -220,7 +220,7 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
   const topMovers    = buildTopMovers(data.recent_signals);
 
   return (
-    <>
+    <div className="page-enter">
       <PageHeader title="Overview" regime={regime} btcReturn={data.btc_return_24h} />
 
       <div style={{
@@ -451,6 +451,6 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

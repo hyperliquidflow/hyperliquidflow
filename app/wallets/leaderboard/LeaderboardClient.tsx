@@ -72,7 +72,7 @@ export function LeaderboardClient({ initialData }: { initialData: CohortCachePay
   const displayed = showAll ? sorted : sorted.slice(0, 50);
 
   return (
-    <>
+    <div className="page-enter">
       <PageHeader
         title="Leaderboard"
         subtitle={data ? `Smart Money ranked by composite score · ${data.wallet_count} active` : "Smart Money ranked by composite score"}
@@ -163,6 +163,6 @@ export function LeaderboardClient({ initialData }: { initialData: CohortCachePay
           )}
         </div>
       </div>
-    </>
+    </div>
   );
 }
