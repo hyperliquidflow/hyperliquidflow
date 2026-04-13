@@ -1,10 +1,12 @@
 // components/page-header.tsx
 "use client";
 
+import { color } from "@/lib/design-tokens";
+
 const REGIME_STYLES = {
-  BULL:    { color: "#6aaa7a", bg: "rgba(106,170,122,0.08)", border: "rgba(106,170,122,0.2)",  label: "BULLISH"  },
-  BEAR:    { color: "#b06868", bg: "rgba(176,104,104,0.08)", border: "rgba(176,104,104,0.2)",  label: "BEARISH"  },
-  RANGING: { color: "#9ca3af", bg: "rgba(156,163,175,0.08)", border: "rgba(156,163,175,0.2)",  label: "RANGING"  },
+  BULL:    { color: color.green,   bg: color.regimeBg,   border: color.regimeBorder, label: "BULLISH"  },
+  BEAR:    { color: color.red,     bg: "rgba(201,36,53,0.08)", border: "rgba(201,36,53,0.2)", label: "BEARISH"  },
+  RANGING: { color: color.neutral, bg: color.neutralBg,  border: color.neutralBorder, label: "RANGING"  },
 };
 
 interface PageHeaderProps {
@@ -25,11 +27,11 @@ export function PageHeader({ title, subtitle, regime, btcReturn }: PageHeaderPro
       justifyContent: "space-between",
     }}>
       <div>
-        <h1 style={{ fontSize: "26px", fontWeight: 700, color: "#f0f0f0", margin: 0 }}>
+        <h1 style={{ fontSize: "26px", fontWeight: 700, color: color.text, margin: 0 }}>
           {title}
         </h1>
         {subtitle && (
-          <p style={{ fontSize: "14px", color: "rgba(255,255,255,0.38)", marginTop: "4px" }}>
+          <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.38)", marginTop: "4px" }}>
             {subtitle}
           </p>
         )}
@@ -64,7 +66,7 @@ export function PageHeader({ title, subtitle, regime, btcReturn }: PageHeaderPro
               {rs.label}
             </div>
             {btcReturn !== undefined && (
-              <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.36)", marginTop: "1px" }}>
+              <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.36)", marginTop: "1px" }}>
                 BTC {btcReturn >= 0 ? "+" : ""}{(btcReturn * 100).toFixed(2)}%
               </div>
             )}

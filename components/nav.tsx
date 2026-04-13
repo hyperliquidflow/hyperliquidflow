@@ -1,5 +1,5 @@
 "use client";
-// components/nav.tsx — SideRail navigation with section subtitles (no expand/collapse)
+// components/nav.tsx - SideRail navigation with section subtitles (no expand/collapse)
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { timeAgo } from "@/lib/utils";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
+import { color, type as T, shadow, anim } from "@/lib/design-tokens";
 
 const LOGO = "HyperliquidFLOW";
 
@@ -65,14 +66,16 @@ export function Nav() {
         onClick={() => setOpen((o) => !o)}
         aria-label="Toggle navigation"
         className="sidenav-hamburger"
+        draggable={false}
         style={{
           position: "fixed", top: "14px", left: "14px", zIndex: 200,
-          background: "rgba(12,12,12,0.9)", border: "1px solid rgba(255,255,255,0.1)",
-          borderRadius: "7px", color: "#f0f0f0", fontSize: "18px", lineHeight: 1,
+          background: color.card, border: `1px solid rgba(255,255,255,0.1)`,
+          borderRadius: "7px", color: color.text, fontSize: "16px", lineHeight: 1,
           padding: "7px 10px", cursor: "pointer",
           backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)",
+          userSelect: "none",
         }}
-      >☰</button>
+      >&#9776;</button>
 
       {/* Mobile backdrop */}
       <div
@@ -90,8 +93,8 @@ export function Nav() {
         className={`sidenav${open ? " sidenav-open" : ""}`}
         style={{
           width: "200px", minHeight: "100vh",
-          background: "rgba(8,8,8,0.85)",
-          borderRight: "1px solid rgba(255,255,255,0.05)",
+          background: color.nav,
+          borderRight: `1px solid ${color.borderFaint}`,
           display: "flex", flexDirection: "column",
           position: "fixed", left: 0, top: 0, bottom: 0, zIndex: 100,
           paddingTop: "24px",
@@ -99,12 +102,12 @@ export function Nav() {
         }}
       >
         {/* Logo */}
-        <div className="sidenav-logo-wrap" style={{ padding: "0 20px 24px", borderBottom: "1px solid rgba(255,255,255,0.05)", marginBottom: "16px" }}>
-          <div style={{ fontSize: "17px", fontWeight: 700, letterSpacing: "0.01em", display: "flex", cursor: "default" }}>
+        <div className="sidenav-logo-wrap" style={{ padding: "0 20px 24px", borderBottom: `1px solid ${color.borderFaint}`, marginBottom: "16px" }}>
+          <div style={{ fontSize: "16px", fontWeight: 700, letterSpacing: "0.01em", display: "flex", cursor: "default", userSelect: "none" }}>
             {LOGO.split("").map((ch, i) => (
               <span key={i} className="logo-char" style={{
                 display: "inline-block", color: "rgba(255,255,255,0.85)",
-                transition: `transform 0.25s cubic-bezier(0.34,1.56,0.64,1) ${i * 18}ms, color 0.25s ${i * 18}ms`,
+                transition: `transform 0.25s cubic-bezier(0.34,1.56,0.64,1) ${i * anim.logoStaggerMs}ms, color 0.25s ${i * anim.logoStaggerMs}ms`,
               }}>{ch}</span>
             ))}
           </div>
@@ -114,17 +117,16 @@ export function Nav() {
         <div style={{ paddingTop: "8px" }}>
           {NAV.map((entry) => {
             if (!isSection(entry)) {
-              // Flat item
               const active = pathname === entry.href || (entry.href !== "/" && pathname.startsWith(entry.href));
               return (
-                <Link key={entry.href} href={entry.href} className="glow-btn" style={{
+                <Link key={entry.href} href={entry.href} className="glow-btn" draggable={false} style={{
                   display: "flex", alignItems: "center",
-                  padding: "10px 20px", fontSize: "14px", fontWeight: 500,
-                  color: active ? "#f0f0f0" : "rgba(255,255,255,0.44)",
+                  padding: "10px 20px", fontSize: "16px", fontWeight: 500,
+                  color: active ? color.text : "rgba(255,255,255,0.44)",
                   textDecoration: "none",
-                  borderLeft: active ? "2px solid rgba(151,253,229,0.7)" : "2px solid transparent",
-                  background: active ? "rgba(151,253,229,0.05)" : "transparent",
-                  transition: "color 0.15s, border-color 0.15s, background 0.15s",
+                  borderLeft: active ? `2px solid ${color.navActive}` : "2px solid transparent",
+                  background: active ? color.navActivebg : "transparent",
+                  transition: anim.nav,
                   userSelect: "none",
                 }}>
                   {entry.label}
@@ -138,8 +140,8 @@ export function Nav() {
                 {/* Section subtitle */}
                 <div style={{
                   padding: "12px 20px 4px",
-                  fontSize: "10px", fontWeight: 600,
-                  letterSpacing: "0.1em", textTransform: "uppercase",
+                  fontSize: "11px", fontWeight: 700,
+                  letterSpacing: "0.12em", textTransform: "uppercase",
                   color: "rgba(255,255,255,0.22)",
                   userSelect: "none",
                 }}>
@@ -150,15 +152,15 @@ export function Nav() {
                 {entry.children.map((child) => {
                   const childActive = pathname === child.href || pathname.startsWith(child.href + "/");
                   return (
-                    <Link key={child.href} href={child.href} className="glow-btn" style={{
+                    <Link key={child.href} href={child.href} className="glow-btn" draggable={false} style={{
                       display: "flex", alignItems: "center",
                       padding: "7px 20px 7px 28px",
-                      fontSize: "14px", fontWeight: 500,
-                      color: childActive ? "#f0f0f0" : "rgba(255,255,255,0.44)",
+                      fontSize: "16px", fontWeight: 500,
+                      color: childActive ? color.text : "rgba(255,255,255,0.44)",
                       textDecoration: "none",
-                      borderLeft: childActive ? "2px solid rgba(151,253,229,0.65)" : "2px solid transparent",
-                      background: childActive ? "rgba(151,253,229,0.04)" : "transparent",
-                      transition: "color 0.15s, border-color 0.15s, background 0.15s",
+                      borderLeft: childActive ? `2px solid ${color.navActive}` : "2px solid transparent",
+                      background: childActive ? color.navActivebg : "transparent",
+                      transition: anim.nav,
                       userSelect: "none",
                     }}>
                       {child.label}
@@ -171,20 +173,22 @@ export function Nav() {
         </div>
 
         {/* Live footer */}
-        <div style={{ marginTop: "auto", padding: "18px 0", borderTop: "1px solid rgba(255,255,255,0.05)", textAlign: "center" }}>
+        <div style={{ marginTop: "auto", padding: "18px 0", borderTop: `1px solid ${color.borderFaint}`, textAlign: "center" }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
             <span style={{
               width: "6px", height: "6px", borderRadius: "50%",
-              background: "#6aaa7a", boxShadow: "0 0 6px #6aaa7a",
-              display: "inline-block", animation: "glow-pulse 2s ease-in-out infinite", flexShrink: 0,
+              background: color.green, ...shadow.liveDot,
+              display: "inline-block", animation: anim.glowPulse, flexShrink: 0,
             }} />
             <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.5)", userSelect: "none" }}>Monitoring</span>
           </div>
-          {data?.updated_at && (
-            <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.28)", marginTop: "4px", userSelect: "none" }}>
-              {timeAgo(data.updated_at)}
-            </div>
-          )}
+          {/* Reserved space - shimmer until timestamp loads */}
+          <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.28)", marginTop: "4px", minHeight: "14px", display: "flex", justifyContent: "center", alignItems: "center", userSelect: "none" }}>
+            {data?.updated_at
+              ? timeAgo(data.updated_at)
+              : <span style={{ display: "inline-block", height: "9px", width: "34px", borderRadius: 2, background: "rgba(255,255,255,0.06)" }} />
+            }
+          </div>
         </div>
       </nav>
     </>

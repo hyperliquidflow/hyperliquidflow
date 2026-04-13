@@ -89,6 +89,10 @@ Add to `lib/signal-lab.ts` following the `(pair: SnapshotPair) => SignalEvent[]`
 
 The nav is defined in `components/nav.tsx` in the `NAV` array. Expandable sections (Wallets, Signals) also need their pixel height registered in `CHILD_HEIGHTS` so the CSS max-height animation works correctly.
 
+## UI Work
+
+**Before writing any JSX, TSX, or styled code, invoke the `ui-design-enforcer` skill.** This is mandatory, no exceptions, including "small" changes. The skill forces reading `lib/design-tokens.ts` live before any code is written and runs a self-audit checklist at the end.
+
 ## Copy Rules
 
 - **No em dashes (—) or en dashes (–) in any user-facing copy.** This applies to all JSX/TSX string literals, template strings, and rendered text across every page and component. Use a comma, period, or rewrite the sentence instead. Dashes in code comments are fine. A PreToolUse hook in `.claude/settings.json` will block writes that violate this.
@@ -97,9 +101,10 @@ The nav is defined in `components/nav.tsx` in the `NAV` array. Expandable sectio
 
 - **Always use design token colors for semantic states.** Import from `@/lib/design-tokens` — never use arbitrary hex values like `#4ade80` or `#f87171`. Key tokens:
   - `color.green` = `#6aaa7a` (positive/bullish)
-  - `color.red` = `#b06868` (negative/bearish)
-  - `color.blue` = `#60a5fa` (neutral signal)
-  - `color.amber` = `#f59e0b` (warning)
+  - `color.red` = `#c92435` (negative/bearish)
+  - `color.accent` = `#50d2c1` (active states, nav, live indicators; replaces color.mint)
+  - `color.amber` = `#c4925a` (warning; warm ochre)
+  - `color.blue` and `color.purple` have been removed from the token file
   - `color.textMuted` = `rgba(255,255,255,0.38)`
 - This applies to inline styles, API route verdict colors, and any hardcoded color strings anywhere in the codebase.
 
