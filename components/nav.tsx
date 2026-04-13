@@ -35,9 +35,9 @@ const NAV: NavEntry[] = [
     children: [
       { href: "/signals/feed",        label: "Feed"        },
       { href: "/signals/divergence",  label: "Divergence"  },
+      { href: "/edge",                label: "Edge"        },
     ],
   },
-  { href: "/edge",  label: "Edge"        },
 ];
 
 function isSection(e: NavEntry): e is NavSection {
