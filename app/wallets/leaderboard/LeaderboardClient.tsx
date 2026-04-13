@@ -9,6 +9,23 @@ import { PageHeader } from "@/components/page-header";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 import { color, card as C, type as T, space } from "@/lib/design-tokens";
 
+function TierBadge({ tier }: { tier: string | null | undefined }) {
+  if (!tier) return null;
+  return (
+    <span className="ios-pill" style={{
+      fontSize: "11px",
+      fontWeight: 600,
+      letterSpacing: "0.04em",
+      textTransform: "uppercase" as const,
+      marginLeft: "6px",
+      cursor: "default",
+      padding: "2px 8px",
+    }}>
+      {tier}
+    </span>
+  );
+}
+
 const S = {
   page:  { padding: space.pagePaddingX },
   card:  { ...C.base },
@@ -51,14 +68,19 @@ export function LeaderboardClient({ initialData }: { initialData: CohortCachePay
   const [sort, setSort] = useState<SortKey>("overall_score");
   const [asc,  setAsc]  = useState(false);
   const [showAll, setShowAll] = useState(false);
+  const [tierFilter, setTierFilter] = useState<string>("All");
 
   function handleSort(key: SortKey) {
     if (key === sort) setAsc((a) => !a);
     else { setSort(key); setAsc(false); }
   }
 
+  const TIERS = ["All", "Elite", "Major", "Large", "Mid", "Small", "Micro", "Dust"];
+
   const sorted = data
-    ? [...data.top_wallets].sort((a, b) => {
+    ? [...data.top_wallets]
+        .filter((w) => tierFilter === "All" || w.equity_tier === tierFilter)
+        .sort((a, b) => {
         let av: number | string, bv: number | string;
         if (sort === "address")             { av = a.address ?? "";        bv = b.address ?? ""; }
         else if (sort === "win_rate")       { av = a.win_rate ?? 0;        bv = b.win_rate ?? 0; }
@@ -78,6 +100,23 @@ export function LeaderboardClient({ initialData }: { initialData: CohortCachePay
         subtitle={data ? `Smart Money ranked by composite score · ${data.wallet_count} active` : "Smart Money ranked by composite score"}
       />
       <div style={{ ...S.page, paddingTop: "20px" }}>
+        <div style={{ display: "flex", gap: "6px", marginBottom: "12px", flexWrap: "wrap" as const }}>
+          {TIERS.map((t) => (
+            <button key={t} onClick={() => setTierFilter(t)}
+              style={{
+                fontSize: "11px", fontWeight: 600,
+                padding: "4px 12px", borderRadius: "5px",
+                border: "1px solid",
+                cursor: "pointer",
+                background: tierFilter === t ? "rgba(255,255,255,0.10)" : "transparent",
+                borderColor: tierFilter === t ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.10)",
+                color: tierFilter === t ? "#f0f0f0" : "rgba(255,255,255,0.45)",
+                transition: "all 0.15s",
+              }}>
+              {t}
+            </button>
+          ))}
+        </div>
         <div style={S.card}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
@@ -128,10 +167,13 @@ export function LeaderboardClient({ initialData }: { initialData: CohortCachePay
                     onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
                     <td style={{ ...S.td, color: "rgba(255,255,255,0.32)" }}>{i + 1}</td>
                     <td style={S.td}>
-                      <button onClick={() => router.push(`/wallets/discovery?address=${w.address}`)}
-                        style={{ ...S.mono, color: color.neutral, background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" as const }}>
-                        {truncateAddress(w.address)}
-                      </button>
+                      <div style={{ display: "flex", alignItems: "center" }}>
+                        <button onClick={() => router.push(`/wallets/discovery?address=${w.address}`)}
+                          style={{ ...S.mono, color: color.neutral, background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" as const }}>
+                          {truncateAddress(w.address)}
+                        </button>
+                        <TierBadge tier={w.equity_tier} />
+                      </div>
                     </td>
                     <td style={S.td}>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>

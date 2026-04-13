@@ -43,6 +43,43 @@ export interface RegimeDetection {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Wallet Tier Classification
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type EquityTier =
+  | "Elite"
+  | "Major"
+  | "Large"
+  | "Mid"
+  | "Small"
+  | "Micro"
+  | "Dust";
+
+/**
+ * Classify a wallet by account equity into one of 7 tiers.
+ * Returns null if accountValue is null, undefined, or negative.
+ *
+ * Thresholds:
+ *   Elite    $5M+
+ *   Major    $1M - $5M
+ *   Large    $500K - $1M
+ *   Mid      $100K - $500K
+ *   Small    $50K - $100K
+ *   Micro    $1K - $50K
+ *   Dust     under $1K
+ */
+export function getEquityTier(accountValue: number | null | undefined): EquityTier | null {
+  if (accountValue == null || accountValue < 0) return null;
+  if (accountValue >= 5_000_000) return "Elite";
+  if (accountValue >= 1_000_000) return "Major";
+  if (accountValue >= 500_000)   return "Large";
+  if (accountValue >= 100_000)   return "Mid";
+  if (accountValue >= 50_000)    return "Small";
+  if (accountValue >= 1_000)     return "Micro";
+  return "Dust";
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Factor 1 — sharpe_proxy
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -397,6 +434,7 @@ export async function saveCohortSnapshot(
     liq_buffer_pct:    liqBuffer,
     position_count:    state.assetPositions.length,
     positions:         state.assetPositions,
+    equity_tier:       getEquityTier(accountValue),
     overall_score:     scores.overall_score,
     sharpe_proxy:      scores.sharpe_proxy,
     drawdown_score:    scores.drawdown_score,
