@@ -38,7 +38,7 @@ export async function GET(): Promise<NextResponse> {
         status: wallets.length > 4 ? "ok" : "warn",
         detail: wallets.length > 4
           ? `${wallets.length} addresses discovered via leaderboard API or scrape`
-          : "Only seed wallets present — daily scan has not run yet",
+          : "Only seed wallets present. Daily scan has not run yet.",
       },
       {
         step:   "Fill Scoring (userFillsByTime)",
@@ -52,7 +52,7 @@ export async function GET(): Promise<NextResponse> {
         status: active.length >= 4 ? "ok" : "warn",
         detail: active.length >= 4
           ? `${active.length} wallets active in signal cohort`
-          : "Cohort below minimum (4) — check daily scan logs",
+          : "Cohort below minimum (4). Check daily scan logs.",
       },
       {
         step:   "Vercel Cron (refresh-cohort)",
@@ -62,7 +62,7 @@ export async function GET(): Promise<NextResponse> {
       {
         step:   "Supabase pg_cron Cleanup",
         status: "ok",
-        detail: "Retains 2 snapshots/wallet, 30d signals, 90d recipe perf — keeps DB under 500 MB",
+        detail: "Retains 2 snapshots/wallet, 30d signals, 90d recipe perf. Keeps DB under 500 MB.",
       },
     ] as Array<{ step: string; status: "ok" | "warn" | "error"; detail: string }>;
 

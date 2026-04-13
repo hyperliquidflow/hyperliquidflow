@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loading State Variants — HyperliquidFLOW</title>
+<style>
+  /* ── Design tokens (mirrored from globals.css) ── */
+  :root {
+    --bg:           #060606;
+    --card:         #13151A;
+    --border:       rgba(255,255,255,0.07);
+    --border-hi:    rgba(255,255,255,0.12);
+    --text:         #f0f0f0;
+    --muted:        rgba(255,255,255,0.38);
+    --muted-lo:     rgba(255,255,255,0.14);
+    --muted-hi:     rgba(255,255,255,0.60);
+    --green:        #6aaa7a;
+    --green-dim:    rgba(106,170,122,0.18);
+    --red:          #b06868;
+    --purple:       #7C5CFC;
+    --purple-dim:   rgba(124,92,252,0.18);
+    --amber:        #f59e0b;
+    --radius:       12px;
+    --radius-sm:    8px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: 40px 32px 80px;
+    min-height: 100vh;
+  }
+
+  /* ── Page title ── */
+  .page-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 48px;
+  }
+
+  /* ── Grid of variants ── */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 32px;
+  }
+
+  /* ── Each variant container ── */
+  .variant {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .variant-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.22);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .variant-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(255,255,255,0.06);
+  }
+  .variant-num {
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: var(--purple);
+    opacity: 0.7;
+    min-width: 18px;
+  }
+
+  /* ── Shared card shell ── */
+  .card-shell {
+    background: rgba(19,21,26,0.8);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+  }
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .card-title-skel {
+    height: 11px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.07);
+    width: 100px;
+  }
+  .card-link-skel {
+    height: 10px;
+    border-radius: 4px;
+    background: rgba(255,255,255,0.04);
+    width: 48px;
+  }
+  .card-body { padding: 16px 18px; }
+  .skeleton-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+  .skeleton-row:last-child { border-bottom: none; }
+  .skel-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: rgba(255,255,255,0.08);
+    flex-shrink: 0;
+  }
+  .skel-line {
+    height: 9px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.07);
+  }
+  .skel-badge {
+    height: 20px; width: 40px;
+    border-radius: 5px;
+    background: rgba(255,255,255,0.05);
+    flex-shrink: 0;
+  }
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .stat-cell {
+    background: var(--card);
+    padding: 14px 16px;
+  }
+  .skel-label { height: 8px; width: 60%; border-radius: 3px; background: rgba(255,255,255,0.06); margin-bottom: 8px; }
+  .skel-value { height: 22px; width: 80%; border-radius: 4px; background: rgba(255,255,255,0.08); }
+
+
+  /* ════════════════════════════════════════════
+     VARIANT 1 — Shimmer Sweep
+  ════════════════════════════════════════════ */
+  @keyframes shimmer {
+    0%   { background-position: -200% center; }
+    100% { background-position: 200% center; }
+  }
+  .v1-shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(255,255,255,0.06) 0%,
+      rgba(255,255,255,0.06) 30%,
+      rgba(255,255,255,0.13) 50%,
+      rgba(255,255,255,0.06) 70%,
+      rgba(255,255,255,0.06) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.6s ease-in-out infinite;
+  }
+  .v1 .skel-line, .v1 .skel-dot, .v1 .skel-badge,
+  .v1 .card-title-skel, .v1 .card-link-skel,
+  .v1 .skel-label, .v1 .skel-value {
+    background: linear-gradient(
+      90deg,
+      rgba(255,255,255,0.06) 0%,
+      rgba(255,255,255,0.13) 50%,
+      rgba(255,255,255,0.06) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.6s ease-in-out infinite;
+  }
+  .v1 .skel-line:nth-child(2n) { animation-delay: 0.1s; }
+  .v1 .skel-badge { animation-delay: 0.2s; }
+
+
+  /* ════════════════════════════════════════════
+     VARIANT 2 — Pulse Fade (staggered opacity)
+  ════════════════════════════════════════════ */
+  @keyframes pulse-fade {
+    0%, 100% { opacity: 0.3; }
+    50%       { opacity: 0.75; }
+  }
+  .v2 .skel-line, .v2 .skel-dot, .v2 .skel-badge,
+  .v2 .card-title-skel, .v2 .card-link-skel,
+  .v2 .skel-label, .v2 .skel-value {
+    animation: pulse-fade 1.8s ease-in-out infinite;
+  }
+  .v2 .skeleton-row:nth-child(1) * { animation-delay: 0s; }
+  .v2 .skeleton-row:nth-child(2) * { animation-delay: 0.18s; }
+  .v2 .skeleton-row:nth-child(3) * { animation-delay: 0.36s; }
+  .v2 .skeleton-row:nth-child(4) * { animation-delay: 0.54s; }
+  .v2 .skeleton-row:nth-child(5) * { animation-delay: 0.72s; }
+  .v2 .stat-cell:nth-child(1) * { animation-delay: 0s; }
+  .v2 .stat-cell:nth-child(2) * { animation-delay: 0.2s; }
+  .v2 .stat-cell:nth-child(3) * { animation-delay: 0.4s; }
+
+
+  /* ════════════════════════════════════════════
+     VARIANT 3 — Scanline Pass
+  ════════════════════════════════════════════ */
+  @keyframes scanline {
+    0%   { top: -4px; opacity: 0; }
+    5%   { opacity: 1; }
+    95%  { opacity: 1; }
+    100% { top: 100%; opacity: 0; }
+  }
+  .v3-wrap {
+    position: relative;
+    overflow: hidden;
+  }
+  .v3-wrap::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; top: -4px;
+    height: 4px;
+    background: linear-gradient(
+      180deg,
+      transparent 0%,
+      rgba(124,92,252,0.25) 50%,
+      transparent 100%
+    );
+    animation: scanline 2.4s cubic-bezier(0.25,0.46,0.45,0.94) infinite;
+    pointer-events: none;
+  }
+  .v3 .skel-line, .v3 .skel-label, .v3 .skel-value,
+  .v3 .card-title-skel, .v3 .card-link-skel {
+    animation: pulse-fade 2.4s ease-in-out infinite;
+  }
+
+
+  /* ════════════════════════════════════════════
+     VARIANT 4 — Equalizer Bars (data stream)
+  ════════════════════════════════════════════ */
+  @keyframes eq-bar {
+    0%   { height: 20%; }
+    50%  { height: 85%; }
+    100% { height: 20%; }
+  }
+  .v4-eq {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 48px;
+    padding: 0 18px 14px;
+  }
+  .v4-bar {
+    flex: 1;
+    border-radius: 2px 2px 0 0;
+    background: rgba(124,92,252,0.3);
+    min-height: 4px;
+    animation: eq-bar 1.2s ease-in-out infinite;
+  }
+  .v4-bar:nth-child(2)  { animation-delay: 0.1s; background: rgba(124,92,252,0.25); }
+  .v4-bar:nth-child(3)  { animation-delay: 0.25s; background: rgba(106,170,122,0.3); }
+  .v4-bar:nth-child(4)  { animation-delay: 0.05s; background: rgba(106,170,122,0.2); }
+  .v4-bar:nth-child(5)  { animation-delay: 0.35s; background: rgba(124,92,252,0.35); }
+  .v4-bar:nth-child(6)  { animation-delay: 0.15s; background: rgba(124,92,252,0.2); }
+  .v4-bar:nth-child(7)  { animation-delay: 0.45s; background: rgba(176,104,104,0.25); }
+  .v4-bar:nth-child(8)  { animation-delay: 0.20s; background: rgba(106,170,122,0.3); }
+  .v4-bar:nth-child(9)  { animation-delay: 0.30s; background: rgba(124,92,252,0.28); }
+  .v4-bar:nth-child(10) { animation-delay: 0.08s; background: rgba(176,104,104,0.2); }
+  .v4-bar:nth-child(11) { animation-delay: 0.42s; background: rgba(124,92,252,0.25); }
+  .v4-bar:nth-child(12) { animation-delay: 0.18s; background: rgba(106,170,122,0.3); }
+  .v4-bar:nth-child(13) { animation-delay: 0.55s; background: rgba(124,92,252,0.2); }
+  .v4-bar:nth-child(14) { animation-delay: 0.12s; background: rgba(176,104,104,0.28); }
+  .v4-bar:nth-child(15) { animation-delay: 0.38s; background: rgba(124,92,252,0.32); }
+  .v4-bar:nth-child(16) { animation-delay: 0.22s; background: rgba(106,170,122,0.22); }
+  .v4-bar:nth-child(17) { animation-delay: 0.48s; background: rgba(124,92,252,0.3); }
+  .v4-bar:nth-child(18) { animation-delay: 0.07s; background: rgba(176,104,104,0.2); }
+  .v4-bar:nth-child(19) { animation-delay: 0.33s; background: rgba(106,170,122,0.3); }
+  .v4-bar:nth-child(20) { animation-delay: 0.58s; background: rgba(124,92,252,0.25); }
+  .v4-bar:nth-child(21) { animation-delay: 0.28s; background: rgba(124,92,252,0.35); }
+  .v4-bar:nth-child(22) { animation-delay: 0.16s; background: rgba(106,170,122,0.28); }
+  .v4-bar:nth-child(23) { animation-delay: 0.44s; background: rgba(176,104,104,0.22); }
+  .v4-bar:nth-child(24) { animation-delay: 0.02s; background: rgba(124,92,252,0.3); }
+
+  .v4-subtext {
+    padding: 0 18px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: rgba(255,255,255,0.2);
+    display: flex;
+    justify-content: space-between;
+  }
+
+  /* ════════════════════════════════════════════
+     VARIANT 5 — Orbit Spinner (precision ring)
+  ════════════════════════════════════════════ */
+  @keyframes orbit-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+  }
+  @keyframes orbit-spin-rev {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(-360deg); }
+  }
+  .v5-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 18px;
+    position: relative;
+  }
+  .v5-ring-outer {
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(124,92,252,0.2);
+    border-top-color: rgba(124,92,252,0.7);
+    animation: orbit-spin 1.4s linear infinite;
+    position: absolute;
+  }
+  .v5-ring-mid {
+    width: 44px; height: 44px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(106,170,122,0.15);
+    border-bottom-color: rgba(106,170,122,0.6);
+    animation: orbit-spin-rev 1.0s linear infinite;
+    position: absolute;
+  }
+  .v5-ring-inner {
+    width: 24px; height: 24px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255,255,255,0.07);
+    border-left-color: rgba(255,255,255,0.3);
+    animation: orbit-spin 0.7s linear infinite;
+    position: absolute;
+  }
+  .v5-dot {
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: rgba(124,92,252,0.6);
+    animation: pulse-fade 1.4s ease-in-out infinite;
+  }
+  .v5-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    color: rgba(255,255,255,0.2);
+    text-transform: uppercase;
+    text-align: center;
+    padding-bottom: 16px;
+  }
+
+
+  /* ════════════════════════════════════════════
+     VARIANT 6 — Signal Dot Broadcast
+  ════════════════════════════════════════════ */
+  @keyframes ripple {
+    0%   { transform: scale(1); opacity: 0.7; }
+    100% { transform: scale(3.5); opacity: 0; }
+  }
+  @keyframes ripple-2 {
+    0%   { transform: scale(1); opacity: 0.5; }
+    100% { transform: scale(2.5); opacity: 0; }
+  }
+  .v6-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 46px 18px 30px;
+    gap: 48px;
+  }
+  .v6-signal {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+  .v6-dot-wrap {
+    position: relative;
+    width: 32px; height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .v6-pulse-ring {
+    position: absolute;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    animation: ripple 2s ease-out infinite;
+  }
+  .v6-pulse-ring-2 {
+    position: absolute;
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    animation: ripple 2s ease-out infinite 0.8s;
+  }
+  .v6-core {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    position: relative;
+    z-index: 1;
+    animation: pulse-fade 2s ease-in-out infinite;
+  }
+  .v6-tag {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .v6-subtitle {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: rgba(255,255,255,0.2);
+    text-transform: uppercase;
+    text-align: center;
+    padding-bottom: 16px;
+  }
+
+
+  /* ════════════════════════════════════════════
+     VARIANT 7 — Ghost Card Cascade
+  ════════════════════════════════════════════ */
+  @keyframes ghost-in {
+    0%   { opacity: 0; transform: translateY(4px); }
+    100% { opacity: 1;  transform: translateY(0); }
+  }
+  @keyframes ghost-cycle {
+    0%   { opacity: 0.1; }
+    40%  { opacity: 0.55; }
+    60%  { opacity: 0.55; }
+    100% { opacity: 0.1; }
+  }
+  .v7-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 4px 0;
+  }
+  .v7-ghost {
+    background: rgba(19,21,26,0.6);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: var(--radius-sm);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    animation: ghost-cycle 2.2s ease-in-out infinite;
+  }
+  .v7-ghost:nth-child(1) { animation-delay: 0s; }
+  .v7-ghost:nth-child(2) { animation-delay: 0.28s; }
+  .v7-ghost:nth-child(3) { animation-delay: 0.56s; }
+  .v7-ghost:nth-child(4) { animation-delay: 0.84s; }
+  .v7-ghost:nth-child(5) { animation-delay: 1.12s; }
+  .v7-icon {
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    background: rgba(255,255,255,0.05);
+    flex-shrink: 0;
+  }
+  .v7-lines { flex: 1; display: flex; flex-direction: column; gap: 5px; }
+  .v7-line-a { height: 9px; border-radius: 3px; background: rgba(255,255,255,0.07); width: 55%; }
+  .v7-line-b { height: 8px; border-radius: 3px; background: rgba(255,255,255,0.04); width: 35%; }
+  .v7-badge { width: 38px; height: 20px; border-radius: 4px; background: rgba(255,255,255,0.05); flex-shrink: 0; }
+
+
+  /* ════════════════════════════════════════════
+     VARIANT 8 — Data Flow (horizontal streaks)
+  ════════════════════════════════════════════ */
+  @keyframes streak {
+    0%   { transform: translateX(-100%); opacity: 0; }
+    20%  { opacity: 0.6; }
+    80%  { opacity: 0.6; }
+    100% { transform: translateX(400%); opacity: 0; }
+  }
+  .v8-wrap {
+    position: relative;
+    overflow: hidden;
+  }
+  .v8-streaks {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .v8-streak {
+    position: absolute;
+    left: 0;
+    height: 1px;
+    border-radius: 1px;
+    animation: streak 2.4s ease-in-out infinite;
+  }
+  .v8-streak:nth-child(1) { top: 22%;  width: 35%; background: linear-gradient(90deg, transparent, rgba(124,92,252,0.5), transparent); animation-delay: 0s; }
+  .v8-streak:nth-child(2) { top: 38%;  width: 50%; background: linear-gradient(90deg, transparent, rgba(106,170,122,0.4), transparent); animation-delay: 0.6s; }
+  .v8-streak:nth-child(3) { top: 54%;  width: 28%; background: linear-gradient(90deg, transparent, rgba(124,92,252,0.35), transparent); animation-delay: 1.2s; }
+  .v8-streak:nth-child(4) { top: 70%;  width: 42%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent); animation-delay: 0.3s; }
+  .v8-streak:nth-child(5) { top: 15%;  width: 22%; background: linear-gradient(90deg, transparent, rgba(176,104,104,0.35), transparent); animation-delay: 1.8s; }
+  .v8-streak:nth-child(6) { top: 85%;  width: 38%; background: linear-gradient(90deg, transparent, rgba(124,92,252,0.3), transparent); animation-delay: 0.9s; }
+
+
+  /* ════════════════════════════════════════════
+     VARIANT 9 — Waveform (audio-style)
+  ════════════════════════════════════════════ */
+  @keyframes wave-a {
+    0%, 100% { transform: scaleY(0.15); }
+    50%       { transform: scaleY(1); }
+  }
+  .v9-wave-wrap {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    height: 56px;
+    padding: 0 18px;
+  }
+  .v9-wave-bar {
+    width: 3px;
+    height: 100%;
+    border-radius: 3px;
+    transform-origin: center;
+    animation: wave-a 1.1s ease-in-out infinite;
+  }
+  /* Color cycling across bars */
+  .v9-wave-bar:nth-child(1)  { background: rgba(124,92,252,0.30); animation-delay: 0.00s; }
+  .v9-wave-bar:nth-child(2)  { background: rgba(124,92,252,0.38); animation-delay: 0.06s; }
+  .v9-wave-bar:nth-child(3)  { background: rgba(124,92,252,0.46); animation-delay: 0.12s; }
+  .v9-wave-bar:nth-child(4)  { background: rgba(124,92,252,0.54); animation-delay: 0.18s; }
+  .v9-wave-bar:nth-child(5)  { background: rgba(124,92,252,0.62); animation-delay: 0.24s; }
+  .v9-wave-bar:nth-child(6)  { background: rgba(106,170,122,0.58); animation-delay: 0.30s; }
+  .v9-wave-bar:nth-child(7)  { background: rgba(106,170,122,0.52); animation-delay: 0.36s; }
+  .v9-wave-bar:nth-child(8)  { background: rgba(106,170,122,0.66); animation-delay: 0.42s; }
+  .v9-wave-bar:nth-child(9)  { background: rgba(106,170,122,0.58); animation-delay: 0.36s; }
+  .v9-wave-bar:nth-child(10) { background: rgba(106,170,122,0.50); animation-delay: 0.30s; }
+  .v9-wave-bar:nth-child(11) { background: rgba(124,92,252,0.62); animation-delay: 0.24s; }
+  .v9-wave-bar:nth-child(12) { background: rgba(124,92,252,0.54); animation-delay: 0.18s; }
+  .v9-wave-bar:nth-child(13) { background: rgba(124,92,252,0.46); animation-delay: 0.12s; }
+  .v9-wave-bar:nth-child(14) { background: rgba(124,92,252,0.38); animation-delay: 0.06s; }
+  .v9-wave-bar:nth-child(15) { background: rgba(124,92,252,0.30); animation-delay: 0.00s; }
+  .v9-subtext {
+    padding: 4px 18px 14px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: rgba(255,255,255,0.18);
+    text-transform: uppercase;
+    text-align: center;
+  }
+
+
+  /* ════════════════════════════════════════════
+     VARIANT 10 — Regime Tick (branded minimal)
+  ════════════════════════════════════════════ */
+  @keyframes tick-in {
+    0%   { transform: scaleX(0); opacity: 0; }
+    100% { transform: scaleX(1); opacity: 1; }
+  }
+  @keyframes tick-blink {
+    0%, 100% { opacity: 0.15; }
+    50%       { opacity: 0.55; }
+  }
+  .v10-body {
+    padding: 22px 18px 18px;
+  }
+  .v10-stat-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .v10-stat {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+  }
+  .v10-stat-inner-label {
+    height: 7px; border-radius: 3px;
+    background: rgba(255,255,255,0.06);
+    width: 50%; margin-bottom: 8px;
+    animation: tick-blink 2s ease-in-out infinite;
+  }
+  .v10-stat-inner-label:nth-child(1) { animation-delay: 0s; }
+  .v10-stat:nth-child(2) .v10-stat-inner-label { animation-delay: 0.25s; }
+  .v10-stat:nth-child(3) .v10-stat-inner-label { animation-delay: 0.5s; }
+  .v10-stat:nth-child(4) .v10-stat-inner-label { animation-delay: 0.75s; }
+  .v10-stat-inner-val {
+    height: 20px; border-radius: 4px;
+    background: rgba(255,255,255,0.08);
+    width: 75%;
+    animation: tick-blink 2s ease-in-out infinite;
+  }
+  .v10-stat:nth-child(2) .v10-stat-inner-val { animation-delay: 0.25s; }
+  .v10-stat:nth-child(3) .v10-stat-inner-val { animation-delay: 0.5s; }
+  .v10-stat:nth-child(4) .v10-stat-inner-val { animation-delay: 0.75s; }
+  .v10-ticker {
+    display: flex;
+    gap: 1px;
+    overflow: hidden;
+    border-radius: var(--radius-sm);
+    background: var(--border);
+    margin-bottom: 14px;
+  }
+  .v10-tick-cell {
+    flex: 1;
+    background: rgba(19,21,26,0.9);
+    padding: 10px 12px;
+  }
+  .v10-tick-top { height: 7px; border-radius: 3px; background: rgba(255,255,255,0.05); width: 55%; margin-bottom: 6px; animation: tick-blink 2s ease-in-out infinite; }
+  .v10-tick-bot { height: 13px; border-radius: 3px; background: rgba(255,255,255,0.08); width: 80%; animation: tick-blink 2s ease-in-out infinite; }
+  .v10-tick-cell:nth-child(2) .v10-tick-top, .v10-tick-cell:nth-child(2) .v10-tick-bot { animation-delay: 0.15s; }
+  .v10-tick-cell:nth-child(3) .v10-tick-top, .v10-tick-cell:nth-child(3) .v10-tick-bot { animation-delay: 0.30s; }
+  .v10-tick-cell:nth-child(4) .v10-tick-top, .v10-tick-cell:nth-child(4) .v10-tick-bot { animation-delay: 0.45s; }
+  .v10-tick-cell:nth-child(5) .v10-tick-top, .v10-tick-cell:nth-child(5) .v10-tick-bot { animation-delay: 0.60s; }
+  .v10-tick-cell:nth-child(6) .v10-tick-top, .v10-tick-cell:nth-child(6) .v10-tick-bot { animation-delay: 0.75s; }
+  .v10-main-row {
+    display: grid;
+    grid-template-columns: 3fr 2fr;
+    gap: 10px;
+  }
+  .v10-progress-bar-wrap {
+    height: 2px; background: rgba(255,255,255,0.06); border-radius: 1px;
+    overflow: hidden; margin-top: 6px;
+  }
+  .v10-progress-fill {
+    height: 100%;
+    border-radius: 1px;
+    transform-origin: left;
+    animation: tick-in 1.8s cubic-bezier(0.22,1,0.36,1) infinite alternate;
+  }
+  .v10-progress-fill.green { background: rgba(106,170,122,0.45); width: 72%; }
+  .v10-progress-fill.muted { background: rgba(255,255,255,0.15); width: 45%; }
+  .v10-progress-fill.purple { background: rgba(124,92,252,0.45); width: 60%; }
+  .v10-row-item { display: flex; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.03); }
+  .v10-row-item:last-child { border-bottom: none; }
+
+  /* Bottom: full-width number counter row */
+  .v10-bottom {
+    margin-top: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.15);
+    animation: tick-blink 2s ease-in-out infinite;
+  }
+  .v10-spinner {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(124,92,252,0.2);
+    border-top-color: rgba(124,92,252,0.6);
+    animation: orbit-spin 1.0s linear infinite;
+  }
+</style>
+</head>
+<body>
+
+<div class="page-title">Loading State Variants — HyperliquidFLOW</div>
+
+<div class="grid">
+
+  <!-- ══ VARIANT 1 ══ Shimmer Sweep ═══════════════════════ -->
+  <div class="variant v1">
+    <div class="variant-label"><span class="variant-num">01</span>Shimmer Sweep</div>
+    <div class="card-shell">
+      <div class="card-header">
+        <div class="card-title-skel"></div>
+        <div class="card-link-skel"></div>
+      </div>
+      <div class="card-body">
+        <div class="skeleton-row"><div class="skel-dot"></div><div class="skel-line" style="flex:1"></div><div class="skel-badge"></div></div>
+        <div class="skeleton-row"><div class="skel-dot"></div><div class="skel-line" style="flex:1"></div><div class="skel-badge"></div></div>
+        <div class="skeleton-row"><div class="skel-dot"></div><div class="skel-line" style="flex:1"></div><div class="skel-badge"></div></div>
+        <div class="skeleton-row"><div class="skel-dot"></div><div class="skel-line" style="flex:1"></div><div class="skel-badge"></div></div>
+        <div class="skeleton-row"><div class="skel-dot"></div><div class="skel-line" style="flex:1"></div><div class="skel-badge"></div></div>
+      </div>
+    </div>
+    <div class="stat-grid" style="margin-top:10px">
+      <div class="stat-cell"><div class="skel-label"></div><div class="skel-value"></div></div>
+      <div class="stat-cell"><div class="skel-label"></div><div class="skel-value"></div></div>
+      <div class="stat-cell"><div class="skel-label"></div><div class="skel-value"></div></div>
+    </div>
+  </div>
+
+  <!-- ══ VARIANT 2 ══ Staggered Pulse ════════════════════ -->
+  <div class="variant v2">
+    <div class="variant-label"><span class="variant-num">02</span>Staggered Pulse</div>
+    <div class="card-shell">
+      <div class="card-header">
+        <div class="card-title-skel"></div>
+        <div class="card-link-skel"></div>
+      </div>
+      <div class="card-body">
+        <div class="skeleton-row"><div class="skel-dot"></div><div class="skel-line" style="width:60%"></div><div style="flex:1"></div><div class="skel-badge"></div></div>
+        <div class="skeleton-row"><div class="skel-dot"></div><div class="skel-line" style="width:45%"></div><div style="flex:1"></div><div class="skel-badge"></div></div>
+        <div class="skeleton-row"><div class="skel-dot"></div><div class="skel-line" style="width:70%"></div><div style="flex:1"></div><div class="skel-badge"></div></div>
+        <div class="skeleton-row"><div class="skel-dot"></div><div class="skel-line" style="width:55%"></div><div style="flex:1"></div><div class="skel-badge"></div></div>
+        <div class="skeleton-row"><div class="skel-dot"></div><div class="skel-line" style="width:65%"></div><div style="flex:1"></div><div class="skel-badge"></div></div>
+      </div>
+    </div>
+    <div class="stat-grid" style="margin-top:10px">
+      <div class="stat-cell"><div class="skel-label"></div><div class="skel-value" style="width:65%"></div></div>
+      <div class="stat-cell"><div class="skel-label"></div><div class="skel-value" style="width:80%"></div></div>
+      <div class="stat-cell"><div class="skel-label"></div><div class="skel-value" style="width:70%"></div></div>
+    </div>
+  </div>
+
+  <!-- ══ VARIANT 3 ══ Scanline Pass ══════════════════════ -->
+  <div class="variant v3">
+    <div class="variant-label"><span class="variant-num">03</span>Scanline Pass</div>
+    <div class="card-shell v3-wrap">
+      <div class="card-header">
+        <div class="card-title-skel"></div>
+        <div class="card-link-skel"></div>
+      </div>
+      <div class="card-body">
+        <div class="skeleton-row"><div class="skel-dot"></div><div class="skel-line" style="flex:1"></div><div class="skel-badge"></div></div>
+        <div class="skeleton-row"><div class="skel-dot"></div><div class="skel-line" style="flex:1"></div><div class="skel-badge"></div></div>
+        <div class="skeleton-row"><div class="skel-dot"></div><div class="skel-line" style="flex:1"></div><div class="skel-badge"></div></div>
+        <div class="skeleton-row"><div class="skel-dot"></div><div class="skel-line" style="flex:1"></div><div class="skel-badge"></div></div>
+        <div class="skeleton-row"><div class="skel-dot"></div><div class="skel-line" style="flex:1"></div><div class="skel-badge"></div></div>
+      </div>
+    </div>
+    <div class="stat-grid v3-wrap" style="margin-top:10px">
+      <div class="stat-cell"><div class="skel-label"></div><div class="skel-value"></div></div>
+      <div class="stat-cell"><div class="skel-label"></div><div class="skel-value"></div></div>
+      <div class="stat-cell"><div class="skel-label"></div><div class="skel-value"></div></div>
+    </div>
+  </div>
+
+  <!-- ══ VARIANT 4 ══ Equalizer Bars ═════════════════════ -->
+  <div class="variant v4">
+    <div class="variant-label"><span class="variant-num">04</span>Equalizer Bars</div>
+    <div class="card-shell">
+      <div class="card-header">
+        <div class="card-title-skel"></div>
+        <div class="card-link-skel"></div>
+      </div>
+      <div class="v4-eq">
+        <div class="v4-bar"></div><div class="v4-bar"></div><div class="v4-bar"></div>
+        <div class="v4-bar"></div><div class="v4-bar"></div><div class="v4-bar"></div>
+        <div class="v4-bar"></div><div class="v4-bar"></div><div class="v4-bar"></div>
+        <div class="v4-bar"></div><div class="v4-bar"></div><div class="v4-bar"></div>
+        <div class="v4-bar"></div><div class="v4-bar"></div><div class="v4-bar"></div>
+        <div class="v4-bar"></div><div class="v4-bar"></div><div class="v4-bar"></div>
+        <div class="v4-bar"></div><div class="v4-bar"></div><div class="v4-bar"></div>
+        <div class="v4-bar"></div><div class="v4-bar"></div><div class="v4-bar"></div>
+      </div>
+      <div class="v4-subtext">
+        <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>now</span>
+      </div>
+    </div>
+    <div class="card-shell" style="margin-top:10px; padding: 14px 18px; display:flex; align-items:center; gap:14px;">
+      <div class="skel-line" style="width:80px; height:8px;"></div>
+      <div style="flex:1; display:flex; align-items:flex-end; gap:2px; height:28px;">
+        <div class="v4-bar" style="height:100%; flex:none; width:4px;"></div>
+        <div class="v4-bar" style="height:100%; flex:none; width:4px; animation-delay:0.12s;"></div>
+        <div class="v4-bar" style="height:100%; flex:none; width:4px; animation-delay:0.24s;"></div>
+        <div class="v4-bar" style="height:100%; flex:none; width:4px; animation-delay:0.08s;"></div>
+        <div class="v4-bar" style="height:100%; flex:none; width:4px; animation-delay:0.32s;"></div>
+        <div class="v4-bar" style="height:100%; flex:none; width:4px; animation-delay:0.16s;"></div>
+      </div>
+      <div class="skel-badge"></div>
+    </div>
+  </div>
+
+  <!-- ══ VARIANT 5 ══ Orbit Spinner ══════════════════════ -->
+  <div class="variant">
+    <div class="variant-label"><span class="variant-num">05</span>Orbit Spinner</div>
+    <div class="card-shell">
+      <div class="card-header">
+        <div class="card-title-skel"></div>
+        <div class="card-link-skel"></div>
+      </div>
+      <div class="v5-center">
+        <div class="v5-ring-outer"></div>
+        <div class="v5-ring-mid"></div>
+        <div class="v5-ring-inner"></div>
+        <div class="v5-dot"></div>
+      </div>
+      <div class="v5-label">Fetching positions</div>
+    </div>
+    <div class="stat-grid" style="margin-top:10px">
+      <div class="stat-cell"><div class="skel-label"></div><div class="skel-value"></div></div>
+      <div class="stat-cell"><div class="skel-label"></div><div class="skel-value"></div></div>
+      <div class="stat-cell"><div class="skel-label"></div><div class="skel-value"></div></div>
+    </div>
+  </div>
+
+  <!-- ══ VARIANT 6 ══ Signal Dot Broadcast ═══════════════ -->
+  <div class="variant">
+    <div class="variant-label"><span class="variant-num">06</span>Signal Broadcast</div>
+    <div class="card-shell">
+      <div class="card-header">
+        <div class="card-title-skel"></div>
+        <div class="card-link-skel"></div>
+      </div>
+      <div class="v6-center">
+        <div class="v6-signal">
+          <div class="v6-dot-wrap">
+            <div class="v6-pulse-ring" style="background:rgba(106,170,122,0.25)"></div>
+            <div class="v6-pulse-ring-2" style="background:rgba(106,170,122,0.15)"></div>
+            <div class="v6-core" style="background:#6aaa7a; box-shadow:0 0 8px rgba(106,170,122,0.5)"></div>
+          </div>
+          <div class="v6-tag" style="color:#6aaa7a;">LONG</div>
+        </div>
+        <div class="v6-signal">
+          <div class="v6-dot-wrap">
+            <div class="v6-pulse-ring" style="background:rgba(124,92,252,0.25); animation-delay:0.4s"></div>
+            <div class="v6-pulse-ring-2" style="background:rgba(124,92,252,0.15); animation-delay:1.2s"></div>
+            <div class="v6-core" style="background:#7C5CFC; box-shadow:0 0 8px rgba(124,92,252,0.5); animation-delay:0.4s"></div>
+          </div>
+          <div class="v6-tag" style="color:#7C5CFC;">SCAN</div>
+        </div>
+        <div class="v6-signal">
+          <div class="v6-dot-wrap">
+            <div class="v6-pulse-ring" style="background:rgba(176,104,104,0.25); animation-delay:0.8s"></div>
+            <div class="v6-pulse-ring-2" style="background:rgba(176,104,104,0.15); animation-delay:1.6s"></div>
+            <div class="v6-core" style="background:#b06868; box-shadow:0 0 8px rgba(176,104,104,0.5); animation-delay:0.8s"></div>
+          </div>
+          <div class="v6-tag" style="color:#b06868;">SHORT</div>
+        </div>
+      </div>
+      <div class="v6-subtitle">Detecting signals</div>
+    </div>
+    <div class="stat-grid" style="margin-top:10px">
+      <div class="stat-cell"><div class="skel-label"></div><div class="skel-value"></div></div>
+      <div class="stat-cell"><div class="skel-label"></div><div class="skel-value"></div></div>
+      <div class="stat-cell"><div class="skel-label"></div><div class="skel-value"></div></div>
+    </div>
+  </div>
+
+  <!-- ══ VARIANT 7 ══ Ghost Card Cascade ══════════════════ -->
+  <div class="variant">
+    <div class="variant-label"><span class="variant-num">07</span>Ghost Cascade</div>
+    <div class="card-shell" style="padding:12px">
+      <div class="v7-stack">
+        <div class="v7-ghost">
+          <div class="v7-icon"></div>
+          <div class="v7-lines"><div class="v7-line-a"></div><div class="v7-line-b"></div></div>
+          <div class="v7-badge"></div>
+        </div>
+        <div class="v7-ghost">
+          <div class="v7-icon"></div>
+          <div class="v7-lines"><div class="v7-line-a" style="width:42%"></div><div class="v7-line-b" style="width:28%"></div></div>
+          <div class="v7-badge"></div>
+        </div>
+        <div class="v7-ghost">
+          <div class="v7-icon"></div>
+          <div class="v7-lines"><div class="v7-line-a" style="width:62%"></div><div class="v7-line-b" style="width:40%"></div></div>
+          <div class="v7-badge"></div>
+        </div>
+        <div class="v7-ghost">
+          <div class="v7-icon"></div>
+          <div class="v7-lines"><div class="v7-line-a" style="width:50%"></div><div class="v7-line-b" style="width:32%"></div></div>
+          <div class="v7-badge"></div>
+        </div>
+        <div class="v7-ghost">
+          <div class="v7-icon"></div>
+          <div class="v7-lines"><div class="v7-line-a" style="width:58%"></div><div class="v7-line-b" style="width:36%"></div></div>
+          <div class="v7-badge"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ VARIANT 8 ══ Data Flow Streaks ═══════════════════ -->
+  <div class="variant">
+    <div class="variant-label"><span class="variant-num">08</span>Data Flow Streaks</div>
+    <div class="card-shell v8-wrap">
+      <div class="v8-streaks">
+        <div class="v8-streak"></div>
+        <div class="v8-streak"></div>
+        <div class="v8-streak"></div>
+        <div class="v8-streak"></div>
+        <div class="v8-streak"></div>
+        <div class="v8-streak"></div>
+      </div>
+      <div class="card-header">
+        <div class="card-title-skel"></div>
+        <div class="card-link-skel"></div>
+      </div>
+      <div class="card-body">
+        <div class="skeleton-row"><div class="skel-dot"></div><div class="skel-line" style="flex:1"></div><div class="skel-badge"></div></div>
+        <div class="skeleton-row"><div class="skel-dot"></div><div class="skel-line" style="flex:1"></div><div class="skel-badge"></div></div>
+        <div class="skeleton-row"><div class="skel-dot"></div><div class="skel-line" style="flex:1"></div><div class="skel-badge"></div></div>
+        <div class="skeleton-row"><div class="skel-dot"></div><div class="skel-line" style="flex:1"></div><div class="skel-badge"></div></div>
+        <div class="skeleton-row"><div class="skel-dot"></div><div class="skel-line" style="flex:1"></div><div class="skel-badge"></div></div>
+      </div>
+    </div>
+    <div class="stat-grid v8-wrap" style="margin-top:10px">
+      <div class="v8-streaks">
+        <div class="v8-streak" style="animation-delay:1.4s"></div>
+        <div class="v8-streak" style="animation-delay:0.2s"></div>
+      </div>
+      <div class="stat-cell"><div class="skel-label"></div><div class="skel-value"></div></div>
+      <div class="stat-cell"><div class="skel-label"></div><div class="skel-value"></div></div>
+      <div class="stat-cell"><div class="skel-label"></div><div class="skel-value"></div></div>
+    </div>
+  </div>
+
+  <!-- ══ VARIANT 9 ══ Waveform ════════════════════════════ -->
+  <div class="variant">
+    <div class="variant-label"><span class="variant-num">09</span>Waveform</div>
+    <div class="card-shell">
+      <div class="card-header">
+        <div class="card-title-skel"></div>
+        <div class="card-link-skel"></div>
+      </div>
+      <div class="v9-wave-wrap">
+        <div class="v9-wave-bar"></div><div class="v9-wave-bar"></div><div class="v9-wave-bar"></div>
+        <div class="v9-wave-bar"></div><div class="v9-wave-bar"></div><div class="v9-wave-bar"></div>
+        <div class="v9-wave-bar"></div><div class="v9-wave-bar"></div><div class="v9-wave-bar"></div>
+        <div class="v9-wave-bar"></div><div class="v9-wave-bar"></div><div class="v9-wave-bar"></div>
+        <div class="v9-wave-bar"></div><div class="v9-wave-bar"></div><div class="v9-wave-bar"></div>
+      </div>
+      <div class="v9-subtext">Syncing wallet positions</div>
+    </div>
+    <div class="card-shell" style="margin-top:10px; overflow:hidden;">
+      <div class="v9-wave-wrap" style="height:32px; padding:0 18px; gap:2px;">
+        <div class="v9-wave-bar" style="width:2px; animation-delay:0.05s;"></div>
+        <div class="v9-wave-bar" style="width:2px; animation-delay:0.10s;"></div>
+        <div class="v9-wave-bar" style="width:2px; animation-delay:0.15s;"></div>
+        <div class="v9-wave-bar" style="width:2px; animation-delay:0.20s;"></div>
+        <div class="v9-wave-bar" style="width:2px; animation-delay:0.25s;"></div>
+        <div class="v9-wave-bar" style="width:2px; animation-delay:0.30s;"></div>
+        <div class="v9-wave-bar" style="width:2px; animation-delay:0.35s;"></div>
+        <div class="v9-wave-bar" style="width:2px; animation-delay:0.28s;"></div>
+        <div class="v9-wave-bar" style="width:2px; animation-delay:0.22s;"></div>
+        <div class="v9-wave-bar" style="width:2px; animation-delay:0.16s;"></div>
+        <div class="v9-wave-bar" style="width:2px; animation-delay:0.10s;"></div>
+        <div class="v9-wave-bar" style="width:2px; animation-delay:0.05s;"></div>
+        <div style="flex:1"></div>
+        <div class="skel-badge" style="animation:tick-blink 2s ease-in-out infinite; align-self:center;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ VARIANT 10 ══ Regime Tick (full-page replica) ════ -->
+  <div class="variant">
+    <div class="variant-label"><span class="variant-num">10</span>Regime Tick (Full Layout)</div>
+
+    <!-- Page header skeleton -->
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:14px; padding: 0 2px;">
+      <div>
+        <div style="height:22px; width:120px; border-radius:5px; background:rgba(255,255,255,0.08); animation:tick-blink 2s ease-in-out infinite;"></div>
+        <div style="height:10px; width:180px; border-radius:3px; background:rgba(255,255,255,0.04); margin-top:6px; animation:tick-blink 2s ease-in-out infinite; animation-delay:0.2s;"></div>
+      </div>
+      <div style="width:110px; height:48px; border-radius:10px; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07); animation:tick-blink 2s ease-in-out infinite; animation-delay:0.4s;"></div>
+    </div>
+
+    <!-- Ticker strip -->
+    <div class="v10-ticker">
+      <div class="v10-tick-cell"><div class="v10-tick-top"></div><div class="v10-tick-bot"></div></div>
+      <div class="v10-tick-cell"><div class="v10-tick-top"></div><div class="v10-tick-bot"></div></div>
+      <div class="v10-tick-cell"><div class="v10-tick-top"></div><div class="v10-tick-bot"></div></div>
+      <div class="v10-tick-cell"><div class="v10-tick-top"></div><div class="v10-tick-bot"></div></div>
+      <div class="v10-tick-cell"><div class="v10-tick-top"></div><div class="v10-tick-bot"></div></div>
+      <div class="v10-tick-cell"><div class="v10-tick-top"></div><div class="v10-tick-bot"></div></div>
+    </div>
+
+    <!-- Stat row -->
+    <div class="v10-stat-row">
+      <div class="v10-stat"><div class="v10-stat-inner-label"></div><div class="v10-stat-inner-val"></div></div>
+      <div class="v10-stat"><div class="v10-stat-inner-label"></div><div class="v10-stat-inner-val"></div></div>
+      <div class="v10-stat"><div class="v10-stat-inner-label"></div><div class="v10-stat-inner-val"></div></div>
+      <div class="v10-stat"><div class="v10-stat-inner-label"></div><div class="v10-stat-inner-val"></div></div>
+    </div>
+
+    <!-- Main content row -->
+    <div class="v10-main-row">
+      <div class="card-shell" style="padding:14px 16px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+          <div class="skel-line" style="width:100px; height:9px; animation:tick-blink 2s ease-in-out infinite;"></div>
+        </div>
+        <div class="v10-row-item">
+          <div class="skel-dot" style="animation:tick-blink 2s ease-in-out infinite;"></div>
+          <div class="skel-line" style="flex:1; animation:tick-blink 2s ease-in-out infinite;"></div>
+          <div class="skel-badge" style="animation:tick-blink 2s ease-in-out infinite; animation-delay:0.2s;"></div>
+        </div>
+        <div class="v10-row-item">
+          <div class="skel-dot" style="animation:tick-blink 2s ease-in-out infinite; animation-delay:0.12s;"></div>
+          <div class="skel-line" style="flex:1; animation:tick-blink 2s ease-in-out infinite; animation-delay:0.12s;"></div>
+          <div class="skel-badge" style="animation:tick-blink 2s ease-in-out infinite; animation-delay:0.3s;"></div>
+        </div>
+        <div class="v10-row-item">
+          <div class="skel-dot" style="animation:tick-blink 2s ease-in-out infinite; animation-delay:0.24s;"></div>
+          <div class="skel-line" style="flex:1; animation:tick-blink 2s ease-in-out infinite; animation-delay:0.24s;"></div>
+          <div class="skel-badge" style="animation:tick-blink 2s ease-in-out infinite; animation-delay:0.4s;"></div>
+        </div>
+        <div class="v10-row-item">
+          <div class="skel-dot" style="animation:tick-blink 2s ease-in-out infinite; animation-delay:0.36s;"></div>
+          <div class="skel-line" style="flex:1; animation:tick-blink 2s ease-in-out infinite; animation-delay:0.36s;"></div>
+          <div class="skel-badge" style="animation:tick-blink 2s ease-in-out infinite; animation-delay:0.5s;"></div>
+        </div>
+      </div>
+      <div class="card-shell" style="padding:14px 16px;">
+        <div class="skel-line" style="width:80px; height:9px; margin-bottom:12px; animation:tick-blink 2s ease-in-out infinite;"></div>
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+              <div class="skel-line" style="width:30px; height:8px; animation:tick-blink 2s ease-in-out infinite;"></div>
+              <div class="skel-line" style="width:24px; height:8px; animation:tick-blink 2s ease-in-out infinite;"></div>
+            </div>
+            <div class="v10-progress-bar-wrap"><div class="v10-progress-fill green"></div></div>
+          </div>
+          <div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+              <div class="skel-line" style="width:30px; height:8px; animation:tick-blink 2s ease-in-out infinite; animation-delay:0.2s;"></div>
+              <div class="skel-line" style="width:24px; height:8px; animation:tick-blink 2s ease-in-out infinite; animation-delay:0.2s;"></div>
+            </div>
+            <div class="v10-progress-bar-wrap"><div class="v10-progress-fill muted" style="animation-delay:0.3s;"></div></div>
+          </div>
+          <div>
+            <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+              <div class="skel-line" style="width:30px; height:8px; animation:tick-blink 2s ease-in-out infinite; animation-delay:0.4s;"></div>
+              <div class="skel-line" style="width:24px; height:8px; animation:tick-blink 2s ease-in-out infinite; animation-delay:0.4s;"></div>
+            </div>
+            <div class="v10-progress-bar-wrap"><div class="v10-progress-fill purple" style="animation-delay:0.6s;"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom status -->
+    <div class="v10-bottom" style="margin-top:14px;">
+      <div class="v10-spinner"></div>
+      Fetching positions
+    </div>
+  </div>
+
+</div><!-- /grid -->
+
+</body>
+</html>

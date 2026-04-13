@@ -35,17 +35,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       verdict = "Insufficient Data (<10 trades)";
       verdict_color = "#9ca3af";
     } else if (bt.win_rate >= 0.65 && bt.profit_factor >= 2) {
-      verdict = "Elite Trader — Strong Edge Detected";
-      verdict_color = "#4ade80";
+      verdict = "Elite Trader, Strong Edge Detected";
+      verdict_color = "#6aaa7a";
     } else if (bt.win_rate >= 0.52 && bt.total_pnl_usd > 0) {
-      verdict = "Smart Money — Consistent Performer";
+      verdict = "Smart Money, Consistent Performer";
       verdict_color = "#60a5fa";
     } else if (bt.total_pnl_usd > 0 && bt.win_rate < 0.52) {
-      verdict = "Risky but Profitable — High Avg Win";
+      verdict = "Risky but Profitable, High Avg Win";
       verdict_color = "#f59e0b";
     } else {
-      verdict = "Underperformer — Exercise Caution";
-      verdict_color = "#f87171";
+      verdict = "Underperformer, Exercise Caution";
+      verdict_color = "#b06868";
     }
 
     const closing = closingFills(fills);

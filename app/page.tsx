@@ -7,27 +7,8 @@ import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 import type { MarketTickerEntry } from "@/app/api/market-ticker/route";
 import { PageHeader } from "@/components/page-header";
 import { RECIPE_META } from "@/lib/recipe-meta";
+import { OverviewLoadingState } from "@/components/loading-state";
 
-// Coin-specific sparkline paths taken directly from layout-3-siderail prototype.
-// Shape is fixed per coin; stroke colour reflects live 24h direction.
-const SPARKLINE: Record<string, { pts: string; fill: string }> = {
-  BTC: {
-    pts:  "0,14 4,13 8,11 12,12 16,9 20,7 24,8 28,5 32,4 36,5 40,2 44,3 48,1 50,0",
-    fill: "M0,19 L0,14 L4,13 L8,11 L12,12 L16,9 L20,7 L24,8 L28,5 L32,4 L36,5 L40,2 L44,3 L48,1 L50,0 L50,19 Z",
-  },
-  ETH: {
-    pts:  "0,15 4,13 8,12 12,13 16,10 20,9 24,10 28,7 32,6 36,5 40,4 44,3 48,2 50,1",
-    fill: "M0,19 L0,15 L4,13 L8,12 L12,13 L16,10 L20,9 L24,10 L28,7 L32,6 L36,5 L40,4 L44,3 L48,2 L50,1 L50,19 Z",
-  },
-  SOL: {
-    pts:  "0,18 4,15 8,16 12,12 16,13 20,8 24,9 28,5 32,6 36,3 40,2 44,1 48,0 50,0",
-    fill: "M0,19 L0,18 L4,15 L8,16 L12,12 L16,13 L20,8 L24,9 L28,5 L32,6 L36,3 L40,2 L44,1 L48,0 L50,0 L50,19 Z",
-  },
-  HYPE: {
-    pts:  "0,2 4,3 8,1 12,4 16,3 20,6 24,5 28,8 32,7 36,10 40,11 44,13 48,14 50,16",
-    fill: "M0,19 L0,2 L4,3 L8,1 L12,4 L16,3 L20,6 L24,5 L28,8 L32,7 L36,10 L40,11 L44,13 L48,14 L50,16 L50,19 Z",
-  },
-};
 
 import { color, card as C, type as T, space } from "@/lib/design-tokens";
 
@@ -129,7 +110,7 @@ function OverviewInner() {
     staleTime: 55_000,
   });
 
-  if (isLoading) return <LoadingState />;
+  if (isLoading) return <OverviewLoadingState />;
   if (error)     return <ErrorState message={String(error)} />;
   if (!data)     return null;
 
@@ -146,56 +127,64 @@ function OverviewInner() {
     <>
       <PageHeader
         title="Overview"
-        subtitle={`${data.wallet_count} wallets · BTC 24h: ${data.btc_return_24h >= 0 ? "+" : ""}${formatPct(data.btc_return_24h)}`}
         regime={regime}
+        btcReturn={data.btc_return_24h}
       />
 
-      {/* ── Market ticker strip ── */}
-      {ticker && ticker.length > 0 && (
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: `repeat(${ticker.length}, 1fr)`,
-          margin: "20px 32px 0",
-          background: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(255,255,255,0.07)",
-          borderRadius: "12px",
-          overflow: "hidden",
-          backdropFilter: "blur(16px)",
-          WebkitBackdropFilter: "blur(16px)",
-          boxShadow: "0 2px 20px rgba(0,0,0,0.4)",
-        }}>
-          {ticker.map((t, i) => {
-            const pos = t.change24h >= 0;
-            const shape = SPARKLINE[t.coin];
-            return (
-              <div key={t.coin} style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "14px",
-                padding: "14px 18px",
-                borderRight: i < ticker.length - 1 ? "1px solid rgba(255,255,255,0.05)" : undefined,
-              }}>
-                <div>
-                  <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", color: "rgba(255,255,255,0.38)", textTransform: "uppercase" }}>{t.coin}</div>
-                  <div style={{ fontSize: "15px", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: "#f0f0f0", marginTop: "3px", whiteSpace: "nowrap" }}>
-                    ${t.price >= 1000
-                      ? t.price.toLocaleString("en-US", { maximumFractionDigits: 0 })
-                      : t.price.toFixed(2)}
-                  </div>
-                </div>
-                {shape ? (
-                  <CoinSparkline coin={t.coin} positive={pos} shape={shape} />
-                ) : (
-                  <FallbackSparkline positive={pos} index={i} />
-                )}
-                <div style={{ marginLeft: "auto", fontSize: "12px", fontWeight: 700, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", color: pos ? "#6aaa7a" : "#b06868" }}>
-                  {pos ? "+" : ""}{formatPct(t.change24h)}
+      {/* ── Market ticker strip ── always reserve space to prevent layout shift ── */}
+      <div style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(6, 1fr)",
+        margin: "20px 32px 0",
+        background: "rgba(255,255,255,0.03)",
+        border: "1px solid rgba(255,255,255,0.07)",
+        borderRadius: "12px",
+        overflow: "hidden",
+        backdropFilter: "blur(16px)",
+        WebkitBackdropFilter: "blur(16px)",
+        boxShadow: "0 2px 20px rgba(0,0,0,0.4)",
+        minHeight: "57px",
+      }}>
+        {ticker && ticker.length > 0 ? ticker.map((t, i) => {
+          const pos = t.change24h >= 0;
+          return (
+            <div key={t.coin} style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "14px",
+              padding: "14px 18px",
+              borderRight: i < ticker.length - 1 ? "1px solid rgba(255,255,255,0.05)" : undefined,
+            }}>
+              <div>
+                <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", color: "rgba(255,255,255,0.38)", textTransform: "uppercase" }}>{t.coin}</div>
+                <div style={{ fontSize: "15px", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: "#f0f0f0", marginTop: "3px", whiteSpace: "nowrap" }}>
+                  ${t.price >= 1000
+                    ? t.price.toLocaleString("en-US", { maximumFractionDigits: 0 })
+                    : t.price.toFixed(2)}
                 </div>
               </div>
-            );
-          })}
-        </div>
-      )}
+              {t.sparkline && t.sparkline.length >= 2
+                ? <RealSparkline data={t.sparkline} positive={pos} index={i} />
+                : <DirectionSparkline positive={pos} index={i} />}
+              <div style={{ marginLeft: "auto", fontSize: "12px", fontWeight: 700, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", color: pos ? "#6aaa7a" : "#b06868" }}>
+                {pos ? "+" : ""}{formatPct(t.change24h)}
+              </div>
+            </div>
+          );
+        }) : Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} style={{
+            display: "flex", alignItems: "center", gap: "14px", padding: "14px 18px",
+            borderRight: i < 5 ? "1px solid rgba(255,255,255,0.05)" : undefined,
+          }}>
+            <div>
+              <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", color: "transparent", background: "rgba(255,255,255,0.07)", borderRadius: "3px", userSelect: "none" }}>BTC</div>
+              <div style={{ fontSize: "15px", fontWeight: 700, marginTop: "3px", color: "transparent", background: "rgba(255,255,255,0.05)", borderRadius: "3px", userSelect: "none" }}>$00,000</div>
+            </div>
+            <div style={{ width: "62px", height: "20px", borderRadius: "3px", background: "rgba(255,255,255,0.04)", flexShrink: 0 }} />
+            <div style={{ marginLeft: "auto", fontSize: "12px", fontWeight: 700, color: "transparent", background: "rgba(255,255,255,0.06)", borderRadius: "3px", userSelect: "none" }}>+0.00%</div>
+          </div>
+        ))}
+      </div>
 
       <div style={{ ...S.page, paddingTop: "20px" }}>
 
@@ -376,39 +365,49 @@ function OverviewInner() {
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
-function CoinSparkline({ coin, positive, shape }: { coin: string; positive: boolean; shape: { pts: string; fill: string } }) {
-  const color = positive ? "#6aaa7a" : "#b06868";
-  const gradId = `sg-${coin.toLowerCase()}`;
+function RealSparkline({ data, positive, index }: { data: number[]; positive: boolean; index: number }) {
+  const clr    = positive ? "#6aaa7a" : "#b06868";
+  const gradId = `sg-real-${index}`;
+  const n      = data.length;
+  const pts    = data.map((v, i) => {
+    const x = (i / (n - 1)) * 50;
+    const y = 2 + (1 - v) * 16; // map 0-1 to SVG y 18-2 (top = high)
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const first = pts.split(" ")[0].split(",");
+  const last  = pts.split(" ")[n - 1].split(",");
+  const fill  = `M0,19 L${first[0]},${first[1]} ${pts.split(" ").slice(1).join(" ")} L${last[0]},19 Z`;
   return (
-    <svg viewBox="0 0 50 20" width="62" height="20" preserveAspectRatio="none" style={{ flexShrink: 0, opacity: 0.8 }}>
+    <svg viewBox="0 0 50 20" width="62" height="20" preserveAspectRatio="none" style={{ flexShrink: 0, opacity: 0.85 }}>
       <defs>
         <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.28" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
+          <stop offset="0%" stopColor={clr} stopOpacity="0.3" />
+          <stop offset="100%" stopColor={clr} stopOpacity="0" />
         </linearGradient>
       </defs>
-      <path d={shape.fill} fill={`url(#${gradId})`} />
-      <polyline points={shape.pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+      <path d={fill} fill={`url(#${gradId})`} />
+      <polyline points={pts} fill="none" stroke={clr} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
 }
 
-function FallbackSparkline({ positive, index }: { positive: boolean; index: number }) {
-  const color = positive ? "#6aaa7a" : "#b06868";
-  const gradId = `sg-fallback-${index}`;
-  const pts  = positive ? "0,14 10,11 20,7 30,5 40,2 50,0"   : "0,2 10,6 20,9 30,12 40,14 50,16";
-  const fill = positive ? "M0,19 L0,14 L10,11 L20,7 L30,5 L40,2 L50,0 L50,19 Z"
-                        : "M0,19 L0,2 L10,6 L20,9 L30,12 L40,14 L50,16 L50,19 Z";
+function DirectionSparkline({ positive, index }: { positive: boolean; index: number }) {
+  const clr    = positive ? "#6aaa7a" : "#b06868";
+  const gradId = `sg-dir-${index}`;
+  const pts    = positive ? "0,14 10,11 20,7 30,5 40,2 50,0" : "0,2 10,6 20,9 30,12 40,14 50,16";
+  const fill   = positive
+    ? "M0,19 L0,14 L10,11 L20,7 L30,5 L40,2 L50,0 L50,19 Z"
+    : "M0,19 L0,2 L10,6 L20,9 L30,12 L40,14 L50,16 L50,19 Z";
   return (
     <svg viewBox="0 0 50 20" width="62" height="20" preserveAspectRatio="none" style={{ flexShrink: 0, opacity: 0.8 }}>
       <defs>
         <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.28" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
+          <stop offset="0%" stopColor={clr} stopOpacity="0.28" />
+          <stop offset="100%" stopColor={clr} stopOpacity="0" />
         </linearGradient>
       </defs>
       <path d={fill} fill={`url(#${gradId})`} />
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+      <polyline points={pts} fill="none" stroke={clr} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
 }
@@ -426,16 +425,6 @@ function DirBadge({ direction }: { direction: string | null }) {
     }}>
       {direction}
     </span>
-  );
-}
-
-function LoadingState() {
-  return (
-    <div style={{ padding: "32px", display: "flex", flexDirection: "column", gap: "12px" }}>
-      {[...Array(4)].map((_, i) => (
-        <div key={i} style={{ background: "rgba(12,12,12,0.7)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "12px", height: "80px", opacity: 0.4 }} />
-      ))}
-    </div>
   );
 }
 

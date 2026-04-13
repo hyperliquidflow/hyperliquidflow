@@ -1,5 +1,5 @@
-// app/api/morning-scan/route.ts
-// Serves the daily morning alpha scan. Generated once per day by GitHub Actions
+// app/api/daily-scan/route.ts
+// Serves the daily alpha scan. Generated once per day by GitHub Actions
 // and cached in Supabase. This endpoint reads from KV (fast) or builds on demand.
 
 import { NextResponse } from "next/server";
@@ -10,19 +10,19 @@ import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 import { truncateAddress } from "@/lib/utils";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-const KV_KEY   = "morning:scan";
+const KV_KEY   = "daily:scan";
 const KV_TTL   = 3600; // cache for 1 hour
 
 const RECIPE_LABELS: Record<string, string> = {
-  momentum_stack:       "Momentum Stack",
-  divergence_squeeze:   "Divergence Squeeze",
-  accumulation_reentry: "Accumulation Re-Entry",
-  rotation_carry:       "Rotation Carry",
-  liq_rebound:          "Liq Rebound",
-  streak_continuation:  "Streak Continuation",
-  funding_divergence:   "Funding Divergence",
-  whale_validated:      "Whale Validated",
-  anti_whale_trap:      "Anti-Whale Trap",
+  momentum_stack:       "Whale Convergence",
+  divergence_squeeze:   "Silent Loading",
+  accumulation_reentry: "Dip Conviction",
+  rotation_carry:       "Funded Edge",
+  liq_rebound:          "Liquidation Flush",
+  streak_continuation:  "Hot Streak",
+  funding_divergence:   "Smart Money vs. Retail",
+  whale_validated:      "Alpha Confirmation",
+  anti_whale_trap:      "Smart Exit Signal",
 };
 
 export async function GET(): Promise<NextResponse> {
@@ -85,13 +85,13 @@ export async function GET(): Promise<NextResponse> {
       : 0;
     const inProfit = cohort?.top_wallets.filter((w) => w.unrealized_pnl > 0).length ?? 0;
     const signalCount = signals?.length ?? 0;
-    const topCoin = topMovers[0]?.coin ?? "—";
+    const topCoin = topMovers[0]?.coin ?? "N/A";
 
     const summary = [
       `Market is in a ${regime} regime. BTC moved ${btcReturn >= 0 ? "+" : ""}${(btcReturn * 100).toFixed(2)}% in the last 24 hours.`,
       walletCount > 0
         ? `The smart money cohort currently has ${walletCount} active wallets with an average score of ${avgScore.toFixed(2)}.`
-        : "Cohort data is pending — daily scan may not have run yet.",
+        : "Cohort data is pending. Daily scan may not have run yet.",
       signalCount > 0
         ? `${signalCount} signals were detected in the last 24 hours. Most activity on ${topCoin}.`
         : "No signals were detected in the last 24 hours.",
@@ -122,7 +122,7 @@ export async function GET(): Promise<NextResponse> {
       top_wallets: (topWallets ?? []).map((w) => ({
         address: truncateAddress(w.address),
         score:   w.win_rate ?? 0,
-        pnl:     w.realized_pnl_30d != null ? `$${(w.realized_pnl_30d / 1000).toFixed(1)}K` : "—",
+        pnl:     w.realized_pnl_30d != null ? `$${(w.realized_pnl_30d / 1000).toFixed(1)}K` : "N/A",
       })),
       watch_list: watchList,
       summary,

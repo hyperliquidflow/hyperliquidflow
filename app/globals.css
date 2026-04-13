@@ -51,6 +51,17 @@
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
     -webkit-font-smoothing: antialiased;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* Re-enable selection for financial data (tabular-nums) and wallet addresses (--font-mono) */
+  [style*="tabular-nums"],
+  [style*="--font-mono"],
+  [class*="font-mono"],
+  input, textarea, [contenteditable] {
+    user-select: text !important;
+    -webkit-user-select: text !important;
   }
 
   /* Subtle scrollbar styling */
@@ -204,4 +215,9 @@
 @keyframes bar-pulse {
   0%, 100% { box-shadow: 0 0 6px rgba(106,170,122,0.35); opacity: 1; }
   50%      { box-shadow: 0 0 16px rgba(106,170,122,0.6); opacity: 0.8; }
+}
+
+@keyframes slide-up-ghost {
+  0%, 100% { opacity: 0.08; transform: translateY(3px); }
+  45%, 55% { opacity: 0.52; transform: translateY(0); }
 }

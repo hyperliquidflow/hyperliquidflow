@@ -11,9 +11,10 @@ interface PageHeaderProps {
   title: string;
   subtitle?: string;
   regime?: "BULL" | "BEAR" | "RANGING";
+  btcReturn?: number;
 }
 
-export function PageHeader({ title, subtitle, regime }: PageHeaderProps) {
+export function PageHeader({ title, subtitle, regime, btcReturn }: PageHeaderProps) {
   const rs = regime ? REGIME_STYLES[regime] : null;
 
   return (
@@ -62,6 +63,11 @@ export function PageHeader({ title, subtitle, regime }: PageHeaderProps) {
             <div style={{ fontSize: "16px", fontWeight: 700, color: rs.color }}>
               {rs.label}
             </div>
+            {btcReturn !== undefined && (
+              <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.36)", marginTop: "1px" }}>
+                BTC {btcReturn >= 0 ? "+" : ""}{(btcReturn * 100).toFixed(2)}%
+              </div>
+            )}
           </div>
         </div>
       )}

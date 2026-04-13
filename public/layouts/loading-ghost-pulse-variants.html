@@ -1,0 +1,805 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ghost + Pulse Variants — HyperliquidFLOW</title>
+<style>
+  :root {
+    --bg:         #060606;
+    --card:       #13151A;
+    --border:     rgba(255,255,255,0.07);
+    --text:       #f0f0f0;
+    --muted:      rgba(255,255,255,0.38);
+    --green:      #6aaa7a;
+    --red:        #b06868;
+    --purple:     #7C5CFC;
+    --amber:      #f59e0b;
+    --radius:     12px;
+    --radius-sm:  8px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    padding: 40px 32px 80px;
+  }
+
+  .page-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.22);
+    margin-bottom: 6px;
+  }
+  .page-sub {
+    font-size: 13px;
+    color: rgba(255,255,255,0.32);
+    margin-bottom: 48px;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 36px;
+  }
+
+  .variant { display: flex; flex-direction: column; gap: 0; }
+  .variant-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.14em;
+    text-transform: uppercase; color: rgba(255,255,255,0.2);
+    margin-bottom: 12px; display: flex; align-items: center; gap: 10px;
+  }
+  .variant-label::after { content:''; flex:1; height:1px; background:rgba(255,255,255,0.05); }
+  .variant-num { font-size: 9px; font-weight: 800; letter-spacing: 0.08em; color: var(--purple); opacity: 0.65; min-width: 18px; }
+  .variant-tag {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 3px; margin-left: -2px;
+  }
+  .tag-ghost { background: rgba(124,92,252,0.1); color: rgba(124,92,252,0.7); }
+  .tag-pulse { background: rgba(106,170,122,0.1); color: rgba(106,170,122,0.7); }
+  .tag-hybrid { background: rgba(245,158,11,0.1); color: rgba(245,158,11,0.7); }
+
+  /* Shared card shell */
+  .shell {
+    background: rgba(19,21,26,0.85);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    backdrop-filter: blur(16px) saturate(140%);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+  }
+  .shell-hdr {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 13px 18px; border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+
+  /* Skeleton atoms */
+  .sk-line  { height: 9px;  border-radius: 3px; background: rgba(255,255,255,0.08); }
+  .sk-line-sm { height: 7px; border-radius: 3px; background: rgba(255,255,255,0.05); }
+  .sk-pill  { height: 20px; width: 44px; border-radius: 5px; background: rgba(255,255,255,0.06); flex-shrink:0; }
+  .sk-dot   { width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,0.08); flex-shrink:0; }
+  .sk-icon  { width: 30px; height: 30px; border-radius: 7px; background: rgba(255,255,255,0.05); flex-shrink:0; }
+  .sk-num   { width: 36px; height: 26px; border-radius: 5px; background: rgba(255,255,255,0.07); flex-shrink:0; }
+  .sk-hdr-title { height: 10px; width: 90px; border-radius: 3px; background: rgba(255,255,255,0.07); }
+  .sk-hdr-link  { height: 9px;  width: 44px; border-radius: 3px; background: rgba(255,255,255,0.04); }
+
+  .row { display: flex; align-items: center; gap: 10px; padding: 10px 18px; border-bottom: 1px solid rgba(255,255,255,0.035); }
+  .row:last-child { border-bottom: none; }
+
+  /* ════════════════════════════════════
+     KEYFRAMES
+  ════════════════════════════════════ */
+
+  /* Base pulse */
+  @keyframes fade-cycle { 0%,100%{opacity:.12} 50%{opacity:.65} }
+
+  /* Ghost cycle — deeper trough */
+  @keyframes ghost-cycle { 0%,100%{opacity:.08} 45%{opacity:.52} 55%{opacity:.52} }
+
+  /* Slide-up ghost */
+  @keyframes slide-up-ghost {
+    0%,100% { opacity:.08; transform:translateY(3px); }
+    45%,55% { opacity:.52; transform:translateY(0); }
+  }
+
+  /* Slide-right ghost */
+  @keyframes slide-right-ghost {
+    0%,100% { opacity:.08; transform:translateX(-4px); }
+    45%,55% { opacity:.52; transform:translateX(0); }
+  }
+
+  /* Scale ghost */
+  @keyframes scale-ghost {
+    0%,100% { opacity:.08; transform:scale(0.97); }
+    45%,55% { opacity:.52; transform:scale(1); }
+  }
+
+  /* Border glow ghost */
+  @keyframes border-ghost {
+    0%,100% { opacity:.08; box-shadow:none; border-color:rgba(255,255,255,0.06); }
+    45%,55% { opacity:.55; box-shadow:0 0 0 1px rgba(124,92,252,0.2); border-color:rgba(124,92,252,0.25); }
+  }
+
+  /* Pulse with color blush */
+  @keyframes pulse-green-blush {
+    0%,100% { opacity:.12; background:rgba(255,255,255,0.07); }
+    50%      { opacity:1;   background:rgba(106,170,122,0.12); }
+  }
+  @keyframes pulse-purple-blush {
+    0%,100% { opacity:.12; background:rgba(255,255,255,0.07); }
+    50%      { opacity:1;   background:rgba(124,92,252,0.1); }
+  }
+
+  /* Width-expand pulse (skeleton lines grow wider) */
+  @keyframes width-grow {
+    0%,100% { width:20%; opacity:.2; }
+    50%      { width:80%; opacity:.8; }
+  }
+
+  /* Pulse with vertical nudge */
+  @keyframes pulse-nudge {
+    0%,100% { opacity:.15; transform:translateY(0px); }
+    50%      { opacity:.7;  transform:translateY(-1px); }
+  }
+
+  /* Rolling wave: left col first, right col later */
+  @keyframes rolling-wave {
+    0%,100% { opacity:.1; }
+    40%,60% { opacity:.65; }
+  }
+
+  /* Shimmer on individual skeleton bones inside a ghost card */
+  @keyframes bone-shimmer {
+    0%   { background-position: -150% center; }
+    100% { background-position: 150% center; }
+  }
+
+  /* Heartbeat double-thump */
+  @keyframes heartbeat {
+    0%   { opacity:.1; transform:scaleY(1); }
+    14%  { opacity:.55; transform:scaleY(1.04); }
+    28%  { opacity:.25; transform:scaleY(1); }
+    42%  { opacity:.55; transform:scaleY(1.04); }
+    70%,100% { opacity:.1; transform:scaleY(1); }
+  }
+
+  /* Scanline over individual cards */
+  @keyframes card-scan {
+    0%   { top:-100%; opacity:0; }
+    5%   { opacity:1; }
+    95%  { opacity:1; }
+    100% { top:100%;  opacity:0; }
+  }
+
+  /* ════════════════════════════════════
+     VARIANT A — Ghost Slide Up
+     Cards materialize from slight below
+  ════════════════════════════════════ */
+  .va-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 18px; border-bottom: 1px solid rgba(255,255,255,0.03);
+    animation: slide-up-ghost 2.4s ease-in-out infinite;
+    transform-origin: bottom;
+  }
+  .va-row:last-child { border-bottom: none; }
+  .va-row:nth-child(1) { animation-delay: 0.00s; }
+  .va-row:nth-child(2) { animation-delay: 0.22s; }
+  .va-row:nth-child(3) { animation-delay: 0.44s; }
+  .va-row:nth-child(4) { animation-delay: 0.66s; }
+  .va-row:nth-child(5) { animation-delay: 0.88s; }
+
+  /* ════════════════════════════════════
+     VARIANT B — Ghost Slide Right
+     Cards drift in from left
+  ════════════════════════════════════ */
+  .vb-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 18px; border-bottom: 1px solid rgba(255,255,255,0.03);
+    animation: slide-right-ghost 2.4s ease-in-out infinite;
+  }
+  .vb-row:last-child { border-bottom: none; }
+  .vb-row:nth-child(1) { animation-delay: 0.00s; }
+  .vb-row:nth-child(2) { animation-delay: 0.24s; }
+  .vb-row:nth-child(3) { animation-delay: 0.48s; }
+  .vb-row:nth-child(4) { animation-delay: 0.72s; }
+  .vb-row:nth-child(5) { animation-delay: 0.96s; }
+
+  /* ════════════════════════════════════
+     VARIANT C — Ghost Scale (breathe)
+     Cards slightly scale up as they appear
+  ════════════════════════════════════ */
+  .vc-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 18px; border-bottom: 1px solid rgba(255,255,255,0.03);
+    animation: scale-ghost 2.6s ease-in-out infinite;
+    transform-origin: center left;
+  }
+  .vc-row:last-child { border-bottom: none; }
+  .vc-row:nth-child(1) { animation-delay: 0.00s; }
+  .vc-row:nth-child(2) { animation-delay: 0.20s; }
+  .vc-row:nth-child(3) { animation-delay: 0.40s; }
+  .vc-row:nth-child(4) { animation-delay: 0.60s; }
+  .vc-row:nth-child(5) { animation-delay: 0.80s; }
+
+  /* ════════════════════════════════════
+     VARIANT D — Ghost Border Glow
+     Purple border flickers on each row
+  ════════════════════════════════════ */
+  .vd-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 16px; margin: 3px 10px;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
+    animation: border-ghost 2.2s ease-in-out infinite;
+  }
+  .vd-row:nth-child(1) { animation-delay: 0.00s; }
+  .vd-row:nth-child(2) { animation-delay: 0.20s; }
+  .vd-row:nth-child(3) { animation-delay: 0.40s; }
+  .vd-row:nth-child(4) { animation-delay: 0.60s; }
+  .vd-row:nth-child(5) { animation-delay: 0.80s; }
+  .vd-wrap { padding: 6px 0; }
+
+  /* ════════════════════════════════════
+     VARIANT E — Ghost with Bone Shimmer
+     Each ghost row has an internal shimmer
+  ════════════════════════════════════ */
+  .ve-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 18px; border-bottom: 1px solid rgba(255,255,255,0.03);
+    animation: ghost-cycle 2.4s ease-in-out infinite;
+  }
+  .ve-row:last-child { border-bottom: none; }
+  .ve-row:nth-child(1) { animation-delay: 0.00s; }
+  .ve-row:nth-child(2) { animation-delay: 0.25s; }
+  .ve-row:nth-child(3) { animation-delay: 0.50s; }
+  .ve-row:nth-child(4) { animation-delay: 0.75s; }
+  .ve-row:nth-child(5) { animation-delay: 1.00s; }
+  .ve-shimmer-bone {
+    height: 9px; border-radius: 3px; flex: 1;
+    background: linear-gradient(90deg,
+      rgba(255,255,255,0.06) 0%,
+      rgba(255,255,255,0.14) 50%,
+      rgba(255,255,255,0.06) 100%
+    );
+    background-size: 150% 100%;
+    animation: bone-shimmer 1.8s ease-in-out infinite;
+  }
+
+  /* ════════════════════════════════════
+     VARIANT F — Pulse Green Blush
+     Each row flushes with faint green tint
+  ════════════════════════════════════ */
+  .vf-line {
+    flex: 1; height: 9px; border-radius: 3px;
+    animation: pulse-green-blush 2s ease-in-out infinite;
+  }
+  .vf-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    animation: pulse-green-blush 2s ease-in-out infinite;
+  }
+  .vf-pill {
+    height: 20px; width: 44px; border-radius: 5px; flex-shrink: 0;
+    animation: pulse-green-blush 2s ease-in-out infinite;
+  }
+  .row:nth-child(1) .vf-line,
+  .row:nth-child(1) .vf-dot,
+  .row:nth-child(1) .vf-pill  { animation-delay: 0.00s; }
+  .row:nth-child(2) .vf-line,
+  .row:nth-child(2) .vf-dot,
+  .row:nth-child(2) .vf-pill  { animation-delay: 0.20s; }
+  .row:nth-child(3) .vf-line,
+  .row:nth-child(3) .vf-dot,
+  .row:nth-child(3) .vf-pill  { animation-delay: 0.40s; }
+  .row:nth-child(4) .vf-line,
+  .row:nth-child(4) .vf-dot,
+  .row:nth-child(4) .vf-pill  { animation-delay: 0.60s; }
+  .row:nth-child(5) .vf-line,
+  .row:nth-child(5) .vf-dot,
+  .row:nth-child(5) .vf-pill  { animation-delay: 0.80s; }
+
+  /* ════════════════════════════════════
+     VARIANT G — Pulse Width Grow
+     Skeleton lines expand from short → full
+  ════════════════════════════════════ */
+  .vg-line {
+    height: 9px; border-radius: 3px; background: rgba(255,255,255,0.09);
+    animation: width-grow 2s ease-in-out infinite;
+  }
+  .vg-line-b {
+    height: 7px; border-radius: 3px; background: rgba(255,255,255,0.06);
+    animation: width-grow 2s ease-in-out infinite;
+  }
+  .row:nth-child(1) .vg-line,
+  .row:nth-child(1) .vg-line-b { animation-delay: 0.00s; }
+  .row:nth-child(2) .vg-line,
+  .row:nth-child(2) .vg-line-b { animation-delay: 0.22s; }
+  .row:nth-child(3) .vg-line,
+  .row:nth-child(3) .vg-line-b { animation-delay: 0.44s; }
+  .row:nth-child(4) .vg-line,
+  .row:nth-child(4) .vg-line-b { animation-delay: 0.66s; }
+  .row:nth-child(5) .vg-line,
+  .row:nth-child(5) .vg-line-b { animation-delay: 0.88s; }
+
+  /* ════════════════════════════════════
+     VARIANT H — Heartbeat Pulse
+     Double-thump rhythm per row
+  ════════════════════════════════════ */
+  .vh-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 18px; border-bottom: 1px solid rgba(255,255,255,0.03);
+    animation: heartbeat 2.4s ease-in-out infinite;
+    transform-origin: center;
+  }
+  .vh-row:last-child { border-bottom: none; }
+  .vh-row:nth-child(1) { animation-delay: 0.00s; }
+  .vh-row:nth-child(2) { animation-delay: 0.30s; }
+  .vh-row:nth-child(3) { animation-delay: 0.60s; }
+  .vh-row:nth-child(4) { animation-delay: 0.90s; }
+  .vh-row:nth-child(5) { animation-delay: 1.20s; }
+
+  /* ════════════════════════════════════
+     VARIANT I — Rolling Wave
+     Pulse sweeps across columns L→R
+  ════════════════════════════════════ */
+  .vi-row {
+    display: grid;
+    grid-template-columns: 28px 1fr auto auto;
+    align-items: center; gap: 10px;
+    padding: 10px 18px; border-bottom: 1px solid rgba(255,255,255,0.03);
+  }
+  .vi-row:last-child { border-bottom: none; }
+  .vi-col-a { animation: rolling-wave 2s ease-in-out infinite; height: 8px; border-radius: 3px; background: rgba(255,255,255,0.07); }
+  .vi-col-b { animation: rolling-wave 2s ease-in-out infinite; animation-delay: 0.15s; height: 9px; border-radius: 3px; background: rgba(255,255,255,0.08); }
+  .vi-col-c { animation: rolling-wave 2s ease-in-out infinite; animation-delay: 0.30s; height: 20px; width: 44px; border-radius: 5px; background: rgba(255,255,255,0.06); }
+  .vi-col-d { animation: rolling-wave 2s ease-in-out infinite; animation-delay: 0.45s; height: 20px; width: 36px; border-radius: 5px; background: rgba(255,255,255,0.05); }
+  .vi-row:nth-child(2) .vi-col-a { animation-delay: 0.22s; }
+  .vi-row:nth-child(2) .vi-col-b { animation-delay: 0.37s; }
+  .vi-row:nth-child(2) .vi-col-c { animation-delay: 0.52s; }
+  .vi-row:nth-child(2) .vi-col-d { animation-delay: 0.67s; }
+  .vi-row:nth-child(3) .vi-col-a { animation-delay: 0.44s; }
+  .vi-row:nth-child(3) .vi-col-b { animation-delay: 0.59s; }
+  .vi-row:nth-child(3) .vi-col-c { animation-delay: 0.74s; }
+  .vi-row:nth-child(3) .vi-col-d { animation-delay: 0.89s; }
+  .vi-row:nth-child(4) .vi-col-a { animation-delay: 0.66s; }
+  .vi-row:nth-child(4) .vi-col-b { animation-delay: 0.81s; }
+  .vi-row:nth-child(4) .vi-col-c { animation-delay: 0.96s; }
+  .vi-row:nth-child(4) .vi-col-d { animation-delay: 1.11s; }
+  .vi-row:nth-child(5) .vi-col-a { animation-delay: 0.88s; }
+  .vi-row:nth-child(5) .vi-col-b { animation-delay: 1.03s; }
+  .vi-row:nth-child(5) .vi-col-c { animation-delay: 1.18s; }
+  .vi-row:nth-child(5) .vi-col-d { animation-delay: 1.33s; }
+
+  /* ════════════════════════════════════
+     VARIANT J — Hybrid: Ghost Cards + Purple Blush Pulse
+     Card-level ghost cycle + purple blush on skeleton bones
+     (represents a full-page loading state)
+  ════════════════════════════════════ */
+  .vj-card {
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(255,255,255,0.06);
+    background: rgba(19,21,26,0.7);
+    padding: 11px 14px;
+    display: flex; align-items: center; gap: 12px;
+    animation: ghost-cycle 2.4s ease-in-out infinite;
+  }
+  .vj-card:nth-child(1) { animation-delay: 0.00s; }
+  .vj-card:nth-child(2) { animation-delay: 0.28s; }
+  .vj-card:nth-child(3) { animation-delay: 0.56s; }
+  .vj-card:nth-child(4) { animation-delay: 0.84s; }
+  .vj-card:nth-child(5) { animation-delay: 1.12s; }
+  .vj-icon { width: 32px; height: 32px; border-radius: 8px; background: rgba(124,92,252,0.08); flex-shrink:0; }
+  .vj-body { flex:1; display:flex; flex-direction:column; gap:5px; }
+  .vj-bone-a {
+    height: 9px; border-radius: 3px; width: 55%;
+    animation: pulse-purple-blush 1.8s ease-in-out infinite;
+  }
+  .vj-bone-b {
+    height: 7px; border-radius: 3px; width: 35%;
+    animation: pulse-purple-blush 1.8s ease-in-out infinite;
+    animation-delay: 0.15s;
+  }
+  .vj-tail { display:flex; flex-direction:column; align-items:flex-end; gap:5px; }
+  .vj-tail-a {
+    height: 18px; width: 42px; border-radius: 4px;
+    animation: pulse-purple-blush 1.8s ease-in-out infinite;
+    animation-delay: 0.3s;
+  }
+  .vj-tail-b {
+    height: 7px; width: 28px; border-radius: 3px;
+    animation: pulse-purple-blush 1.8s ease-in-out infinite;
+    animation-delay: 0.45s;
+  }
+  .vj-stack { display:flex; flex-direction:column; gap:6px; padding: 10px; }
+  /* Full-layout supplement */
+  .vj-header {
+    display:flex; align-items:flex-start; justify-content:space-between;
+    padding: 0 2px; margin-bottom: 14px;
+  }
+  .vj-h-title {
+    height: 20px; width: 100px; border-radius: 5px;
+    background: rgba(255,255,255,0.07);
+    animation: ghost-cycle 2.4s ease-in-out infinite;
+    margin-bottom: 6px;
+  }
+  .vj-h-sub {
+    height: 9px; width: 160px; border-radius: 3px;
+    background: rgba(255,255,255,0.04);
+    animation: ghost-cycle 2.4s ease-in-out infinite; animation-delay: 0.1s;
+  }
+  .vj-regime {
+    width: 100px; height: 44px; border-radius: 10px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+    animation: ghost-cycle 2.4s ease-in-out infinite; animation-delay: 0.2s;
+  }
+  .vj-stat-row {
+    display:grid; grid-template-columns: repeat(3,1fr); gap:8px; margin-bottom:12px;
+  }
+  .vj-stat-cell {
+    background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05);
+    border-radius: var(--radius-sm); padding: 10px 12px;
+    animation: ghost-cycle 2.4s ease-in-out infinite;
+  }
+  .vj-stat-cell:nth-child(2) { animation-delay: 0.2s; }
+  .vj-stat-cell:nth-child(3) { animation-delay: 0.4s; }
+  .vj-sc-label { height:7px; width:55%; border-radius:2px; background:rgba(255,255,255,0.05); margin-bottom:7px; animation: pulse-purple-blush 1.8s ease-in-out infinite; }
+  .vj-sc-val   { height:18px; width:70%; border-radius:3px; background:rgba(255,255,255,0.07); animation: pulse-purple-blush 1.8s ease-in-out infinite; animation-delay:0.1s; }
+
+  /* Spinner for vj */
+  @keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+  .vj-spinner {
+    width: 12px; height: 12px; border-radius: 50%;
+    border: 1.5px solid rgba(124,92,252,0.18);
+    border-top-color: rgba(124,92,252,0.7);
+    animation: spin 1s linear infinite;
+  }
+  .vj-footer {
+    display:flex; align-items:center; justify-content:center; gap:7px;
+    font-size:10px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase;
+    color: rgba(255,255,255,0.15);
+    padding: 10px 0 0;
+    animation: fade-cycle 2s ease-in-out infinite;
+  }
+
+  /* Nudge variant helper */
+  .vn-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 18px; border-bottom: 1px solid rgba(255,255,255,0.03);
+    animation: pulse-nudge 2.2s ease-in-out infinite;
+  }
+  .vn-row:last-child { border-bottom: none; }
+  .vn-row:nth-child(1) { animation-delay: 0.00s; }
+  .vn-row:nth-child(2) { animation-delay: 0.20s; }
+  .vn-row:nth-child(3) { animation-delay: 0.40s; }
+  .vn-row:nth-child(4) { animation-delay: 0.60s; }
+  .vn-row:nth-child(5) { animation-delay: 0.80s; }
+</style>
+</head>
+<body>
+
+<div class="page-title">Ghost Cascade + Staggered Pulse — Extended Variants</div>
+<div class="page-sub">10 variations exploring motion, tint, and reveal character</div>
+
+<div class="grid">
+
+  <!-- ══ A — Ghost Slide Up ═══════════════════════════════ -->
+  <div class="variant">
+    <div class="variant-label">
+      <span class="variant-num">A</span>
+      Ghost Slide Up
+      <span class="variant-tag tag-ghost">ghost</span>
+    </div>
+    <div class="shell">
+      <div class="shell-hdr">
+        <div class="sk-hdr-title"></div><div class="sk-hdr-link"></div>
+      </div>
+      <div>
+        <div class="va-row"><div class="sk-icon"></div><div style="flex:1;display:flex;flex-direction:column;gap:5px"><div class="sk-line" style="width:58%"></div><div class="sk-line-sm" style="width:36%"></div></div><div class="sk-pill"></div></div>
+        <div class="va-row"><div class="sk-icon"></div><div style="flex:1;display:flex;flex-direction:column;gap:5px"><div class="sk-line" style="width:44%"></div><div class="sk-line-sm" style="width:28%"></div></div><div class="sk-pill"></div></div>
+        <div class="va-row"><div class="sk-icon"></div><div style="flex:1;display:flex;flex-direction:column;gap:5px"><div class="sk-line" style="width:65%"></div><div class="sk-line-sm" style="width:40%"></div></div><div class="sk-pill"></div></div>
+        <div class="va-row"><div class="sk-icon"></div><div style="flex:1;display:flex;flex-direction:column;gap:5px"><div class="sk-line" style="width:50%"></div><div class="sk-line-sm" style="width:32%"></div></div><div class="sk-pill"></div></div>
+        <div class="va-row"><div class="sk-icon"></div><div style="flex:1;display:flex;flex-direction:column;gap:5px"><div class="sk-line" style="width:60%"></div><div class="sk-line-sm" style="width:38%"></div></div><div class="sk-pill"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ B — Ghost Slide Right ════════════════════════════ -->
+  <div class="variant">
+    <div class="variant-label">
+      <span class="variant-num">B</span>
+      Ghost Drift Right
+      <span class="variant-tag tag-ghost">ghost</span>
+    </div>
+    <div class="shell">
+      <div class="shell-hdr">
+        <div class="sk-hdr-title"></div><div class="sk-hdr-link"></div>
+      </div>
+      <div>
+        <div class="vb-row"><div class="sk-dot"></div><div class="sk-line" style="flex:1"></div><div class="sk-pill"></div></div>
+        <div class="vb-row"><div class="sk-dot"></div><div class="sk-line" style="flex:1"></div><div class="sk-pill"></div></div>
+        <div class="vb-row"><div class="sk-dot"></div><div class="sk-line" style="flex:1"></div><div class="sk-pill"></div></div>
+        <div class="vb-row"><div class="sk-dot"></div><div class="sk-line" style="flex:1"></div><div class="sk-pill"></div></div>
+        <div class="vb-row"><div class="sk-dot"></div><div class="sk-line" style="flex:1"></div><div class="sk-pill"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ C — Ghost Scale Breathe ══════════════════════════ -->
+  <div class="variant">
+    <div class="variant-label">
+      <span class="variant-num">C</span>
+      Ghost Scale Breathe
+      <span class="variant-tag tag-ghost">ghost</span>
+    </div>
+    <div class="shell">
+      <div class="shell-hdr">
+        <div class="sk-hdr-title"></div><div class="sk-hdr-link"></div>
+      </div>
+      <div style="padding: 4px 0;">
+        <div class="vc-row"><div class="sk-icon"></div><div style="flex:1;display:flex;flex-direction:column;gap:5px"><div class="sk-line" style="width:60%"></div><div class="sk-line-sm" style="width:38%"></div></div><div class="sk-num"></div></div>
+        <div class="vc-row"><div class="sk-icon"></div><div style="flex:1;display:flex;flex-direction:column;gap:5px"><div class="sk-line" style="width:48%"></div><div class="sk-line-sm" style="width:30%"></div></div><div class="sk-num"></div></div>
+        <div class="vc-row"><div class="sk-icon"></div><div style="flex:1;display:flex;flex-direction:column;gap:5px"><div class="sk-line" style="width:65%"></div><div class="sk-line-sm" style="width:42%"></div></div><div class="sk-num"></div></div>
+        <div class="vc-row"><div class="sk-icon"></div><div style="flex:1;display:flex;flex-direction:column;gap:5px"><div class="sk-line" style="width:52%"></div><div class="sk-line-sm" style="width:34%"></div></div><div class="sk-num"></div></div>
+        <div class="vc-row"><div class="sk-icon"></div><div style="flex:1;display:flex;flex-direction:column;gap:5px"><div class="sk-line" style="width:58%"></div><div class="sk-line-sm" style="width:36%"></div></div><div class="sk-num"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ D — Ghost Border Glow ════════════════════════════ -->
+  <div class="variant">
+    <div class="variant-label">
+      <span class="variant-num">D</span>
+      Ghost Border Glow
+      <span class="variant-tag tag-ghost">ghost</span>
+    </div>
+    <div class="shell" style="padding-top:4px; padding-bottom:4px;">
+      <div class="shell-hdr" style="margin-bottom:2px;">
+        <div class="sk-hdr-title"></div><div class="sk-hdr-link"></div>
+      </div>
+      <div class="vd-wrap">
+        <div class="vd-row"><div class="sk-dot"></div><div style="flex:1;display:flex;flex-direction:column;gap:4px"><div class="sk-line" style="width:55%"></div><div class="sk-line-sm" style="width:35%"></div></div><div class="sk-pill"></div></div>
+        <div class="vd-row"><div class="sk-dot"></div><div style="flex:1;display:flex;flex-direction:column;gap:4px"><div class="sk-line" style="width:42%"></div><div class="sk-line-sm" style="width:28%"></div></div><div class="sk-pill"></div></div>
+        <div class="vd-row"><div class="sk-dot"></div><div style="flex:1;display:flex;flex-direction:column;gap:4px"><div class="sk-line" style="width:62%"></div><div class="sk-line-sm" style="width:40%"></div></div><div class="sk-pill"></div></div>
+        <div class="vd-row"><div class="sk-dot"></div><div style="flex:1;display:flex;flex-direction:column;gap:4px"><div class="sk-line" style="width:48%"></div><div class="sk-line-sm" style="width:30%"></div></div><div class="sk-pill"></div></div>
+        <div class="vd-row"><div class="sk-dot"></div><div style="flex:1;display:flex;flex-direction:column;gap:4px"><div class="sk-line" style="width:58%"></div><div class="sk-line-sm" style="width:36%"></div></div><div class="sk-pill"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ E — Ghost + Internal Shimmer ════════════════════ -->
+  <div class="variant">
+    <div class="variant-label">
+      <span class="variant-num">E</span>
+      Ghost + Bone Shimmer
+      <span class="variant-tag tag-ghost">ghost</span>
+    </div>
+    <div class="shell">
+      <div class="shell-hdr">
+        <div class="sk-hdr-title"></div><div class="sk-hdr-link"></div>
+      </div>
+      <div>
+        <div class="ve-row"><div class="sk-dot"></div><div class="ve-shimmer-bone"></div><div class="sk-pill"></div></div>
+        <div class="ve-row"><div class="sk-dot"></div><div class="ve-shimmer-bone" style="animation-delay:0.3s"></div><div class="sk-pill"></div></div>
+        <div class="ve-row"><div class="sk-dot"></div><div class="ve-shimmer-bone" style="animation-delay:0.6s"></div><div class="sk-pill"></div></div>
+        <div class="ve-row"><div class="sk-dot"></div><div class="ve-shimmer-bone" style="animation-delay:0.9s"></div><div class="sk-pill"></div></div>
+        <div class="ve-row"><div class="sk-dot"></div><div class="ve-shimmer-bone" style="animation-delay:1.2s"></div><div class="sk-pill"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ F — Pulse Green Blush ════════════════════════════ -->
+  <div class="variant">
+    <div class="variant-label">
+      <span class="variant-num">F</span>
+      Pulse Green Blush
+      <span class="variant-tag tag-pulse">pulse</span>
+    </div>
+    <div class="shell">
+      <div class="shell-hdr">
+        <div class="sk-hdr-title"></div><div class="sk-hdr-link"></div>
+      </div>
+      <div>
+        <div class="row"><div class="vf-dot"></div><div class="vf-line"></div><div class="vf-pill"></div></div>
+        <div class="row"><div class="vf-dot"></div><div class="vf-line"></div><div class="vf-pill"></div></div>
+        <div class="row"><div class="vf-dot"></div><div class="vf-line"></div><div class="vf-pill"></div></div>
+        <div class="row"><div class="vf-dot"></div><div class="vf-line"></div><div class="vf-pill"></div></div>
+        <div class="row"><div class="vf-dot"></div><div class="vf-line"></div><div class="vf-pill"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ G — Pulse Width Grow ═════════════════════════════ -->
+  <div class="variant">
+    <div class="variant-label">
+      <span class="variant-num">G</span>
+      Pulse Width Grow
+      <span class="variant-tag tag-pulse">pulse</span>
+    </div>
+    <div class="shell">
+      <div class="shell-hdr">
+        <div class="sk-hdr-title"></div><div class="sk-hdr-link"></div>
+      </div>
+      <div>
+        <div class="row">
+          <div class="sk-icon"></div>
+          <div style="flex:1; display:flex; flex-direction:column; gap:5px;">
+            <div class="vg-line"></div>
+            <div class="vg-line-b"></div>
+          </div>
+          <div class="sk-pill" style="animation:fade-cycle 2s ease-in-out infinite;"></div>
+        </div>
+        <div class="row">
+          <div class="sk-icon"></div>
+          <div style="flex:1; display:flex; flex-direction:column; gap:5px;">
+            <div class="vg-line"></div>
+            <div class="vg-line-b"></div>
+          </div>
+          <div class="sk-pill" style="animation:fade-cycle 2s ease-in-out infinite; animation-delay:0.22s;"></div>
+        </div>
+        <div class="row">
+          <div class="sk-icon"></div>
+          <div style="flex:1; display:flex; flex-direction:column; gap:5px;">
+            <div class="vg-line"></div>
+            <div class="vg-line-b"></div>
+          </div>
+          <div class="sk-pill" style="animation:fade-cycle 2s ease-in-out infinite; animation-delay:0.44s;"></div>
+        </div>
+        <div class="row">
+          <div class="sk-icon"></div>
+          <div style="flex:1; display:flex; flex-direction:column; gap:5px;">
+            <div class="vg-line"></div>
+            <div class="vg-line-b"></div>
+          </div>
+          <div class="sk-pill" style="animation:fade-cycle 2s ease-in-out infinite; animation-delay:0.66s;"></div>
+        </div>
+        <div class="row">
+          <div class="sk-icon"></div>
+          <div style="flex:1; display:flex; flex-direction:column; gap:5px;">
+            <div class="vg-line"></div>
+            <div class="vg-line-b"></div>
+          </div>
+          <div class="sk-pill" style="animation:fade-cycle 2s ease-in-out infinite; animation-delay:0.88s;"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ H — Heartbeat Pulse ══════════════════════════════ -->
+  <div class="variant">
+    <div class="variant-label">
+      <span class="variant-num">H</span>
+      Heartbeat Pulse
+      <span class="variant-tag tag-pulse">pulse</span>
+    </div>
+    <div class="shell">
+      <div class="shell-hdr">
+        <div class="sk-hdr-title"></div><div class="sk-hdr-link"></div>
+      </div>
+      <div>
+        <div class="vh-row"><div class="sk-dot"></div><div class="sk-line" style="flex:1"></div><div class="sk-pill"></div></div>
+        <div class="vh-row"><div class="sk-dot"></div><div class="sk-line" style="flex:1"></div><div class="sk-pill"></div></div>
+        <div class="vh-row"><div class="sk-dot"></div><div class="sk-line" style="flex:1"></div><div class="sk-pill"></div></div>
+        <div class="vh-row"><div class="sk-dot"></div><div class="sk-line" style="flex:1"></div><div class="sk-pill"></div></div>
+        <div class="vh-row"><div class="sk-dot"></div><div class="sk-line" style="flex:1"></div><div class="sk-pill"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ I — Rolling Wave ═════════════════════════════════ -->
+  <div class="variant">
+    <div class="variant-label">
+      <span class="variant-num">I</span>
+      Rolling Wave
+      <span class="variant-tag tag-pulse">pulse</span>
+    </div>
+    <div class="shell">
+      <div class="shell-hdr">
+        <div class="sk-hdr-title"></div><div class="sk-hdr-link"></div>
+      </div>
+      <div>
+        <div class="vi-row">
+          <div class="vi-col-a"></div>
+          <div class="vi-col-b"></div>
+          <div class="vi-col-c"></div>
+          <div class="vi-col-d"></div>
+        </div>
+        <div class="vi-row">
+          <div class="vi-col-a"></div>
+          <div class="vi-col-b"></div>
+          <div class="vi-col-c"></div>
+          <div class="vi-col-d"></div>
+        </div>
+        <div class="vi-row">
+          <div class="vi-col-a"></div>
+          <div class="vi-col-b"></div>
+          <div class="vi-col-c"></div>
+          <div class="vi-col-d"></div>
+        </div>
+        <div class="vi-row">
+          <div class="vi-col-a"></div>
+          <div class="vi-col-b"></div>
+          <div class="vi-col-c"></div>
+          <div class="vi-col-d"></div>
+        </div>
+        <div class="vi-row">
+          <div class="vi-col-a"></div>
+          <div class="vi-col-b"></div>
+          <div class="vi-col-c"></div>
+          <div class="vi-col-d"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ J — Hybrid Full Layout ═══════════════════════════ -->
+  <div class="variant">
+    <div class="variant-label">
+      <span class="variant-num">J</span>
+      Hybrid — Ghost Cards + Purple Blush (Full Layout)
+      <span class="variant-tag tag-hybrid">hybrid</span>
+    </div>
+
+    <!-- Page header -->
+    <div class="vj-header">
+      <div>
+        <div class="vj-h-title"></div>
+        <div class="vj-h-sub"></div>
+      </div>
+      <div class="vj-regime"></div>
+    </div>
+
+    <!-- Stat row -->
+    <div class="vj-stat-row">
+      <div class="vj-stat-cell"><div class="vj-sc-label"></div><div class="vj-sc-val"></div></div>
+      <div class="vj-stat-cell"><div class="vj-sc-label"></div><div class="vj-sc-val"></div></div>
+      <div class="vj-stat-cell"><div class="vj-sc-label"></div><div class="vj-sc-val"></div></div>
+    </div>
+
+    <!-- Signal list card -->
+    <div class="shell" style="margin-bottom:10px;">
+      <div class="shell-hdr">
+        <div class="sk-hdr-title"></div><div class="sk-hdr-link"></div>
+      </div>
+      <div class="vj-stack">
+        <div class="vj-card">
+          <div class="vj-icon"></div>
+          <div class="vj-body"><div class="vj-bone-a"></div><div class="vj-bone-b"></div></div>
+          <div class="vj-tail"><div class="vj-tail-a"></div><div class="vj-tail-b"></div></div>
+        </div>
+        <div class="vj-card">
+          <div class="vj-icon"></div>
+          <div class="vj-body"><div class="vj-bone-a" style="width:42%"></div><div class="vj-bone-b" style="width:28%"></div></div>
+          <div class="vj-tail"><div class="vj-tail-a"></div><div class="vj-tail-b"></div></div>
+        </div>
+        <div class="vj-card">
+          <div class="vj-icon"></div>
+          <div class="vj-body"><div class="vj-bone-a" style="width:62%"></div><div class="vj-bone-b" style="width:40%"></div></div>
+          <div class="vj-tail"><div class="vj-tail-a"></div><div class="vj-tail-b"></div></div>
+        </div>
+        <div class="vj-card">
+          <div class="vj-icon"></div>
+          <div class="vj-body"><div class="vj-bone-a" style="width:50%"></div><div class="vj-bone-b" style="width:32%"></div></div>
+          <div class="vj-tail"><div class="vj-tail-a"></div><div class="vj-tail-b"></div></div>
+        </div>
+        <div class="vj-card">
+          <div class="vj-icon"></div>
+          <div class="vj-body"><div class="vj-bone-a" style="width:58%"></div><div class="vj-bone-b" style="width:36%"></div></div>
+          <div class="vj-tail"><div class="vj-tail-a"></div><div class="vj-tail-b"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer status -->
+    <div class="vj-footer">
+      <div class="vj-spinner"></div>
+      Syncing positions
+    </div>
+  </div>
+
+</div><!-- /grid -->
+</body>
+</html>

@@ -381,8 +381,8 @@ function recipe5(
         cohort_notional_after:  after,
         shrink_pct:             shrink,
         current_mid:            midStr,
-        warning: "APPROXIMATION — true liq cascade detection requires WebSocket (Phase 3)",
-        description: `Cohort ${coin} exposure dropped ${(shrink * 100).toFixed(1)}% — possible liquidation cascade. Rebound watch.`,
+        warning: "APPROXIMATION: true liq cascade detection requires WebSocket (Phase 3)",
+        description: `Cohort ${coin} exposure dropped ${(shrink * 100).toFixed(1)}%, possible liquidation cascade. Rebound watch.`,
       },
     });
   }

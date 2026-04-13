@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  devIndicators: false,
   // Vercel cron jobs call this route – allow unauthenticated GET/POST from Vercel infra
   async headers() {
     return [

@@ -4,9 +4,13 @@
 
 import { NextResponse } from "next/server";
 import { kv } from "@vercel/kv";
+import { createClient } from "@supabase/supabase-js";
+import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from "@/lib/env";
 import { fetchMetaAndAssetCtxs, fetchCandleSnapshot, buildAssetCtxMap } from "@/lib/hyperliquid-api-client";
 import { findContrarianIdeas } from "@/lib/risk-engine";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 const CACHE_KEY = "contrarian:latest";
 const CACHE_TTL = 65;
@@ -28,12 +32,28 @@ export async function GET(): Promise<NextResponse> {
     const cohort: CohortCachePayload =
       typeof cohortRaw === "string" ? JSON.parse(cohortRaw) : cohortRaw;
 
-    // Build cohort net notional per coin
+    // Build cohort net notional per coin from latest Supabase snapshots
     const cohortNet = new Map<string, number>();
-    for (const wallet of cohort.top_wallets) {
-      // We only have summary data here; positions are not in the KV payload
-      // Net is approximated from unrealized_pnl direction — production
-      // should store per-coin net in KV payload (Phase 2 enhancement)
+    const walletIds = cohort.top_wallets.map((w) => w.wallet_id);
+    if (walletIds.length > 0) {
+      const { data: snapshots } = await supabase
+        .from("cohort_snapshots")
+        .select("wallet_id, positions")
+        .in("wallet_id", walletIds)
+        .order("snapshot_time", { ascending: false })
+        .limit(walletIds.length * 2);
+
+      const seenWallets = new Set<string>();
+      for (const snap of snapshots ?? []) {
+        if (seenWallets.has(snap.wallet_id)) continue;
+        seenWallets.add(snap.wallet_id);
+        for (const ap of (snap.positions as Array<{ position: { coin: string; szi: string; positionValue: string } }> ?? [])) {
+          const coin   = ap.position.coin;
+          const szi    = parseFloat(ap.position.szi ?? "0");
+          const posVal = parseFloat(ap.position.positionValue ?? "0");
+          cohortNet.set(coin, (cohortNet.get(coin) ?? 0) + (szi > 0 ? posVal : -posVal));
+        }
+      }
     }
 
     // Fetch live market data

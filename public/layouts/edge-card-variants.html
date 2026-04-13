@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Edge Card Variants</title>
+<style>
+  /* ── Design tokens (mirrored from lib/design-tokens.ts) ── */
+  :root {
+    --bg:           #060606;
+    --text:         #f0f0f0;
+    --text-muted:   rgba(255,255,255,0.38);
+    --text-dim:     rgba(255,255,255,0.28);
+    --text-faint:   rgba(255,255,255,0.22);
+    --green:        #6aaa7a;
+    --red:          #b06868;
+    --card:         rgba(12,12,12,0.9);
+    --border:       rgba(255,255,255,0.07);
+    --border-faint: rgba(255,255,255,0.05);
+    --border-hover: rgba(255,255,255,0.12);
+    --radius-card:  12px;
+    --shadow-card:  0 2px 20px rgba(0,0,0,0.4);
+    --font-sans:    'Inter', system-ui, sans-serif;
+    --font-mono:    'Geist Mono', 'JetBrains Mono', monospace;
+
+    /* token sizes */
+    --fs-card-title:  13px; /* cardTitle */
+    --fs-stat-label:  12px; /* statLabel */
+    --fs-stat-value:  31px; /* statValue */
+    --fs-stat-sub:    13px; /* statSub */
+    --fs-sig-name:    16px; /* sigName */
+    --fs-sig-sub:     13px; /* sigSub */
+    --fs-muted:       13px; /* muted text */
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    font-family: var(--font-sans);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 40px 32px 80px;
+    background-image:
+      radial-gradient(ellipse at 100% 100% in oklch,
+        oklch(32% 0.06 170) 0%,
+        oklch(25% 0.045 170) 18%,
+        oklch(20% 0.032 170) 32%,
+        oklch(15% 0.022 170) 45%,
+        oklch(12% 0.014 170) 57%,
+        oklch(8% 0.008 170) 68%,
+        oklch(6% 0.004 170) 78%,
+        oklch(3.5% 0 0) 100%);
+    background-attachment: fixed;
+  }
+
+  /* variant section header */
+  .variant-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    margin-bottom: 12px;
+    padding-left: 2px;
+  }
+  .variant-desc {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    padding-left: 2px;
+  }
+  .section {
+    margin-bottom: 56px;
+  }
+  .grid-3 {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+
+  /* ── bar helpers ── */
+  .bar-track {
+    width: 100%;
+    height: 3px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.4s;
+  }
+
+  /* ── Divider ── */
+  .divider {
+    height: 1px;
+    background: rgba(255,255,255,0.04);
+    margin: 48px 0;
+  }
+
+  /* ────────────────────────────────────────────────────────
+     VARIANT A — Token-Faithful
+     Fixes the font sizes to match design-tokens exactly.
+     Same layout, proper hierarchy. No surprises.
+     ────────────────────────────────────────────────────── */
+  .va {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-left: 3px solid rgba(255,255,255,0.10);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    overflow: hidden;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .va:hover {
+    border-color: rgba(255,255,255,0.12);
+    background: rgba(18,18,18,0.9);
+  }
+  .va-body { padding: 16px 16px 14px; }
+  .va-name {
+    font-size: var(--fs-sig-name);   /* 16px — was 12px */
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .va-desc {
+    font-size: var(--fs-muted);      /* 13px — was 10px */
+    color: var(--text-muted);
+    margin-bottom: 16px;
+    line-height: 1.5;
+  }
+  .va-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+  }
+  .va-stat-label {
+    font-size: var(--fs-stat-label); /* 12px — was 9px */
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.32);
+    margin-bottom: 3px;
+  }
+  .va-stat-value {
+    font-size: 18px;                  /* readable, not as tall as 31px in dense grid */
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+  }
+  .va-bar { margin-top: 12px; }
+  .va-footer {
+    font-size: var(--fs-muted);      /* 13px */
+    color: var(--text-muted);
+    margin-top: 10px;
+  }
+
+  /* ────────────────────────────────────────────────────────
+     VARIANT B — Statement
+     Win-rate dominates. 31px value front & center.
+     Recipe name is context, not headline.
+     ────────────────────────────────────────────────────── */
+  .vb {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    overflow: hidden;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .vb:hover {
+    border-color: rgba(255,255,255,0.12);
+    background: rgba(18,18,18,0.9);
+  }
+  .vb-header {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border-faint);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .vb-name {
+    font-size: var(--fs-card-title);  /* 13px */
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.5);
+  }
+  .vb-badge {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.04em;
+  }
+  .vb-body { padding: 16px; }
+  .vb-win-rate {
+    font-size: var(--fs-stat-value);  /* 31px */
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .vb-win-label {
+    font-size: var(--fs-stat-label);  /* 12px */
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.32);
+    margin-bottom: 14px;
+  }
+  .vb-desc {
+    font-size: var(--fs-muted);       /* 13px */
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin-bottom: 14px;
+  }
+  .vb-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 12px;
+  }
+  .vb-meta-label {
+    font-size: var(--fs-stat-label);  /* 12px */
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.32);
+  }
+  .vb-meta-value {
+    font-size: var(--fs-stat-sub);    /* 13px */
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+  }
+
+  /* ────────────────────────────────────────────────────────
+     VARIANT C — Horizontal Scan
+     Name + desc on left, all three stats inline on right.
+     Great for scanning a full grid quickly.
+     ────────────────────────────────────────────────────── */
+  .vc {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    overflow: hidden;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  .vc:hover {
+    border-color: rgba(255,255,255,0.12);
+    background: rgba(18,18,18,0.9);
+  }
+  .vc-body {
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .vc-info { flex: 1; min-width: 0; }
+  .vc-name {
+    font-size: var(--fs-sig-name);    /* 16px */
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .vc-desc {
+    font-size: var(--fs-muted);       /* 13px */
+    color: var(--text-muted);
+    margin-top: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .vc-stats {
+    display: flex;
+    gap: 20px;
+    flex-shrink: 0;
+  }
+  .vc-stat {
+    text-align: right;
+  }
+  .vc-stat-label {
+    font-size: var(--fs-stat-label);  /* 12px */
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.32);
+  }
+  .vc-stat-value {
+    font-size: 20px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: var(--text);
+    margin-top: 2px;
+  }
+  .vc-bar {
+    height: 2px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+  .vc-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+  }
+
+  /* ────────────────────────────────────────────────────────
+     VARIANT D — Editorial
+     Generous spacing. Recipe name as a true headline (16px).
+     Description has room to breathe. Stats use full 31px token.
+     Accent bar on top edge.
+     ────────────────────────────────────────────────────── */
+  .vd {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-card);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    overflow: hidden;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+  .vd::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, rgba(106,170,122,0.5) 0%, transparent 100%);
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .vd:hover::before { opacity: 1; }
+  .vd:hover {
+    border-color: rgba(255,255,255,0.12);
+    background: rgba(18,18,18,0.9);
+  }
+  .vd-body { padding: 20px; }
+  .vd-name {
+    font-size: var(--fs-sig-name);    /* 16px */
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .vd-desc {
+    font-size: var(--fs-muted);       /* 13px */
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin-bottom: 20px;
+  }
+  .vd-divider {
+    height: 1px;
+    background: var(--border-faint);
+    margin-bottom: 16px;
+  }
+  .vd-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0;
+  }
+  .vd-stat {
+    padding-right: 16px;
+    border-right: 1px solid var(--border-faint);
+  }
+  .vd-stat:first-child { padding-left: 0; }
+  .vd-stat:last-child { border-right: none; padding-left: 16px; padding-right: 0; }
+  .vd-stat:not(:first-child):not(:last-child) { padding-left: 16px; }
+  .vd-stat-label {
+    font-size: var(--fs-stat-label);  /* 12px */
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.32);
+    margin-bottom: 6px;
+  }
+  .vd-stat-value {
+    font-size: var(--fs-stat-value);  /* 31px */
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    color: var(--text);
+  }
+  .vd-footer {
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .vd-bar-track {
+    flex: 1;
+    height: 3px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-right: 12px;
+  }
+  .vd-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+  }
+  .vd-time {
+    font-size: var(--fs-stat-sub);    /* 13px */
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+
+  /* ── "No data" placeholder style ── */
+  .no-data {
+    font-size: 13px;
+    color: rgba(255,255,255,0.32);
+    margin-top: 10px;
+    font-style: italic;
+  }
+
+  /* page title */
+  h1 {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .page-sub {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 48px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Edge — Card Style Variants</h1>
+<p class="page-sub">4 options for the recipe performance grid. All follow design-tokens.ts type scale.</p>
+
+<!-- ─────────────────────────────────────────────────────────────
+     VARIANT A — Token-Faithful
+     ───────────────────────────────────────────────────────── -->
+<div class="section">
+  <div class="variant-label">A — Token-Faithful</div>
+  <div class="variant-desc">Same layout as today, fonts corrected to token scale. Name 16px, desc 13px, stat labels 12px. No layout surprises.</div>
+  <div class="grid-3">
+
+    <!-- Card 1: has data -->
+    <div class="va">
+      <div class="va-body">
+        <div class="va-name">Momentum Burst</div>
+        <div class="va-desc">Detects coordinated position builds across the top 50 wallets within a 10-min window.</div>
+        <div class="va-stats">
+          <div>
+            <div class="va-stat-label">Win Rate</div>
+            <div class="va-stat-value" style="color:#909090">64%</div>
+          </div>
+          <div>
+            <div class="va-stat-label">Signals</div>
+            <div class="va-stat-value">47</div>
+          </div>
+          <div>
+            <div class="va-stat-label">Avg EV</div>
+            <div class="va-stat-value">12</div>
+          </div>
+        </div>
+        <div class="va-bar">
+          <div class="bar-track"><div class="bar-fill" style="width:64%;background:#909090"></div></div>
+        </div>
+        <div class="va-footer">Updated 2h ago</div>
+      </div>
+    </div>
+
+    <!-- Card 2: borderline win rate -->
+    <div class="va">
+      <div class="va-body">
+        <div class="va-name">Divergence Fade</div>
+        <div class="va-desc">Fades wallets whose unrealized PnL diverges sharply from the cohort median in ranging conditions.</div>
+        <div class="va-stats">
+          <div>
+            <div class="va-stat-label">Win Rate</div>
+            <div class="va-stat-value" style="color:#747474">52%</div>
+          </div>
+          <div>
+            <div class="va-stat-label">Signals</div>
+            <div class="va-stat-value">23</div>
+          </div>
+          <div>
+            <div class="va-stat-label">Avg EV</div>
+            <div class="va-stat-value">n/a</div>
+          </div>
+        </div>
+        <div class="va-bar">
+          <div class="bar-track"><div class="bar-fill" style="width:52%;background:#747474"></div></div>
+        </div>
+        <div class="va-footer">Updated 14h ago</div>
+      </div>
+    </div>
+
+    <!-- Card 3: no data -->
+    <div class="va">
+      <div class="va-body">
+        <div class="va-name">Regime Flip</div>
+        <div class="va-desc">Fires when BTC crosses the bull/bear threshold and top wallets begin repositioning.</div>
+        <div class="va-stats">
+          <div>
+            <div class="va-stat-label">Win Rate</div>
+            <div class="va-stat-value" style="color:#505050">n/a</div>
+          </div>
+          <div>
+            <div class="va-stat-label">Signals</div>
+            <div class="va-stat-value">0</div>
+          </div>
+          <div>
+            <div class="va-stat-label">Avg EV</div>
+            <div class="va-stat-value">n/a</div>
+          </div>
+        </div>
+        <div class="no-data">No signals yet — waiting for market conditions</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ─────────────────────────────────────────────────────────────
+     VARIANT B — Statement
+     ───────────────────────────────────────────────────────── -->
+<div class="section">
+  <div class="variant-label">B — Statement</div>
+  <div class="variant-desc">Win rate is the hero at 31px. Recipe name is a muted uppercase label. Most impactful at a glance — best if win rate is the key metric you track.</div>
+  <div class="grid-3">
+
+    <div class="vb">
+      <div class="vb-header">
+        <div class="vb-name">Momentum Burst</div>
+        <div class="vb-badge" style="background:rgba(106,170,122,0.10);color:#6aaa7a;border:1px solid rgba(106,170,122,0.20)">LONG</div>
+      </div>
+      <div class="vb-body">
+        <div class="vb-win-rate" style="color:#6aaa7a">64%</div>
+        <div class="vb-win-label">Win Rate</div>
+        <div class="vb-desc">Detects coordinated position builds across the top 50 wallets within a 10-min window.</div>
+        <div class="bar-track"><div class="bar-fill" style="width:64%;background:#6aaa7a"></div></div>
+        <div class="vb-row">
+          <div>
+            <div class="vb-meta-label">Signals</div>
+            <div class="vb-meta-value">47</div>
+          </div>
+          <div style="text-align:right">
+            <div class="vb-meta-label">Avg EV</div>
+            <div class="vb-meta-value">12</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="vb">
+      <div class="vb-header">
+        <div class="vb-name">Divergence Fade</div>
+        <div class="vb-badge" style="background:rgba(176,104,104,0.10);color:#b06868;border:1px solid rgba(176,104,104,0.20)">SHORT</div>
+      </div>
+      <div class="vb-body">
+        <div class="vb-win-rate" style="color:var(--text)">52%</div>
+        <div class="vb-win-label">Win Rate</div>
+        <div class="vb-desc">Fades wallets whose unrealized PnL diverges sharply from the cohort median in ranging conditions.</div>
+        <div class="bar-track"><div class="bar-fill" style="width:52%;background:rgba(255,255,255,0.3)"></div></div>
+        <div class="vb-row">
+          <div>
+            <div class="vb-meta-label">Signals</div>
+            <div class="vb-meta-value">23</div>
+          </div>
+          <div style="text-align:right">
+            <div class="vb-meta-label">Avg EV</div>
+            <div class="vb-meta-value">n/a</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="vb">
+      <div class="vb-header">
+        <div class="vb-name">Regime Flip</div>
+        <div class="vb-badge" style="background:rgba(255,255,255,0.05);color:rgba(255,255,255,0.3);border:1px solid rgba(255,255,255,0.08)">—</div>
+      </div>
+      <div class="vb-body">
+        <div class="vb-win-rate" style="color:rgba(255,255,255,0.22)">—</div>
+        <div class="vb-win-label">Win Rate</div>
+        <div class="vb-desc">Fires when BTC crosses the bull/bear threshold and top wallets begin repositioning.</div>
+        <div class="no-data">No signals recorded yet, waiting for market conditions</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ─────────────────────────────────────────────────────────────
+     VARIANT C — Horizontal Scan
+     ───────────────────────────────────────────────────────── -->
+<div class="section">
+  <div class="variant-label">C — Horizontal Scan</div>
+  <div class="variant-desc">Name and description on the left, stats on the right. Win-rate bar spans full width underneath. Best for scanning many recipes at a glance — consider switching to a 1-column layout for this variant.</div>
+  <div style="display:flex;flex-direction:column;gap:8px;">
+
+    <div class="vc">
+      <div class="vc-body">
+        <div class="vc-info">
+          <div class="vc-name">Momentum Burst</div>
+          <div class="vc-desc">Coordinated position builds across top 50 wallets within a 10-min window</div>
+        </div>
+        <div class="vc-stats">
+          <div class="vc-stat">
+            <div class="vc-stat-label">Win Rate</div>
+            <div class="vc-stat-value" style="color:#909090">64%</div>
+          </div>
+          <div class="vc-stat">
+            <div class="vc-stat-label">Signals</div>
+            <div class="vc-stat-value">47</div>
+          </div>
+          <div class="vc-stat">
+            <div class="vc-stat-label">Avg EV</div>
+            <div class="vc-stat-value">12</div>
+          </div>
+        </div>
+      </div>
+      <div class="vc-bar">
+        <div class="vc-bar-fill" style="width:64%;background:#909090"></div>
+      </div>
+    </div>
+
+    <div class="vc">
+      <div class="vc-body">
+        <div class="vc-info">
+          <div class="vc-name">Divergence Fade</div>
+          <div class="vc-desc">Fades wallets whose unrealized PnL diverges sharply from cohort median in ranging conditions</div>
+        </div>
+        <div class="vc-stats">
+          <div class="vc-stat">
+            <div class="vc-stat-label">Win Rate</div>
+            <div class="vc-stat-value" style="color:#747474">52%</div>
+          </div>
+          <div class="vc-stat">
+            <div class="vc-stat-label">Signals</div>
+            <div class="vc-stat-value">23</div>
+          </div>
+          <div class="vc-stat">
+            <div class="vc-stat-label">Avg EV</div>
+            <div class="vc-stat-value">n/a</div>
+          </div>
+        </div>
+      </div>
+      <div class="vc-bar">
+        <div class="vc-bar-fill" style="width:52%;background:#747474"></div>
+      </div>
+    </div>
+
+    <div class="vc">
+      <div class="vc-body">
+        <div class="vc-info">
+          <div class="vc-name">Regime Flip</div>
+          <div class="vc-desc">Fires when BTC crosses bull/bear threshold and top wallets begin repositioning</div>
+        </div>
+        <div class="vc-stats">
+          <div class="vc-stat">
+            <div class="vc-stat-label">Win Rate</div>
+            <div class="vc-stat-value" style="color:rgba(255,255,255,0.22)">—</div>
+          </div>
+          <div class="vc-stat">
+            <div class="vc-stat-label">Signals</div>
+            <div class="vc-stat-value" style="color:rgba(255,255,255,0.22)">0</div>
+          </div>
+          <div class="vc-stat">
+            <div class="vc-stat-label">Avg EV</div>
+            <div class="vc-stat-value" style="color:rgba(255,255,255,0.22)">—</div>
+          </div>
+        </div>
+      </div>
+      <div class="vc-bar">
+        <div class="vc-bar-fill" style="width:0%"></div>
+      </div>
+    </div>
+
+    <div class="vc">
+      <div class="vc-body">
+        <div class="vc-info">
+          <div class="vc-name">Cohort Accumulation</div>
+          <div class="vc-desc">Spot when ≥15% of top wallets add to the same coin within 30 minutes</div>
+        </div>
+        <div class="vc-stats">
+          <div class="vc-stat">
+            <div class="vc-stat-label">Win Rate</div>
+            <div class="vc-stat-value" style="color:#6aaa7a">71%</div>
+          </div>
+          <div class="vc-stat">
+            <div class="vc-stat-label">Signals</div>
+            <div class="vc-stat-value">89</div>
+          </div>
+          <div class="vc-stat">
+            <div class="vc-stat-label">Avg EV</div>
+            <div class="vc-stat-value">18</div>
+          </div>
+        </div>
+      </div>
+      <div class="vc-bar">
+        <div class="vc-bar-fill" style="width:71%;background:#6aaa7a"></div>
+      </div>
+    </div>
+
+    <div class="vc">
+      <div class="vc-body">
+        <div class="vc-info">
+          <div class="vc-name">Liquidation Cascade</div>
+          <div class="vc-desc">Detects wallets approaching margin threshold while the market is trending against them</div>
+        </div>
+        <div class="vc-stats">
+          <div class="vc-stat">
+            <div class="vc-stat-label">Win Rate</div>
+            <div class="vc-stat-value" style="color:#b06868">41%</div>
+          </div>
+          <div class="vc-stat">
+            <div class="vc-stat-label">Signals</div>
+            <div class="vc-stat-value">31</div>
+          </div>
+          <div class="vc-stat">
+            <div class="vc-stat-label">Avg EV</div>
+            <div class="vc-stat-value">-3</div>
+          </div>
+        </div>
+      </div>
+      <div class="vc-bar">
+        <div class="vc-bar-fill" style="width:41%;background:#b06868"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- ─────────────────────────────────────────────────────────────
+     VARIANT D — Editorial
+     ───────────────────────────────────────────────────────── -->
+<div class="section">
+  <div class="variant-label">D — Editorial</div>
+  <div class="variant-desc">Full 31px stat values, generous breathing room. Description is a real paragraph. Top-edge accent line appears on hover. Most polished — best if you want the cards to feel premium.</div>
+  <div class="grid-3">
+
+    <div class="vd">
+      <div class="vd-body">
+        <div class="vd-name">Momentum Burst</div>
+        <div class="vd-desc">Detects coordinated position builds across the top 50 wallets within a 10-min window.</div>
+        <div class="vd-divider"></div>
+        <div class="vd-stats">
+          <div class="vd-stat">
+            <div class="vd-stat-label">Win Rate</div>
+            <div class="vd-stat-value" style="color:#909090">64%</div>
+          </div>
+          <div class="vd-stat">
+            <div class="vd-stat-label">Signals</div>
+            <div class="vd-stat-value">47</div>
+          </div>
+          <div class="vd-stat">
+            <div class="vd-stat-label">Avg EV</div>
+            <div class="vd-stat-value">12</div>
+          </div>
+        </div>
+        <div class="vd-footer">
+          <div class="vd-bar-track"><div class="vd-bar-fill" style="width:64%;background:#909090"></div></div>
+          <div class="vd-time">2h ago</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="vd">
+      <div class="vd-body">
+        <div class="vd-name">Divergence Fade</div>
+        <div class="vd-desc">Fades wallets whose unrealized PnL diverges sharply from the cohort median in ranging conditions.</div>
+        <div class="vd-divider"></div>
+        <div class="vd-stats">
+          <div class="vd-stat">
+            <div class="vd-stat-label">Win Rate</div>
+            <div class="vd-stat-value">52%</div>
+          </div>
+          <div class="vd-stat">
+            <div class="vd-stat-label">Signals</div>
+            <div class="vd-stat-value">23</div>
+          </div>
+          <div class="vd-stat">
+            <div class="vd-stat-label">Avg EV</div>
+            <div class="vd-stat-value" style="color:var(--text-muted)">n/a</div>
+          </div>
+        </div>
+        <div class="vd-footer">
+          <div class="vd-bar-track"><div class="vd-bar-fill" style="width:52%;background:rgba(255,255,255,0.3)"></div></div>
+          <div class="vd-time">14h ago</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="vd">
+      <div class="vd-body">
+        <div class="vd-name">Regime Flip</div>
+        <div class="vd-desc">Fires when BTC crosses the bull/bear threshold and top wallets begin repositioning across the cohort.</div>
+        <div class="vd-divider"></div>
+        <div class="vd-stats">
+          <div class="vd-stat">
+            <div class="vd-stat-label">Win Rate</div>
+            <div class="vd-stat-value" style="color:rgba(255,255,255,0.22)">—</div>
+          </div>
+          <div class="vd-stat">
+            <div class="vd-stat-label">Signals</div>
+            <div class="vd-stat-value" style="color:rgba(255,255,255,0.22)">0</div>
+          </div>
+          <div class="vd-stat">
+            <div class="vd-stat-label">Avg EV</div>
+            <div class="vd-stat-value" style="color:rgba(255,255,255,0.22)">—</div>
+          </div>
+        </div>
+        <div class="no-data" style="margin-top:14px">No signals recorded yet, waiting for market conditions</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>

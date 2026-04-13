@@ -259,7 +259,7 @@ export function findContrarianIdeas(
       confidence,
       reason: [
         `Smart money ${cohortLong ? "long" : "short"} $${(Math.abs(cohortNet) / 1e6).toFixed(1)}M`,
-        `Retail proxy ${cohortLong ? "short" : "long"} — divergence $${(divergenceMag / 1e6).toFixed(1)}M`,
+        `Retail proxy ${cohortLong ? "short" : "long"}, divergence $${(divergenceMag / 1e6).toFixed(1)}M`,
         fundingAligned ? `Funding ${funding > 0 ? "+" : ""}${(funding * 100).toFixed(4)}% supports squeeze` : "",
       ]
         .filter(Boolean)

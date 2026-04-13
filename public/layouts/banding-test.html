@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Banding Fix — 5 Variants</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #060606;
+  --mint: rgba(151,253,229,1);
+}
+
+body { font-family: system-ui, sans-serif; background: var(--bg); }
+
+/* ── Nav strip (same on all variants so you can compare the BG only) ── */
+section {
+  position: relative;
+  height: 100vh;
+  background: var(--bg);
+  overflow: hidden;
+}
+
+.label {
+  position: absolute;
+  top: 28px; left: 28px;
+  z-index: 10;
+  display: flex; flex-direction: column; gap: 4px;
+}
+.label-num {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: rgba(255,255,255,0.3);
+}
+.label-title {
+  font-size: 18px; font-weight: 700; color: rgba(255,255,255,0.85);
+}
+.label-desc {
+  font-size: 12px; color: rgba(255,255,255,0.38);
+  max-width: 320px; line-height: 1.5; margin-top: 2px;
+}
+
+/* ── Quick-jump nav ── */
+#nav {
+  position: fixed; bottom: 24px; left: 50%;
+  transform: translateX(-50%);
+  z-index: 999;
+  display: flex; gap: 8px;
+  background: rgba(10,10,10,0.9);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 40px;
+  padding: 8px 16px;
+  backdrop-filter: blur(16px);
+}
+#nav a {
+  font-size: 12px; font-weight: 600;
+  color: rgba(255,255,255,0.45);
+  text-decoration: none;
+  padding: 4px 10px; border-radius: 20px;
+  transition: background 0.15s, color 0.15s;
+}
+#nav a:hover { background: rgba(255,255,255,0.08); color: #f0f0f0; }
+
+/* divider */
+.divider {
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 1px; background: rgba(255,255,255,0.06);
+}
+
+
+/* ════════════════════════════════════════
+   V1 — oklch interpolation
+   Uses "in oklch" to let the browser
+   interpolate in perceptual space.
+   May be ignored silently on old WebKit.
+════════════════════════════════════════ */
+#v1 .bg {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse at 100% 100% in oklch,
+      oklch(28% 0.06 170)  0%,
+      oklch(22% 0.045 170) 18%,
+      oklch(17% 0.032 170) 32%,
+      oklch(13% 0.022 170) 45%,
+      oklch(10% 0.014 170) 57%,
+      oklch(7%  0.008 170) 68%,
+      oklch(5%  0.004 170) 78%,
+      oklch(3.5% 0    0)   100%),
+    radial-gradient(ellipse at 100% 100% in oklab,
+      oklch(14% 0.04 170) 0%,
+      oklch(3.5% 0   0)   100%);
+}
+#v1 .grain {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0.22;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.90' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.15'/%3E%3C/svg%3E");
+}
+
+
+/* ════════════════════════════════════════
+   V2 — GPU compositing layer
+   Same eased rgba stops as production,
+   but forced onto its own compositing
+   layer via translateZ(0).
+   Cost: near zero. Sometimes magic.
+════════════════════════════════════════ */
+#v2 .bg {
+  position: absolute; inset: 0; pointer-events: none;
+  transform: translateZ(0);
+  will-change: transform;
+  background:
+    radial-gradient(ellipse at 100% 100%,
+      rgba(151,253,229,0.20)  0%,
+      rgba(151,253,229,0.148) 19%,
+      rgba(151,253,229,0.108) 34%,
+      rgba(151,253,229,0.076) 47%,
+      rgba(151,253,229,0.055) 56.5%,
+      rgba(151,253,229,0.039) 65%,
+      rgba(151,253,229,0.025) 73%,
+      rgba(151,253,229,0.015) 80.2%,
+      rgba(151,253,229,0.008) 86.1%,
+      rgba(151,253,229,0.004) 91%,
+      rgba(151,253,229,0.002) 95.2%,
+      rgba(151,253,229,0.000) 100%),
+    radial-gradient(ellipse at 100% 100%,
+      rgba(7,39,35,0.30)  0%,
+      rgba(7,39,35,0.221) 19%,
+      rgba(7,39,35,0.162) 34%,
+      rgba(7,39,35,0.115) 47%,
+      rgba(7,39,35,0.083) 56.5%,
+      rgba(7,39,35,0.058) 65%,
+      rgba(7,39,35,0.038) 73%,
+      rgba(7,39,35,0.023) 80.2%,
+      rgba(7,39,35,0.013) 86.1%,
+      rgba(7,39,35,0.006) 91%,
+      rgba(7,39,35,0.002) 95.2%,
+      rgba(7,39,35,0.000) 100%);
+}
+#v2 .grain {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0.22;
+  transform: translateZ(0);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.90' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.15'/%3E%3C/svg%3E");
+}
+
+
+/* ════════════════════════════════════════
+   V3 — Blur smear pseudo-element
+   Current eased approach + a ghost copy
+   of itself blurred 0.7px to smear band
+   edges. The ::after inherits background
+   and blurs, dissolving hard transitions.
+════════════════════════════════════════ */
+#v3 .bg {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse at 100% 100%,
+      rgba(151,253,229,0.20)  0%,
+      rgba(151,253,229,0.148) 19%,
+      rgba(151,253,229,0.108) 34%,
+      rgba(151,253,229,0.076) 47%,
+      rgba(151,253,229,0.055) 56.5%,
+      rgba(151,253,229,0.039) 65%,
+      rgba(151,253,229,0.025) 73%,
+      rgba(151,253,229,0.015) 80.2%,
+      rgba(151,253,229,0.008) 86.1%,
+      rgba(151,253,229,0.004) 91%,
+      rgba(151,253,229,0.002) 95.2%,
+      rgba(151,253,229,0.000) 100%),
+    radial-gradient(ellipse at 100% 100%,
+      rgba(7,39,35,0.30)  0%,
+      rgba(7,39,35,0.221) 19%,
+      rgba(7,39,35,0.162) 34%,
+      rgba(7,39,35,0.115) 47%,
+      rgba(7,39,35,0.083) 56.5%,
+      rgba(7,39,35,0.058) 65%,
+      rgba(7,39,35,0.038) 73%,
+      rgba(7,39,35,0.023) 80.2%,
+      rgba(7,39,35,0.013) 86.1%,
+      rgba(7,39,35,0.006) 91%,
+      rgba(7,39,35,0.002) 95.2%,
+      rgba(7,39,35,0.000) 100%);
+}
+/* blurred ghost that smears the band edges */
+#v3 .bg::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: inherit;
+  filter: blur(0.7px);
+  opacity: 0.9;
+  pointer-events: none;
+}
+#v3 .grain {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0.22;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.90' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.15'/%3E%3C/svg%3E");
+}
+
+
+/* ════════════════════════════════════════
+   V4 — Stacked radials (sliced opacity)
+   No single gradient does a large alpha
+   transition. Instead 8 separate ellipses,
+   each covering only a small opacity slice.
+   WebKit renders each tiny step, sum = smooth.
+════════════════════════════════════════ */
+#v4 .bg {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse 28% 28% at 100% 100%, rgba(151,253,229,0.08) 0%, rgba(151,253,229,0.00) 100%),
+    radial-gradient(ellipse 40% 40% at 100% 100%, rgba(151,253,229,0.07) 0%, rgba(151,253,229,0.00) 100%),
+    radial-gradient(ellipse 52% 52% at 100% 100%, rgba(151,253,229,0.05) 0%, rgba(151,253,229,0.00) 100%),
+    radial-gradient(ellipse 64% 64% at 100% 100%, rgba(151,253,229,0.04) 0%, rgba(151,253,229,0.00) 100%),
+    radial-gradient(ellipse 76% 76% at 100% 100%, rgba(151,253,229,0.03) 0%, rgba(151,253,229,0.00) 100%),
+    radial-gradient(ellipse 88% 88% at 100% 100%, rgba(151,253,229,0.02) 0%, rgba(151,253,229,0.00) 100%),
+    radial-gradient(ellipse 100% 100% at 100% 100%, rgba(151,253,229,0.015) 0%, rgba(151,253,229,0.00) 100%),
+    /* dark tinted underlayer */
+    radial-gradient(ellipse 55% 55% at 100% 100%, rgba(7,39,35,0.22) 0%, rgba(7,39,35,0.00) 100%);
+}
+#v4 .grain {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0.24;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.10' numOctaves='5' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.18'/%3E%3C/svg%3E");
+}
+
+
+/* ════════════════════════════════════════
+   V5 — Nuclear grain (double layer)
+   Two independent noise SVGs at different
+   frequencies cancel out banding patterns
+   the other misses. One fine (1.3), one
+   coarse (0.65). Both desaturated.
+   Gradient uses eased rgba for reliability.
+════════════════════════════════════════ */
+#v5 .bg {
+  position: absolute; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(ellipse at 100% 100%,
+      rgba(151,253,229,0.20)  0%,
+      rgba(151,253,229,0.148) 19%,
+      rgba(151,253,229,0.108) 34%,
+      rgba(151,253,229,0.076) 47%,
+      rgba(151,253,229,0.055) 56.5%,
+      rgba(151,253,229,0.039) 65%,
+      rgba(151,253,229,0.025) 73%,
+      rgba(151,253,229,0.015) 80.2%,
+      rgba(151,253,229,0.008) 86.1%,
+      rgba(151,253,229,0.004) 91%,
+      rgba(151,253,229,0.002) 95.2%,
+      rgba(151,253,229,0.000) 100%),
+    radial-gradient(ellipse at 100% 100%,
+      rgba(7,39,35,0.30)  0%,
+      rgba(7,39,35,0.221) 19%,
+      rgba(7,39,35,0.162) 34%,
+      rgba(7,39,35,0.115) 47%,
+      rgba(7,39,35,0.083) 56.5%,
+      rgba(7,39,35,0.058) 65%,
+      rgba(7,39,35,0.038) 73%,
+      rgba(7,39,35,0.023) 80.2%,
+      rgba(7,39,35,0.013) 86.1%,
+      rgba(7,39,35,0.006) 91%,
+      rgba(7,39,35,0.002) 95.2%,
+      rgba(7,39,35,0.000) 100%);
+}
+/* fine grain layer */
+#v5 .grain-fine {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0.20;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='250' height='250'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.30' numOctaves='5' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.20'/%3E%3C/svg%3E");
+}
+/* coarse grain layer — fills in the low-freq gaps */
+#v5 .grain-coarse {
+  position: absolute; inset: 0; pointer-events: none; opacity: 0.18;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.22'/%3E%3C/svg%3E");
+}
+</style>
+</head>
+<body>
+
+<!-- Quick-jump -->
+<nav id="nav">
+  <a href="#v1">V1 oklch</a>
+  <a href="#v2">V2 GPU</a>
+  <a href="#v3">V3 blur</a>
+  <a href="#v4">V4 sliced</a>
+  <a href="#v5">V5 nuclear</a>
+</nav>
+
+<!-- ── V1 ── -->
+<section id="v1">
+  <div class="bg"></div>
+  <div class="grain"></div>
+  <div class="label">
+    <div class="label-num">Variant 1</div>
+    <div class="label-title">oklch interpolation</div>
+    <div class="label-desc">Gradient expressed in oklch() values with "in oklch" color space directive. Perceptual interpolation — best on Chrome/Firefox, may fall back silently on older WebKit.</div>
+  </div>
+</section>
+
+<!-- ── V2 ── -->
+<section id="v2">
+  <div class="divider"></div>
+  <div class="bg"></div>
+  <div class="grain"></div>
+  <div class="label">
+    <div class="label-num">Variant 2</div>
+    <div class="label-title">GPU compositing layer</div>
+    <div class="label-desc">Same eased rgba stops as current production. Adds translateZ(0) + will-change: transform to force a new compositing layer. Zero visual change, sometimes fixes mobile GPU banding.</div>
+  </div>
+</section>
+
+<!-- ── V3 ── -->
+<section id="v3">
+  <div class="divider"></div>
+  <div class="bg"></div>
+  <div class="grain"></div>
+  <div class="label">
+    <div class="label-num">Variant 3</div>
+    <div class="label-title">Blur smear</div>
+    <div class="label-desc">Current eased gradient + a ::after ghost copy of itself blurred 0.7px at 90% opacity. The blur dissolves hard band edges without visually softening the aura shape.</div>
+  </div>
+</section>
+
+<!-- ── V4 ── -->
+<section id="v4">
+  <div class="divider"></div>
+  <div class="bg"></div>
+  <div class="grain"></div>
+  <div class="label">
+    <div class="label-num">Variant 4</div>
+    <div class="label-title">Stacked radials</div>
+    <div class="label-desc">8 separate radial-gradients, each covering only a small opacity slice (0.02–0.08). No single layer does a large alpha transition, so WebKit never has to quantise a big step.</div>
+  </div>
+</section>
+
+<!-- ── V5 ── -->
+<section id="v5">
+  <div class="divider"></div>
+  <div class="bg"></div>
+  <div class="grain-fine"></div>
+  <div class="grain-coarse"></div>
+  <div class="label">
+    <div class="label-num">Variant 5</div>
+    <div class="label-title">Nuclear grain</div>
+    <div class="label-desc">Two independent noise layers: fine (1.3 freq, 5 octaves) + coarse (0.55 freq, 3 octaves). Different frequencies cancel out banding patterns the other misses. Current eased gradient underneath.</div>
+  </div>
+</section>
+
+</body>
+</html>

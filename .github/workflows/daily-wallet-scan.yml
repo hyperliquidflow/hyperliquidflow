@@ -2,7 +2,7 @@ name: Daily Wallet Scan
 
 on:
   schedule:
-    - cron: '0 2 * * *'   # 02:00 UTC daily — low market activity
+    - cron: '0 0 * * *'   # 00:00 UTC daily
   workflow_dispatch:        # manual trigger for testing
 
 jobs:
