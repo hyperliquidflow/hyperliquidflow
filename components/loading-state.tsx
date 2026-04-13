@@ -2,6 +2,8 @@
 // Page-specific Ghost Slide Up skeletons -- each mirrors the real page layout.
 // Animation keyframe `slide-up-ghost` lives in globals.css.
 
+import { color } from "@/lib/design-tokens";
+
 // Shared style helpers
 
 const ghost = (delay: number): React.CSSProperties => ({
@@ -282,7 +284,7 @@ function TableLoadingState() {
       <GhostPageHeader />
       <div style={{ padding: pagePad, paddingTop: "20px" } as React.CSSProperties}>
         <div style={shell}>
-          <div style={{ display: "flex", background: "#0f0f0f", borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
+          <div style={{ display: "flex", background: color.bg, borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
             {cols.map((label, i) => (
               <div key={label} style={{ width: colWidths[i], padding: "12px 16px", fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.3)", flexShrink: 0, whiteSpace: "nowrap" }}>
                 {label}
