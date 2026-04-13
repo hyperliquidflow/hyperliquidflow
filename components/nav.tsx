@@ -1,21 +1,19 @@
 "use client";
-// components/nav.tsx — SideRail navigation with expandable sections
+// components/nav.tsx — SideRail navigation with section subtitles (no expand/collapse)
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { timeAgo } from "@/lib/utils";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 
 const LOGO = "HyperliquidFLOW";
 
-const DURATION = 220; // ms per collapse/expand segment
-
-type NavChild = { href: string; label: string };
-type NavSection = { section: string; label: string; base: string; children: NavChild[] };
-type NavFlat    = { href: string; label: string };
-type NavEntry   = NavFlat | NavSection;
+type NavChild    = { href: string; label: string };
+type NavSection  = { section: string; label: string; base: string; children: NavChild[] };
+type NavFlat     = { href: string; label: string };
+type NavEntry    = NavFlat | NavSection;
 
 const NAV: NavEntry[] = [
   { href: "/",      label: "Overview"    },
@@ -42,95 +40,16 @@ const NAV: NavEntry[] = [
   { href: "/edge",  label: "Edge"        },
 ];
 
-// Child item height in px (padding 7px top+bottom, 13px text ~20px = 34px per item)
-const CHILD_HEIGHTS: Record<string, number> = { wallets: 102, signals: 68 };
-
 function isSection(e: NavEntry): e is NavSection {
   return "section" in e;
 }
 
-function sectionForPath(pathname: string): string | null {
-  for (const e of NAV) {
-    if (isSection(e) && pathname.startsWith(e.base)) return e.section;
-  }
-  return null;
-}
-
-function firstChildHref(sec: string): string | null {
-  const entry = NAV.find((e) => isSection(e) && e.section === sec) as NavSection | undefined;
-  return entry?.children[0]?.href ?? null;
-}
-
 export function Nav() {
-  const pathname  = usePathname();
-  const router    = useRouter();
-  const [open, setOpen]         = useState(false);   // mobile drawer
-  const [openSec, setOpenSec]   = useState<string | null>(() => sectionForPath(pathname));
-  const animating = useRef(false);
-  const timerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Refs for the children containers (for imperative max-height)
-  const chRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false); // mobile drawer
 
   // On route change: close mobile drawer
   useEffect(() => { setOpen(false); }, [pathname]);
-
-  // When pathname changes (e.g. back/forward), sync open section
-  useEffect(() => {
-    const sec = sectionForPath(pathname);
-    if (sec !== openSec) {
-      setOpenSec(sec);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
-
-  // Apply max-height whenever openSec changes
-  useEffect(() => {
-    for (const e of NAV) {
-      if (!isSection(e)) continue;
-      const el = chRefs.current[e.section];
-      if (!el) continue;
-      el.style.transition = `max-height ${DURATION}ms cubic-bezier(0.4,0,0.2,1)`;
-      el.style.maxHeight  = openSec === e.section
-        ? CHILD_HEIGHTS[e.section] + "px"
-        : "0px";
-    }
-  }, [openSec]);
-
-  function toggleSection(sec: string) {
-    if (animating.current) return;
-    if (timerRef.current) clearTimeout(timerRef.current);
-
-    const prev = openSec;
-
-    if (prev === sec) {
-      // Collapse and go nowhere (stay on current page)
-      animating.current = true;
-      setOpenSec(null);
-      timerRef.current = setTimeout(() => { animating.current = false; }, DURATION);
-      return;
-    }
-
-    if (prev && prev !== sec) {
-      // Sequential: navigate immediately, collapse prev, then expand new
-      const href = firstChildHref(sec);
-      if (href) router.push(href);
-      animating.current = true;
-      setOpenSec(null);
-      timerRef.current = setTimeout(() => {
-        setOpenSec(sec);
-        timerRef.current = setTimeout(() => { animating.current = false; }, DURATION);
-      }, DURATION + 30);
-      return;
-    }
-
-    // Nothing open — navigate immediately, then expand
-    const href = firstChildHref(sec);
-    if (href) router.push(href);
-    animating.current = true;
-    setOpenSec(sec);
-    timerRef.current = setTimeout(() => { animating.current = false; }, DURATION);
-  }
 
   const { data } = useQuery<CohortCachePayload>({
     queryKey: ["cohort-state"],
@@ -213,61 +132,39 @@ export function Nav() {
               );
             }
 
-            // Expandable section
-            const isOpen   = openSec === entry.section;
-            const inSection = pathname.startsWith(entry.base);
-
+            // Section: subtitle label + children always visible
             return (
               <div key={entry.section}>
-                {/* Section header */}
-                <button
-                  onClick={() => toggleSection(entry.section)}
-                  className="glow-btn"
-                  style={{
-                    width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between",
-                    padding: "10px 20px", fontSize: "14px", fontWeight: 500,
-                    color: inSection ? "#f0f0f0" : "rgba(255,255,255,0.44)",
-                    background: "transparent",
-                    border: "none", borderLeft: "2px solid transparent",
-                    cursor: "pointer", userSelect: "none",
-                    transition: "color 0.15s",
-                  } as React.CSSProperties}
-                >
-                  <span>{entry.label}</span>
-                  <span style={{
-                    fontSize: "12px",
-                    color: isOpen ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.22)",
-                    transform: isOpen ? "rotate(90deg)" : "rotate(0deg)",
-                    transition: `transform ${DURATION}ms cubic-bezier(0.4,0,0.2,1), color ${DURATION}ms`,
-                    display: "inline-block",
-                    lineHeight: 1,
-                  }}>›</span>
-                </button>
+                {/* Section subtitle */}
+                <div style={{
+                  padding: "12px 20px 4px",
+                  fontSize: "10px", fontWeight: 600,
+                  letterSpacing: "0.1em", textTransform: "uppercase",
+                  color: "rgba(255,255,255,0.22)",
+                  userSelect: "none",
+                }}>
+                  {entry.label}
+                </div>
 
                 {/* Children */}
-                <div
-                  ref={(el) => { chRefs.current[entry.section] = el; }}
-                  style={{ overflow: "hidden", maxHeight: isOpen ? CHILD_HEIGHTS[entry.section] + "px" : "0px" }}
-                >
-                  {entry.children.map((child) => {
-                    const childActive = pathname === child.href || pathname.startsWith(child.href + "/");
-                    return (
-                      <Link key={child.href} href={child.href} className="glow-btn" style={{
-                        display: "flex", alignItems: "center",
-                        padding: "7px 20px 7px 32px",
-                        fontSize: "13px", fontWeight: 400,
-                        color: childActive ? "#f0f0f0" : "rgba(255,255,255,0.38)",
-                        textDecoration: "none",
-                        borderLeft: childActive ? "2px solid rgba(151,253,229,0.65)" : "2px solid transparent",
-                        background: childActive ? "rgba(151,253,229,0.04)" : "transparent",
-                        transition: "color 0.15s, border-color 0.15s, background 0.15s",
-                        userSelect: "none",
-                      }}>
-                        {child.label}
-                      </Link>
-                    );
-                  })}
-                </div>
+                {entry.children.map((child) => {
+                  const childActive = pathname === child.href || pathname.startsWith(child.href + "/");
+                  return (
+                    <Link key={child.href} href={child.href} className="glow-btn" style={{
+                      display: "flex", alignItems: "center",
+                      padding: "7px 20px 7px 28px",
+                      fontSize: "13px", fontWeight: 400,
+                      color: childActive ? "#f0f0f0" : "rgba(255,255,255,0.44)",
+                      textDecoration: "none",
+                      borderLeft: childActive ? "2px solid rgba(151,253,229,0.65)" : "2px solid transparent",
+                      background: childActive ? "rgba(151,253,229,0.04)" : "transparent",
+                      transition: "color 0.15s, border-color 0.15s, background 0.15s",
+                      userSelect: "none",
+                    }}>
+                      {child.label}
+                    </Link>
+                  );
+                })}
               </div>
             );
           })}
