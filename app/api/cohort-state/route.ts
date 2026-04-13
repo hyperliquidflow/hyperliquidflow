@@ -104,6 +104,7 @@ export async function GET(): Promise<NextResponse> {
           regime_fit:     (snap?.regime_fit as number) ?? 0,
           win_rate:       w.win_rate ?? null,
           liq_buffer_pct: (snap?.liq_buffer_pct as number | null) ?? null,
+          equity_tier:    (snap?.equity_tier as string | null) ?? null,
         };
       }),
       recent_signals: (recentSignals ?? []).map((s) => ({

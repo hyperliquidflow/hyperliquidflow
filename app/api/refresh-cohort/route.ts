@@ -27,6 +27,7 @@ import {
   computeBacktest,
   computeCohortScores,
   detectRegime,
+  getEquityTier,
   saveCohortSnapshot,
   fetchActiveWallets,
 } from "@/lib/cohort-engine";
@@ -190,6 +191,7 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
         regime_fit:     scores.regime_fit,
         win_rate:       bt?.win_rate ?? null,
         liq_buffer_pct: computeLiqBuffer(state),
+        equity_tier:    getEquityTier(parseFloat(state.marginSummary.accountValue)),
       });
     }
 
@@ -353,6 +355,7 @@ interface CohortWalletSummary {
   regime_fit:     number;
   win_rate:       number | null;
   liq_buffer_pct: number | null;
+  equity_tier:    string | null;
 }
 
 export interface CohortCachePayload {

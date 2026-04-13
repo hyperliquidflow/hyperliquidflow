@@ -434,6 +434,7 @@ export async function saveCohortSnapshot(
     liq_buffer_pct:    liqBuffer,
     position_count:    state.assetPositions.length,
     positions:         state.assetPositions,
+    equity_tier:       getEquityTier(accountValue),
     overall_score:     scores.overall_score,
     sharpe_proxy:      scores.sharpe_proxy,
     drawdown_score:    scores.drawdown_score,
