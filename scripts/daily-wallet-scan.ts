@@ -3,19 +3,19 @@
 // Run via: npx tsx scripts/daily-wallet-scan.ts
 //
 // Called by .github/workflows/daily-wallet-scan.yml at 02:00 UTC.
-// Does NOT import Next.js or Vercel KV — writes directly to Supabase.
+// Does NOT import Next.js or Vercel KV -- writes directly to Supabase.
 //
 // Flow:
 //   1. Discover wallet addresses from Hyperliquid leaderboard API (with scrape fallback)
 //   2. Upsert addresses into wallets table
-//   3. Score each wallet: fetch fills → compute win_rate, trade_count_30d, realized_pnl_30d
-//   4. Activate wallets passing the qualification filter
+//   3. Score each wallet: fetch fills -> compute win_rate, daily_pnls, full backtest metrics
+//   4. Activate wallets passing the qualification filter, save backtest to user_pnl_backtest
 //   5. Write scan-summary.json for GitHub Actions artifact upload
 
 import { createClient } from "@supabase/supabase-js";
 import * as fs from "fs/promises";
 
-// ── Environment validation ────────────────────────────────────────────────────
+// -- Environment validation ----------------------------------------------------
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const HYPERLIQUID_API_URL =
@@ -30,22 +30,22 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-// ── Qualification thresholds ──────────────────────────────────────────────────
+// -- Qualification thresholds --------------------------------------------------
 const WIN_RATE_THRESHOLD = 0.52;
 const MIN_TRADES_30D     = 30;
-const MAX_WALLETS_TO_SCORE = 5000; // ceiling — pre-filter brings actual pool to ~6k, 2-run cycle
-const CONCURRENCY          = 3;   // 3 concurrent → ~3.3 req/s, within Hyperliquid public limits
-const DELAY_BETWEEN_MS     = 600; // ms delay per slot before firing — keeps bursts smooth
+const MAX_WALLETS_TO_SCORE = 5000; // ceiling -- pre-filter brings actual pool to ~6k, 2-run cycle
+const CONCURRENCY          = 3;   // 3 concurrent -> ~3.3 req/s, within Hyperliquid public limits
+const DELAY_BETWEEN_MS     = 600; // ms delay per slot before firing -- keeps bursts smooth
 
-// ── Leaderboard pre-filter ────────────────────────────────────────────────────
+// -- Leaderboard pre-filter ----------------------------------------------------
 // Applied to leaderboard data before any fills API calls. Collapses 33k wallets
 // to high-signal candidates using data already present in the leaderboard response.
 // Tune these; currently targets roughly the top 5-10% of leaderboard by performance.
-const PRE_QUALIFY_MIN_MONTH_ROI   = 0.03;  // ≥3% monthly ROI
-const PRE_QUALIFY_MIN_MONTH_PNL   = 1_000; // ≥$1k monthly realized PnL
+const PRE_QUALIFY_MIN_MONTH_ROI   = 0.03;  // >=3% monthly ROI
+const PRE_QUALIFY_MIN_MONTH_PNL   = 1_000; // >=$1k monthly realized PnL
 const PRE_QUALIFY_MIN_ALLTIME_ROI = 0.0;   // net-positive all-time (filters out lucky months)
 
-// ── In-process semaphore (valid here — long-running Node.js process, not serverless) ──
+// -- In-process semaphore (valid here -- long-running Node.js process, not serverless) --
 class Semaphore {
   private permits: number;
   private queue: Array<() => void> = [];
@@ -74,7 +74,7 @@ class Semaphore {
 
 const sem = new Semaphore(CONCURRENCY);
 
-// ── HTTP helper ───────────────────────────────────────────────────────────────
+// -- HTTP helper ---------------------------------------------------------------
 
 async function hlPost<T>(body: unknown, timeoutMs = 15_000): Promise<T> {
   await new Promise((r) => setTimeout(r, DELAY_BETWEEN_MS));
@@ -96,7 +96,7 @@ async function hlPost<T>(body: unknown, timeoutMs = 15_000): Promise<T> {
   }
 }
 
-// ── Leaderboard pre-qualification ────────────────────────────────────────────
+// -- Leaderboard pre-qualification ---------------------------------------------
 
 function leaderboardPreQualifies(row: Record<string, unknown>): boolean {
   const perfs = row.windowPerformances as Array<[string, Record<string, string>]> | undefined;
@@ -111,8 +111,8 @@ function leaderboardPreQualifies(row: Record<string, unknown>): boolean {
   );
 }
 
-// ── Discovery: primary path (stats-data leaderboard GET) ─────────────────────
-// Hyperliquid leaderboard is NOT on the info POST API — it's a separate GET endpoint.
+// -- Discovery: primary path (stats-data leaderboard GET) ----------------------
+// Hyperliquid leaderboard is NOT on the info POST API -- it's a separate GET endpoint.
 // Response shape: { leaderboardRows: [{ ethAddress: "0x...", ... }, ...] }
 
 const STATS_LEADERBOARD_URL = "https://stats-data.hyperliquid.xyz/Mainnet/leaderboard";
@@ -196,7 +196,7 @@ async function fetchLeaderboardAddresses(): Promise<string[]> {
   const preQualified = typedRows.filter(leaderboardPreQualifies);
   console.log(
     `[discovery] pre-filter: ${preQualified.length}/${typedRows.length} wallets pass ` +
-    `(ROI≥${PRE_QUALIFY_MIN_MONTH_ROI * 100}%, PnL≥$${PRE_QUALIFY_MIN_MONTH_PNL}, allTimeROI≥0)`
+    `(ROI>=${PRE_QUALIFY_MIN_MONTH_ROI * 100}%, PnL>=$${PRE_QUALIFY_MIN_MONTH_PNL}, allTimeROI>=0)`
   );
 
   return preQualified
@@ -204,24 +204,18 @@ async function fetchLeaderboardAddresses(): Promise<string[]> {
     .filter((a) => /^0x[a-fA-F0-9]{40}$/.test(a));
 }
 
-// ── Discovery: fallback path (volume-based address mining) ───────────────────
-// Hyperliquid's frontend is a React SPA — HTML scraping returns no addresses.
+// -- Discovery: fallback path (volume-based address mining) --------------------
+// Hyperliquid's frontend is a React SPA -- HTML scraping returns no addresses.
 // Instead, mine addresses by querying recent trade data via public stats API,
 // then filter to high-activity wallets.
 
 async function scrapeLeaderboardAddresses(): Promise<string[]> {
-  console.warn("[discovery] falling back to volume-based mining — results may be incomplete");
-
-  // Try Hyperliquid's stats/referrals endpoint which may expose user addresses
-  const FALLBACK_ATTEMPTS = [
-    { type: "userGenesisPerpBalances" },
-    { type: "spotClearinghouseState", user: "0x0000000000000000000000000000000000000000" },
-  ];
+  console.warn("[discovery] falling back to volume-based mining, results may be incomplete");
 
   // Mine from known high-activity address patterns via recent fills
   // Use a small set of known active addresses as seeds, expand via referral graph
   const SEED_ADDRESSES = [
-    "0xa5b0a44b4b85f9a7b8c2d3e6f1234567890abcd1",  // placeholder — replaced by leaderboard
+    "0xa5b0a44b4b85f9a7b8c2d3e6f1234567890abcd1",  // placeholder -- replaced by leaderboard
     "0x6c85e3f9a2b4c7d8e1f2345678901234abcdef2",
     "0x94d3f8e2a1b5c6d7e8f9012345678901234abc3",
     "0x0ddf1a2b3c4d5e6f7890123456789012345abc4",
@@ -234,11 +228,58 @@ async function scrapeLeaderboardAddresses(): Promise<string[]> {
     );
   }
 
-  console.log(`[discovery] fallback returning ${SEED_ADDRESSES.length} seed addresses — leaderboard API fix required`);
+  console.log(`[discovery] fallback returning ${SEED_ADDRESSES.length} seed addresses, leaderboard API fix required`);
   return SEED_ADDRESSES;
 }
 
-// ── Scoring: fetch fills and compute metrics ──────────────────────────────────
+// -- Backtest helpers (inlined from cohort-engine to avoid Next.js path aliases) --
+
+function buildDailyPnls(fills: FillRecord[]): number[] {
+  const byDay = new Map<string, number>();
+  for (const f of fills) {
+    const day = new Date(f.time).toISOString().slice(0, 10);
+    byDay.set(day, (byDay.get(day) ?? 0) + parseFloat(f.closedPnl));
+  }
+
+  const daily_pnls: number[] = new Array(30).fill(0);
+  const today = new Date();
+  for (const [day, pnl] of byDay) {
+    const daysAgo = Math.floor(
+      (today.getTime() - new Date(day).getTime()) / 86_400_000
+    );
+    if (daysAgo >= 0 && daysAgo < 30) {
+      daily_pnls[29 - daysAgo] = pnl;
+    }
+  }
+  return daily_pnls;
+}
+
+function computeSharpeProxy(dailyPnls: number[]): number {
+  if (dailyPnls.length === 0) return 0;
+  const n = dailyPnls.length;
+  const m = dailyPnls.reduce((a, b) => a + b, 0) / n;
+  const variance = dailyPnls.reduce((a, v) => a + (v - m) ** 2, 0) / n;
+  const s = Math.sqrt(variance);
+  const raw = m / (s + 0.0001);
+  return Math.min(1, Math.max(0, raw / 3.0));
+}
+
+function computeDrawdownScore(dailyPnls: number[]): number {
+  if (dailyPnls.length === 0) return 0;
+  let running = 0;
+  let peak = -Infinity;
+  let maxDrawdown = 0;
+  for (const pnl of dailyPnls) {
+    running += pnl;
+    if (running > peak) peak = running;
+    if (peak <= 0) continue;
+    const dd = (peak - running) / (Math.abs(peak) + 0.0001);
+    if (dd > maxDrawdown) maxDrawdown = dd;
+  }
+  return Math.min(1, Math.max(0, 1 - maxDrawdown));
+}
+
+// -- Scoring: fetch fills and compute metrics ----------------------------------
 
 interface FillRecord {
   closedPnl: string;
@@ -246,11 +287,20 @@ interface FillRecord {
 }
 
 interface ScoringResult {
-  address: string;
-  win_rate: number;
-  trade_count_30d: number;
-  realized_pnl_30d: number;
-  qualifies: boolean;
+  address:             string;
+  win_rate:            number;
+  trade_count_30d:     number;
+  realized_pnl_30d:    number;
+  qualifies:           boolean;
+  daily_pnls:          number[];
+  avg_win_usd:         number;
+  avg_loss_usd:        number;
+  profit_factor:       number;
+  max_drawdown_pct:    number;
+  sharpe_ratio:        number;
+  current_win_streak:  number;
+  current_loss_streak: number;
+  max_win_streak:      number;
   error?: string;
 }
 
@@ -268,19 +318,63 @@ async function scoreWallet(address: string): Promise<ScoringResult> {
   const closingFills = fills.filter((f) => parseFloat(f.closedPnl) !== 0);
 
   const trade_count_30d = closingFills.length;
-  const winCount = closingFills.filter((f) => parseFloat(f.closedPnl) > 0).length;
-  const win_rate = trade_count_30d > 0 ? winCount / trade_count_30d : 0;
-  const realized_pnl_30d = closingFills.reduce(
-    (s, f) => s + parseFloat(f.closedPnl),
-    0
-  );
+  const winFills        = closingFills.filter((f) => parseFloat(f.closedPnl) > 0);
+  const lossFills       = closingFills.filter((f) => parseFloat(f.closedPnl) < 0);
+
+  const win_rate         = trade_count_30d > 0 ? winFills.length / trade_count_30d : 0;
+  const realized_pnl_30d = closingFills.reduce((s, f) => s + parseFloat(f.closedPnl), 0);
+
+  const avg_win_usd  = winFills.length > 0
+    ? winFills.reduce((s, f) => s + parseFloat(f.closedPnl), 0) / winFills.length
+    : 0;
+  const avg_loss_usd = lossFills.length > 0
+    ? Math.abs(lossFills.reduce((s, f) => s + parseFloat(f.closedPnl), 0) / lossFills.length)
+    : 0;
+
+  const totalWin  = winFills.reduce((s, f) => s + parseFloat(f.closedPnl), 0);
+  const totalLoss = Math.abs(lossFills.reduce((s, f) => s + parseFloat(f.closedPnl), 0));
+  const profit_factor = totalLoss > 0 ? totalWin / totalLoss : totalWin > 0 ? 999 : 0;
+
+  // Build 30-day daily PnL series for scoring
+  const daily_pnls      = buildDailyPnls(closingFills);
+  const sharpe_ratio     = computeSharpeProxy(daily_pnls);
+  const max_drawdown_pct = 1 - computeDrawdownScore(daily_pnls); // stored as fraction [0,1]
+
+  // Streak tracking (chronological order)
+  const chronological = [...closingFills].sort((a, b) => a.time - b.time);
+  let curWin = 0, curLoss = 0, maxWin = 0;
+  for (const f of chronological) {
+    if (parseFloat(f.closedPnl) > 0) {
+      curWin++;
+      curLoss = 0;
+      if (curWin > maxWin) maxWin = curWin;
+    } else {
+      curLoss++;
+      curWin = 0;
+    }
+  }
 
   const qualifies = win_rate >= WIN_RATE_THRESHOLD && trade_count_30d >= MIN_TRADES_30D;
 
-  return { address, win_rate, trade_count_30d, realized_pnl_30d, qualifies };
+  return {
+    address,
+    win_rate,
+    trade_count_30d,
+    realized_pnl_30d,
+    qualifies,
+    daily_pnls,
+    avg_win_usd,
+    avg_loss_usd,
+    profit_factor,
+    max_drawdown_pct,
+    sharpe_ratio,
+    current_win_streak:  curWin,
+    current_loss_streak: curLoss,
+    max_win_streak:      maxWin,
+  };
 }
 
-// ── Supabase upsert helpers ───────────────────────────────────────────────────
+// -- Supabase upsert helpers ---------------------------------------------------
 
 async function upsertAddresses(
   addresses: string[],
@@ -302,7 +396,7 @@ async function upsertAddresses(
       .select("id");
 
     if (error) {
-      console.error(`[upsert] chunk ${i}–${i + CHUNK} error:`, error.message);
+      console.error(`[upsert] chunk ${i} to ${i + CHUNK} error:`, error.message);
     } else {
       newCount += count ?? 0;
     }
@@ -328,7 +422,33 @@ async function updateWalletMetrics(result: ScoringResult): Promise<void> {
   }
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
+async function saveBacktestRow(
+  walletId: string,
+  result: ScoringResult
+): Promise<void> {
+  const { error } = await supabase.from("user_pnl_backtest").upsert({
+    wallet_id:           walletId,
+    computed_at:         new Date().toISOString(),
+    win_rate:            result.win_rate,
+    avg_win_usd:         result.avg_win_usd,
+    avg_loss_usd:        result.avg_loss_usd,
+    profit_factor:       isFinite(result.profit_factor) ? result.profit_factor : 999,
+    total_trades:        result.trade_count_30d,
+    total_pnl_usd:       result.realized_pnl_30d,
+    max_drawdown_pct:    result.max_drawdown_pct,
+    sharpe_ratio:        result.sharpe_ratio,
+    current_win_streak:  result.current_win_streak,
+    current_loss_streak: result.current_loss_streak,
+    max_win_streak:      result.max_win_streak,
+    daily_pnls:          result.daily_pnls,
+  }, { onConflict: "wallet_id" });
+
+  if (error) {
+    console.error(`[backtest] ${result.address} error:`, error.message);
+  }
+}
+
+// -- Main ----------------------------------------------------------------------
 
 async function main(): Promise<void> {
   const startMs = Date.now();
@@ -344,7 +464,7 @@ async function main(): Promise<void> {
     errors:       [] as string[],
   };
 
-  // ── Step 1: Discover addresses ─────────────────────────────────────────────
+  // Step 1: Discover addresses
   let addresses: string[] = [];
   let source: "leaderboard_api" | "leaderboard_scrape" = "leaderboard_api";
 
@@ -358,21 +478,21 @@ async function main(): Promise<void> {
     console.warn("[discovery] primary path failed:", msg);
   }
 
-  // ── Step 2: Upsert ALL discovered addresses into DB ──────────────────────
-  // (fast — just writes, no Hyperliquid calls)
+  // Step 2: Upsert ALL discovered addresses into DB
+  // (fast -- just writes, no Hyperliquid calls)
   if (addresses.length > 0) {
     summary.discovered = addresses.length;
     summary.discovery_source = source;
     summary.new_wallets = await upsertAddresses(addresses, source);
     console.log(`[discovery] upserted ${addresses.length} addresses (${summary.new_wallets} new)`);
   } else {
-    console.warn("[discovery] no new addresses — will rescore from database");
+    console.warn("[discovery] no new addresses, will rescore from database");
     summary.discovery_source = "database_rescore";
   }
 
-  // ── Step 3: Build the score batch ────────────────────────────────────────────
-  // Tier 1 — always rescan currently-active wallets to keep recommendations fresh.
-  // Tier 2 — pre-filtered leaderboard candidates not yet in tier 1, stalest first.
+  // Step 3: Build the score batch
+  // Tier 1 -- always rescan currently-active wallets to keep recommendations fresh.
+  // Tier 2 -- pre-filtered leaderboard candidates not yet in tier 1, stalest first.
   const { data: activeRows } = await supabase
     .from("wallets")
     .select("address")
@@ -397,12 +517,33 @@ async function main(): Promise<void> {
     `concurrency: ${CONCURRENCY})`
   );
 
+  // Step 4: Fetch address->UUID map for backtest saves
+  // One batch select instead of N individual queries during the scoring loop.
+  const addressToId = new Map<string, string>();
+  const CHUNK = 200;
+  for (let i = 0; i < scoreAddresses.length; i += CHUNK) {
+    const chunk = scoreAddresses.slice(i, i + CHUNK);
+    const { data: walletRows } = await supabase
+      .from("wallets")
+      .select("id, address")
+      .in("address", chunk);
+    for (const w of walletRows ?? []) {
+      addressToId.set(w.address, w.id);
+    }
+  }
+
   const results = await Promise.allSettled(
     scoreAddresses.map(async (address) => {
       await sem.acquire();
       try {
         const result = await scoreWallet(address);
         await updateWalletMetrics(result);
+
+        // Save full backtest including daily_pnls for real-time scoring
+        const walletId = addressToId.get(address);
+        if (walletId) {
+          await saveBacktestRow(walletId, result);
+        }
 
         if (result.qualifies) summary.activated++;
         if (result.win_rate > summary.top_win_rate) summary.top_win_rate = result.win_rate;
