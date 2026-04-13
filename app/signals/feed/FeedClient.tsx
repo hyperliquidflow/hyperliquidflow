@@ -140,7 +140,7 @@ export function FeedClient({ initialData }: { initialData: CohortCachePayload | 
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" as const }}>
                       <span style={{ fontSize: "13px", fontWeight: 600, color: color.text }}>{meta?.label ?? sig.recipe_id}</span>
                       <span style={{ fontSize: "13px", fontWeight: 700, color: color.text }}>·</span>
-                      <span style={{ ...T.sigCoinTag, color: dirColor }}>{sig.coin}</span>
+                      <span style={{ ...T.sigCoinTag }}>{sig.coin}</span>
                       {sig.direction && (
                         <span style={{ ...T.sigDir,
                           background: sig.direction === "LONG" ? color.longBg : sig.direction === "SHORT" ? color.shortBg : color.neutralBg,

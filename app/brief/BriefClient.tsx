@@ -127,7 +127,7 @@ export function BriefClient({ initialData }: { initialData: unknown }) {
                 <div key={i} style={{ padding: "12px 20px", borderBottom: "1px solid rgba(255,255,255,0.04)", display: "flex", alignItems: "center", gap: "12px" }}>
                   <div style={{ width: "7px", height: "7px", borderRadius: radius.dot, background: dirColor, flexShrink: 0 }} />
                   <span style={{ fontSize: "13px", fontWeight: 600 }}>{sig.recipe}</span>
-                  <span style={{ ...T.sigCoinTag, color: dirColor }}>{sig.coin}</span>
+                  <span style={{ ...T.sigCoinTag }}>{sig.coin}</span>
                   <span style={{ ...T.sigDir,
                     background: sig.direction === "LONG" ? color.longBg : sig.direction === "SHORT" ? color.shortBg : color.neutralBg,
                     color: dirColor,
