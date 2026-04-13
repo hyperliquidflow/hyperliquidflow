@@ -93,8 +93,12 @@ export function MorningClient({ initialData }: { initialData: unknown }) {
                 <div key={i} style={{ padding: "12px 20px", borderBottom: "1px solid rgba(255,255,255,0.04)", display: "flex", alignItems: "center", gap: "12px" }}>
                   <div style={{ width: "7px", height: "7px", borderRadius: "50%", background: dirColor, flexShrink: 0 }} />
                   <span style={{ fontSize: "13px", fontWeight: 600 }}>{sig.recipe}</span>
-                  <span style={{ fontSize: "13px", color: dirColor, fontWeight: 700 }}>{sig.coin}</span>
-                  <span style={{ fontSize: "11px", color: dirColor, letterSpacing: "0.08em" }}>{sig.direction}</span>
+                  <span style={{ ...T.sigCoinTag }}>{sig.coin}</span>
+                  <span style={{ ...T.sigDir,
+                    background: sig.direction === "LONG" ? color.longBg : sig.direction === "SHORT" ? color.shortBg : color.neutralBg,
+                    color: dirColor,
+                    border: `1px solid ${sig.direction === "LONG" ? color.longBorder : sig.direction === "SHORT" ? color.shortBorder : color.neutralBorder}`,
+                  }}>{sig.direction}</span>
                   {sig.ev != null && (
                     <span style={{ marginLeft: "auto", fontSize: "11px", color: color.textMuted, fontWeight: 600 }}>EV {(sig.ev * 100).toFixed(0)}</span>
                   )}

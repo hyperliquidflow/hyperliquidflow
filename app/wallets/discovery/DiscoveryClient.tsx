@@ -213,7 +213,7 @@ export function DiscoveryClient({ initialScannerData }: { initialScannerData: Sc
               style={{ flex: 1, background: color.inputBg, border: `1px solid ${color.inputBorder}`, borderRadius: "6px", color: color.text, fontFamily: "var(--font-mono)", fontSize: "13px", padding: "10px 14px", outline: "none" }}
             />
             <button onClick={() => doLookup(lookupAddr)} disabled={lookupLoading} className="glow-btn"
-              style={{ padding: "0 20px", borderRadius: "7px", cursor: lookupLoading ? "not-allowed" : "pointer", background: "linear-gradient(135deg, #1e1e1e 0%, #2e2e2e 100%)", border: "1px solid rgba(255,255,255,0.1)", color: color.text, fontSize: "13px", fontWeight: 700, boxShadow: "0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08)", opacity: lookupLoading ? 0.5 : 1 }}>
+              style={{ padding: "0 20px", borderRadius: "7px", cursor: lookupLoading ? "not-allowed" : "pointer", background: color.card, border: `1px solid ${color.inputBorder}`, color: color.text, fontSize: "13px", fontWeight: 700, opacity: lookupLoading ? 0.5 : 1 }}>
               {lookupLoading ? "Loading..." : "Lookup"}
             </button>
           </div>

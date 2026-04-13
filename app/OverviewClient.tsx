@@ -314,7 +314,7 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
                     <div style={{ fontSize: "16px", fontWeight: 600, color: color.text }}>{RECIPE_META[sig.recipe_id]?.label ?? sig.recipe_id}</div>
                     <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.36)", marginTop: "2px" }}>{timeAgo(sig.detected_at)}</div>
                   </div>
-                  <span style={{ fontSize: "13px", fontWeight: 700, padding: "2px 8px", borderRadius: "5px", background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.7)" }}>{sig.coin}</span>
+                  <span style={{ ...T.sigCoinTag }}>{sig.coin}</span>
                   <DirBadge direction={sig.direction} />
                   <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.35)", textAlign: "right", width: "46px" }}>
                     {sig.ev_score != null ? `EV ${(sig.ev_score * 100).toFixed(0)}` : ""}
