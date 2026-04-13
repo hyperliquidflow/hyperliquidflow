@@ -26,6 +26,7 @@ interface ScannerStats {
   discovery_source: string | null;
   top_win_rates: Array<{ address: string; win_rate: number; trade_count_30d: number; realized_pnl_30d: number }>;
   scan_pipeline: Array<{ step: string; status: "ok" | "warn" | "error"; detail: string }>;
+  tier_breakdown: Array<{ tier: string; count: number }>;
 }
 
 interface WalletProfile {
