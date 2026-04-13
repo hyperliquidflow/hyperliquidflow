@@ -317,6 +317,23 @@ export function DiscoveryClient({ initialScannerData }: { initialScannerData: Sc
                 </tbody>
               </table>
             </div>
+
+            {scannerData.tier_breakdown && scannerData.tier_breakdown.length > 0 && (
+              <div style={{ ...S.card, marginTop: space.cardGap }}>
+                <div style={S.hdr}>
+                  <span style={S.label}>Wallet Tiers</span>
+                  <span style={S.muted}>by current account equity</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "8px", padding: space.cardBodyPadding }}>
+                  {scannerData.tier_breakdown.map(({ tier, count }) => (
+                    <div key={tier} style={{ textAlign: "center" as const, padding: "12px 8px", background: color.strip, borderRadius: radius.tag, border: `1px solid ${color.tagBg}` }}>
+                      <div style={{ fontSize: "18px", fontWeight: 700, color: color.text, fontVariantNumeric: "tabular-nums" }}>{count}</div>
+                      <div style={{ fontSize: "11px", fontWeight: 600, color: color.textMuted, marginTop: "4px", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>{tier}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
