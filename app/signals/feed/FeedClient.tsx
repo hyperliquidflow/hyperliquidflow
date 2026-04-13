@@ -140,8 +140,14 @@ export function FeedClient({ initialData }: { initialData: CohortCachePayload | 
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" as const }}>
                       <span style={{ fontSize: "13px", fontWeight: 600, color: color.text }}>{meta?.label ?? sig.recipe_id}</span>
                       <span style={{ fontSize: "13px", fontWeight: 700, color: color.text }}>·</span>
-                      <span style={{ fontSize: "13px", fontWeight: 700, color: dirColor }}>{sig.coin}</span>
-                      {sig.direction && <span style={{ fontSize: "11px", fontWeight: 700, color: dirColor, letterSpacing: "0.08em" }}>{sig.direction}</span>}
+                      <span style={{ ...T.sigCoinTag, color: dirColor }}>{sig.coin}</span>
+                      {sig.direction && (
+                        <span style={{ ...T.sigDir,
+                          background: sig.direction === "LONG" ? color.longBg : sig.direction === "SHORT" ? color.shortBg : color.neutralBg,
+                          color: dirColor,
+                          border: `1px solid ${sig.direction === "LONG" ? color.longBorder : sig.direction === "SHORT" ? color.shortBorder : color.neutralBorder}`,
+                        }}>{sig.direction}</span>
+                      )}
                     </div>
                     <div style={{ ...S.muted, marginTop: "3px" }}>
                       {meta?.desc} · wallet <a href={`/wallets/discovery?address=${sig.wallet_id ?? ""}`} style={{ color: "inherit", textDecoration: "underline", textDecorationColor: "rgba(255,255,255,0.25)", textUnderlineOffset: "3px" }}>{truncateAddress(sig.wallet_id ?? "")}</a> · {timeAgo(sig.detected_at)}
