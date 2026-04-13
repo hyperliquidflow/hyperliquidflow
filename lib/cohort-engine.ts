@@ -378,6 +378,7 @@ export async function saveBacktest(
     current_win_streak:  backtest.current_win_streak,
     current_loss_streak: backtest.current_loss_streak,
     max_win_streak:      backtest.max_win_streak,
+    daily_pnls:          backtest.daily_pnls,
   });
 
   if (error) {

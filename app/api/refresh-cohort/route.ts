@@ -24,7 +24,6 @@ import {
   type HlClearinghouseState,
 } from "@/lib/hyperliquid-api-client";
 import {
-  computeBacktest,
   computeCohortScores,
   detectRegime,
   getEquityTier,
@@ -133,11 +132,13 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       (backtestRows ?? []).map((r) => [
         r.wallet_id,
         {
-          win_rate:     r.win_rate     ?? 0,
-          avg_win_usd:  r.avg_win_usd  ?? 0,
-          avg_loss_usd: r.avg_loss_usd ?? 0,
+          win_rate:     r.win_rate          ?? 0,
+          avg_win_usd:  r.avg_win_usd       ?? 0,
+          avg_loss_usd: r.avg_loss_usd      ?? 0,
           win_streak:   r.current_win_streak ?? 0,
-          sharpe_ratio: r.sharpe_ratio ?? 0,
+          sharpe_ratio: r.sharpe_ratio       ?? 0,
+          // 30-element daily PnL array written by the daily scan
+          daily_pnls:   Array.isArray(r.daily_pnls) ? (r.daily_pnls as number[]) : [],
         },
       ])
     );
@@ -150,12 +151,11 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       const state = stateMap.get(wallet.address);
       if (!state) continue;
 
-      // Build daily PnL array from backtest data (stored by daily scan)
-      // For the real-time cron we use the stored backtest; daily fills fetching
-      // happens in GitHub Actions. Here we use overall_score from last snapshot
-      // as a proxy if backtest is missing.
+      // Use the 30-day daily PnL series written by the daily scan.
+      // Falls back to an empty array for wallets not yet scored by the daily scan,
+      // which yields regime_fit-only scoring (sharpe/consistency/drawdown = 0).
       const bt = backtestMap.get(wallet.id);
-      const dailyPnls = bt ? new Array(30).fill(0) : []; // placeholder — daily scan fills this
+      const dailyPnls = bt?.daily_pnls ?? [];
 
       const scores = computeCohortScores(
         dailyPnls,
@@ -195,16 +195,28 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       });
     }
 
-    // ── Step 8: Fetch L2 books for top coins (for EV/slippage estimation) ─────
-    const topCoins = getTopCoins(pairs, 5);
-    const l2Books = new Map<string, Awaited<ReturnType<typeof fetchL2Book>>>();
+    // ── Step 8: Fetch L2 books + candles for top coins ────────────────────────
+    // Top 10 by total cohort notional: covers both L2 book (EV) and candle recipes.
+    const topCoins = getTopCoins(pairs, 10);
+    const l2Books    = new Map<string, Awaited<ReturnType<typeof fetchL2Book>>>();
+    const candles4h  = new Map<string, Awaited<ReturnType<typeof fetchCandleSnapshot>>>();
+
+    const fourHoursAgo = Date.now() - 4 * 60 * 60 * 1000;
     await Promise.allSettled(
       topCoins.map(async (coin) => {
-        const book = await fetchL2Book(coin);
+        const [book, candles] = await Promise.all([
+          fetchL2Book(coin),
+          fetchCandleSnapshot(coin, "5m", fourHoursAgo, Date.now()),
+        ]);
         l2Books.set(coin, book);
-        cycleWeight += 2;
+        candles4h.set(coin, candles);
+        cycleWeight += 4; // 2 per call
       })
     );
+
+    // candles5m reuses the same 5m series fetched above.
+    // Recipe 2 uses it for price-flatness detection (first vs last close).
+    const candles5m = candles4h;
 
     // ── Step 9: Run all 9 signal recipes ──────────────────────────────────────
     const { data: recipePerf } = await supabase
@@ -214,13 +226,13 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       .limit(50);
 
     const recipeWinRates = new Map(
-      (recipePerf ?? []).map((r) => [`${r.recipe_id}`, r.win_rate ?? 0])
+      (recipePerf ?? []).map((r) => [r.recipe_id as string, r.win_rate ?? 0])
     );
 
     const signalEvents = await runSignalLab({
       pairs,
-      candles5m:      new Map(), // populated below for coins with signals
-      candles4h:      new Map(),
+      candles5m,
+      candles4h,
       assetCtxMap,
       allMids,
       backtestMap,

@@ -301,9 +301,9 @@ function recipe4(
       const funding = parseFloat(ctx.funding);
       if (funding < MIN_FUNDING) continue; // funding too low
 
-      // Check historical follow-through for this recipe on this coin
-      const winRateKey = `rotation_carry:${coin}`;
-      const histWinRate = recipeWinRates.get(winRateKey) ?? 0;
+      // Check historical follow-through for this recipe.
+      // recipeWinRates keys are recipe IDs only (e.g. "rotation_carry"), not "recipe:coin".
+      const histWinRate = recipeWinRates.get("rotation_carry") ?? 0;
       if (histWinRate < MIN_HISTORICAL_WINRATE) continue;
 
       events.push({
@@ -678,8 +678,9 @@ export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalEvent
   const enriched = enrichWithEv(allEvents, backtestMap, l2Books);
 
   // Persist to Supabase (skip cohort-level events with empty wallet_id)
+  // wallet_id is a Supabase UUID (36 chars: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
   const toInsert = enriched
-    .filter((e) => e.wallet_id.length === 42) // valid address length check
+    .filter((e) => e.wallet_id.length === 36)
     .map((e) => ({
       wallet_id:   e.wallet_id,
       recipe_id:   e.recipe_id,
@@ -693,7 +694,7 @@ export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalEvent
 
   // Also insert cohort-level events (wallet_id = first active wallet as placeholder)
   const cohortEvents = enriched
-    .filter((e) => !e.wallet_id || e.wallet_id.length !== 42)
+    .filter((e) => e.wallet_id.length !== 36)
     .map((e) => ({
       wallet_id:   pairs[0]?.walletId ?? "",
       recipe_id:   e.recipe_id,
