@@ -54,22 +54,22 @@ Browser (React)
 | Route | Purpose |
 |-------|---------|
 | `/` | Overview — stat cards, live signal feed, wallet leaderboard snapshot |
-| `/brief` | Daily Brief — daily scan summary |
 | `/wallets/discovery` | Wallet discovery stats + inline address lookup |
 | `/wallets/leaderboard` | Full ranked wallet leaderboard |
 | `/wallets/inposition` | Wallets with open positions right now |
 | `/signals/feed` | Live signal event feed |
-| `/signals/divergence` | Contrarian/divergence signals (formerly Imbalance) |
-| `/edge` | Signal recipe performance analytics (formerly Recipes) |
-| `/daily` | Daily scan redirect to /brief |
+| `/signals/divergence` | Contrarian/divergence signals |
+| `/edge` | Signal recipe performance analytics |
+
+Old routes (`/scanner`, `/stalker`, `/contrarian`, `/imbalance`, `/recipes`) redirect to their current equivalents.
 
 ### API Routes (`app/api/`)
 
-- `refresh-cohort` — Vercel Cron endpoint; triggers background scoring + signal detection via Next.js `after()`
+- `refresh-cohort` — Vercel Cron endpoint; scores cohort, runs recipes, writes KV. Calls `pruneUnderperformers` in background via `after()`.
 - `cohort-state` — Client polls this; reads KV, fires background refresh if stale >5 min
 - `contrarian` — Powers the Divergence tab; reads KV, fires background refresh if stale
 - `market-ticker` — Live price/change data for the ticker strip
-- `daily-scan`, `wallet-profile`, `scanner-stats`, `recipe-performance`, `top-markets`, `deep-dive`
+- `wallet-profile`, `scanner-stats`, `recipe-performance`, `top-markets`, `deep-dive`
 
 ### Key Data Separation
 
@@ -79,7 +79,7 @@ Browser (React)
 
 ### Regime Detection
 
-BTC 24h return → BULL (>2%) / BEAR (<-2%) / RANGING. Feeds `regime_fit` factor in scoring.
+BTC 24h return → BULL (>1%) / BEAR (<-1%) / RANGING. Feeds `regime_fit` factor in scoring. Thresholds are defined in `lib/cohort-engine.ts:detectRegime`.
 
 ### Adding Signal Recipes
 
@@ -87,7 +87,7 @@ Add to `lib/signal-lab.ts` following the `(pair: SnapshotPair) => SignalEvent[]`
 
 ### Nav Structure
 
-The nav is defined in `components/nav.tsx` in the `NAV` array. Expandable sections (Wallets, Signals) also need their pixel height registered in `CHILD_HEIGHTS` so the CSS max-height animation works correctly.
+The nav is defined in `components/nav.tsx` in the `NAV` array. Sections (Wallets, Signals) always show their children — no expand/collapse state.
 
 ## UI Work
 

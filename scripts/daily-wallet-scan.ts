@@ -2,7 +2,7 @@
 // Daily wallet discovery and scoring pipeline.
 // Run via: npx tsx scripts/daily-wallet-scan.ts
 //
-// Called by .github/workflows/daily-wallet-scan.yml at 02:00 UTC.
+// Called by .github/workflows/daily-wallet-scan.yml at 00:00 UTC.
 // Does NOT import Next.js or Vercel KV -- writes directly to Supabase.
 //
 // Flow:
@@ -448,6 +448,69 @@ async function saveBacktestRow(
   }
 }
 
+// -- Recipe performance computation -------------------------------------------
+// Queries the last 30 days of signals_history and upserts aggregate stats per
+// recipe into recipe_performance. This is what populates the Edge page and
+// enables Recipe 4's historical win-rate gate.
+//
+// Win-rate proxy: signals with ev_score > 0 are treated as "true positive" —
+// imperfect but self-contained (no extra price fetches required).
+
+async function computeAndSaveRecipePerformance(): Promise<void> {
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: rows, error } = await supabase
+    .from("signals_history")
+    .select("recipe_id, ev_score")
+    .gte("detected_at", since);
+
+  if (error || !rows || rows.length === 0) {
+    console.log("[recipe-perf] no signal history to aggregate, skipping");
+    return;
+  }
+
+  // Group by recipe_id
+  const byRecipe = new Map<string, { evScores: number[]; withScore: number; total: number }>();
+  for (const row of rows) {
+    const id = row.recipe_id as string;
+    if (!byRecipe.has(id)) byRecipe.set(id, { evScores: [], withScore: 0, total: 0 });
+    const entry = byRecipe.get(id)!;
+    entry.total++;
+    if (row.ev_score != null) {
+      entry.evScores.push(row.ev_score as number);
+      if ((row.ev_score as number) > 0) entry.withScore++;
+    }
+  }
+
+  const upsertRows = [...byRecipe.entries()].map(([recipe_id, { evScores, withScore, total }]) => {
+    const avg_ev_score = evScores.length > 0
+      ? evScores.reduce((a, b) => a + b, 0) / evScores.length
+      : null;
+    const true_positive  = withScore;
+    const false_positive = total - withScore;
+    const win_rate       = total > 0 ? withScore / total : 0;
+    return {
+      recipe_id,
+      signal_count:  total,
+      true_positive,
+      false_positive,
+      avg_ev_score,
+      win_rate,
+      measured_at: new Date().toISOString(),
+    };
+  });
+
+  const { error: upsertError } = await supabase
+    .from("recipe_performance")
+    .insert(upsertRows);
+
+  if (upsertError) {
+    console.error("[recipe-perf] insert error:", upsertError.message);
+  } else {
+    console.log(`[recipe-perf] wrote ${upsertRows.length} recipe performance rows`);
+  }
+}
+
 // -- Main ----------------------------------------------------------------------
 
 async function main(): Promise<void> {
@@ -563,6 +626,9 @@ async function main(): Promise<void> {
       }
     }
   }
+
+  // Compute and persist recipe performance metrics from the last 30 days of signals
+  await computeAndSaveRecipePerformance();
 
   summary.duration_ms = Date.now() - startMs;
 

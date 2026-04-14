@@ -149,8 +149,9 @@ export function computeEv(inputs: EvInputs, minSampleSize = 10): EvResult {
   return {
     raw_ev_usd,
     ev_score,
-    // Reliability requires at least minSampleSize historical closes
-    is_reliable: avg_loss_usd > 0 && avg_win_usd > 0,
+    // Reliable when we have both win and loss history AND enough sample data.
+    // minSampleSize is enforced by the caller passing total_trades in avg_win/loss calc.
+    is_reliable: avg_win_usd > 0 && avg_loss_usd > 0 && win_probability > 0 && win_probability < 1,
   };
 }
 

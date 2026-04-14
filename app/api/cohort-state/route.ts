@@ -87,11 +87,18 @@ export async function GET(): Promise<NextResponse> {
       .order("detected_at", { ascending: false })
       .limit(20);
 
+    // Count total active wallets for accurate display (fallback path queries up to 200)
+    const { count: totalActiveCount } = await supabase
+      .from("wallets")
+      .select("id", { count: "exact", head: true })
+      .eq("is_active", true);
+
     const fallbackPayload: CohortCachePayload = {
-      updated_at:    new Date().toISOString(),
-      wallet_count:  wallets?.length ?? 0,
-      regime:        "RANGING",
-      btc_return_24h: 0,
+      updated_at:           new Date().toISOString(),
+      wallet_count:         wallets?.length ?? 0,
+      total_active_wallets: totalActiveCount ?? wallets?.length ?? 0,
+      regime:               "RANGING",
+      btc_return_24h:       0,
       top_wallets:   (wallets ?? []).map((w) => {
         const snap = latestByWallet.get(w.id) as Record<string, number | null> | undefined;
         return {

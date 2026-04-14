@@ -303,7 +303,9 @@ function recipe4(
 
       // Check historical follow-through for this recipe.
       // recipeWinRates keys are recipe IDs only (e.g. "rotation_carry"), not "recipe:coin".
-      const histWinRate = recipeWinRates.get("rotation_carry") ?? 0;
+      // Default to 0.65 when no history exists yet (bootstrap: fire on first occurrence,
+      // accumulate real data in recipe_performance via the daily scan).
+      const histWinRate = recipeWinRates.get("rotation_carry") ?? 0.65;
       if (histWinRate < MIN_HISTORICAL_WINRATE) continue;
 
       events.push({
@@ -672,7 +674,15 @@ export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalEvent
   const r8 = recipe8(pairs, preValidation);
   const r9 = recipe9(pairs, regime);
 
-  const allEvents = [...preValidation, ...r8, ...r9];
+  // Exclude original signals that were re-emitted as whale_validated to avoid duplicate
+  // feed entries. The whale_validated event preserves original_recipe in its metadata.
+  const validatedKeys = new Set(
+    r8.map((s) => `${s.wallet_id}:${s.coin}:${s.direction ?? ""}`)
+  );
+  const dedupedPre = preValidation.filter(
+    (s) => !validatedKeys.has(`${s.wallet_id}:${s.coin}:${s.direction ?? ""}`)
+  );
+  const allEvents = [...dedupedPre, ...r8, ...r9];
 
   // Enrich with EV scores
   const enriched = enrichWithEv(allEvents, backtestMap, l2Books);

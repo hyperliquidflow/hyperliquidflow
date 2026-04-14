@@ -169,22 +169,6 @@ export interface HlFundingEntry {
   time: number;
 }
 
-/**
- * Leaderboard entry — UNVERIFIED shape.
- * The exact fields depend on the actual API response (logged on first call).
- */
-export interface HlLeaderboardEntry {
-  /** The wallet address — field name is detected at runtime */
-  address: string;
-  /** Rank on the leaderboard */
-  rank?: number;
-  /** Display name if available */
-  displayName?: string | null;
-  /** All-time realized PnL if available */
-  pnl?: string | null;
-  /** Account value if available */
-  accountValue?: string | null;
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Core fetch wrapper with retry/backoff
@@ -424,85 +408,9 @@ export async function fetchFundingHistory(
   return hlPost<HlFundingEntry[]>({ type: "fundingHistory", coin, startTime });
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Leaderboard — UNVERIFIED endpoint
-// ─────────────────────────────────────────────────────────────────────────────
-
-/** Known candidate field names for the wallet address in a leaderboard entry. */
-const ADDRESS_FIELD_CANDIDATES = ["ethAddress", "address", "user", "wallet", "account"];
-
-/**
- * Attempt to fetch wallet addresses from the Hyperliquid leaderboard API.
- *
- * UNVERIFIED: The exact request body and response shape are not documented
- * in the official Hyperliquid API spec as of the prompt writing date.
- * This function:
- *   1. Logs the raw response on first call so you can inspect the actual shape.
- *   2. Auto-detects the address field name from known candidates.
- *   3. Throws a descriptive LeaderboardShapeError if the shape is unrecognised.
- *
- * @returns Array of valid 0x addresses extracted from the leaderboard
- * @throws LeaderboardShapeError if the response doesn't contain usable addresses
- */
-export async function fetchLeaderboardAddresses(): Promise<string[]> {
-  // UNVERIFIED: request body — try the most likely variant first
-  const raw = await hlPost<unknown>({ type: "leaderboard" }, 30_000);
-
-  // Always log the shape on first call so the operator can verify
-  console.log(
-    "[hl-api] leaderboard raw response (first 800 chars):",
-    JSON.stringify(raw).slice(0, 800)
-  );
-
-  if (!Array.isArray(raw)) {
-    throw new LeaderboardShapeError(
-      `expected Array, got ${typeof raw}`,
-      JSON.stringify(raw).slice(0, 300)
-    );
-  }
-
-  if (raw.length === 0) {
-    throw new LeaderboardShapeError("response array is empty", "");
-  }
-
-  const sample = raw[0] as Record<string, unknown>;
-
-  // Auto-detect address field
-  const addressField = ADDRESS_FIELD_CANDIDATES.find(
-    (key) =>
-      typeof sample[key] === "string" &&
-      /^0x[a-fA-F0-9]{40}$/.test(sample[key] as string)
-  );
-
-  if (!addressField) {
-    throw new LeaderboardShapeError(
-      `could not find address field in first entry. Keys: ${Object.keys(sample).join(", ")}`,
-      JSON.stringify(sample).slice(0, 400)
-    );
-  }
-
-  console.log(`[hl-api] leaderboard address field detected: "${addressField}"`);
-
-  const addresses = (raw as Record<string, unknown>[])
-    .map((entry) => entry[addressField] as string)
-    .filter((addr) => /^0x[a-fA-F0-9]{40}$/.test(addr));
-
-  console.log(`[hl-api] leaderboard extracted ${addresses.length} valid addresses`);
-
-  return addresses;
-}
-
-export class LeaderboardShapeError extends Error {
-  constructor(reason: string, rawSample: string) {
-    super(
-      `LeaderboardShapeError: ${reason}. ` +
-        `Raw sample: ${rawSample}. ` +
-        `Update ADDRESS_FIELD_CANDIDATES in hyperliquid-api-client.ts ` +
-        `or switch to the scrape fallback.`
-    );
-    this.name = "LeaderboardShapeError";
-  }
-}
+// Note: leaderboard discovery is handled by scripts/daily-wallet-scan.ts which
+// fetches from stats-data.hyperliquid.xyz/Mainnet/leaderboard via GET.
+// A { type: "leaderboard" } POST to the info API is not a valid endpoint.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Convenience helpers

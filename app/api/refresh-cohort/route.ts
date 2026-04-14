@@ -6,7 +6,7 @@
 // Execution budget: must complete within Vercel free-tier 10s timeout.
 // Strategy: process max 100 active wallets per cycle; GitHub Actions handles full scoring.
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { kv } from "@vercel/kv";
 import { createClient } from "@supabase/supabase-js";
 import {
@@ -29,6 +29,7 @@ import {
   getEquityTier,
   saveCohortSnapshot,
   fetchActiveWallets,
+  pruneUnderperformers,
 } from "@/lib/cohort-engine";
 import { runSignalLab, type SnapshotPair, type SnapshotRow } from "@/lib/signal-lab";
 
@@ -250,9 +251,10 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
 
     // ── Step 11: Write cohort payload to Vercel KV ────────────────────────────
     const payload: CohortCachePayload = {
-      updated_at:    new Date().toISOString(),
-      wallet_count:  cohortSummary.length,
-      regime:        regimeResult.regime,
+      updated_at:           new Date().toISOString(),
+      wallet_count:         cohortSummary.length,
+      total_active_wallets: allActive.length,
+      regime:               regimeResult.regime,
       btc_return_24h: regimeResult.btc_return_24h,
       top_wallets:   cohortSummary
         .sort((a, b) => b.overall_score - a.overall_score)
@@ -275,22 +277,31 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
 
     console.log(
       JSON.stringify({
-        event:         "refresh_cycle_complete",
-        wallet_count:  cohortSummary.length,
-        signal_count:  signalEvents.length,
-        cycle_weight:  cycleWeight,
-        duration_ms:   durationMs,
-        regime:        regimeResult.regime,
+        event:                "refresh_cycle_complete",
+        wallet_count:         cohortSummary.length,
+        total_active_wallets: allActive.length,
+        signal_count:         signalEvents.length,
+        cycle_weight:         cycleWeight,
+        duration_ms:          durationMs,
+        regime:               regimeResult.regime,
       })
     );
 
+    // Prune underperformers in the background so it doesn't eat into the 10s cron budget
+    after(
+      pruneUnderperformers().catch((err) =>
+        console.error("[refresh-cohort] pruneUnderperformers error:", err)
+      )
+    );
+
     return NextResponse.json({
-      ok:            true,
-      cycle_weight:  cycleWeight,
-      wallet_count:  cohortSummary.length,
-      signal_count:  signalEvents.length,
-      duration_ms:   durationMs,
-      regime:        regimeResult.regime,
+      ok:                   true,
+      cycle_weight:         cycleWeight,
+      wallet_count:         cohortSummary.length,
+      total_active_wallets: allActive.length,
+      signal_count:         signalEvents.length,
+      duration_ms:          durationMs,
+      regime:               regimeResult.regime,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -371,11 +382,13 @@ interface CohortWalletSummary {
 }
 
 export interface CohortCachePayload {
-  updated_at:     string;
-  wallet_count:   number;
-  regime:         "BULL" | "BEAR" | "RANGING";
-  btc_return_24h: number;
-  top_wallets:    CohortWalletSummary[];
+  updated_at:            string;
+  wallet_count:          number;
+  // Total active wallets in DB. May exceed wallet_count (cron only processes top 100).
+  total_active_wallets:  number;
+  regime:                "BULL" | "BEAR" | "RANGING";
+  btc_return_24h:        number;
+  top_wallets:           CohortWalletSummary[];
   recent_signals: Array<{
     recipe_id:   string;
     coin:        string;

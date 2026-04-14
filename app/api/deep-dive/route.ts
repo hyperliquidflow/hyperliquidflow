@@ -3,13 +3,17 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { kv } from "@vercel/kv";
+import { createClient } from "@supabase/supabase-js";
 import {
   fetchCandleSnapshot,
   fetchMetaAndAssetCtxs,
   fetchFundingHistory,
   buildAssetCtxMap,
 } from "@/lib/hyperliquid-api-client";
+import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from "@/lib/env";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const coin     = (req.nextUrl.searchParams.get("coin") ?? "BTC").toUpperCase();
@@ -42,22 +46,51 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     const assetCtxMap = buildAssetCtxMap(metaAndCtxs);
     const ctx = assetCtxMap.get(coin) ?? null;
 
-    // Get cohort exposure from KV
-    let cohortExposure = null;
-    const cohortRaw = await kv.get<string>("cohort:active");
-    if (cohortRaw) {
-      const cohort: CohortCachePayload =
-        typeof cohortRaw === "string" ? JSON.parse(cohortRaw) : cohortRaw;
-      // Sum net notional for this coin from recent signals
-      const coinSignals = cohort.recent_signals.filter((s) => s.coin === coin);
-      if (coinSignals.length > 0) {
-        const lastSignal = coinSignals[0];
-        cohortExposure = {
-          net_notional:  lastSignal.metadata?.net_notional as number ?? 0,
-          wallet_count:  lastSignal.metadata?.wallet_count  as number ?? 0,
-          direction:     lastSignal.direction ?? "FLAT",
-        };
+    // Compute real cohort exposure for this coin from the latest Supabase snapshots.
+    // This reads actual position data, not signal metadata (which is unreliable for this).
+    let cohortExposure: { net_notional: number; wallet_count: number; direction: string } | null = null;
+    try {
+      const cohortRaw = await kv.get<string>("cohort:active");
+      if (cohortRaw) {
+        const cohort: CohortCachePayload =
+          typeof cohortRaw === "string" ? JSON.parse(cohortRaw) : cohortRaw;
+        const walletIds = cohort.top_wallets.map((w) => w.wallet_id);
+
+        if (walletIds.length > 0) {
+          const { data: snaps } = await supabase
+            .from("cohort_snapshots")
+            .select("wallet_id, positions")
+            .in("wallet_id", walletIds)
+            .order("snapshot_time", { ascending: false })
+            .limit(walletIds.length * 2);
+
+          const seenWallets = new Set<string>();
+          let netNotional = 0;
+          let walletCount = 0;
+
+          for (const snap of snaps ?? []) {
+            if (seenWallets.has(snap.wallet_id)) continue;
+            seenWallets.add(snap.wallet_id);
+            const positions = snap.positions as Array<{ position: { coin: string; szi: string; positionValue: string } }> ?? [];
+            const pos = positions.find((p) => p.position.coin === coin);
+            if (!pos) continue;
+            const szi = parseFloat(pos.position.szi ?? "0");
+            const val = parseFloat(pos.position.positionValue ?? "0");
+            netNotional += szi > 0 ? val : -val;
+            walletCount++;
+          }
+
+          if (walletCount > 0) {
+            cohortExposure = {
+              net_notional: netNotional,
+              wallet_count: walletCount,
+              direction:    netNotional > 0 ? "LONG" : netNotional < 0 ? "SHORT" : "FLAT",
+            };
+          }
+        }
       }
+    } catch {
+      // Non-fatal: cohort exposure is supplemental data
     }
 
     const result = {

@@ -10,6 +10,7 @@ import {
 } from "@/lib/hyperliquid-api-client";
 import { computeBacktest } from "@/lib/cohort-engine";
 import { isValidAddress } from "@/lib/utils";
+import { color } from "@/lib/design-tokens";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const address = req.nextUrl.searchParams.get("address") ?? "";
@@ -30,22 +31,22 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     // Verdict logic
     let verdict = "Inconclusive";
-    let verdict_color = "#9ca3af";
+    let verdict_color: string = color.textMuted;
     if (bt.total_trades < 10) {
-      verdict = "Insufficient Data (<10 trades)";
-      verdict_color = "#9ca3af";
+      verdict = "Insufficient Data (fewer than 10 trades)";
+      verdict_color = color.textMuted;
     } else if (bt.win_rate >= 0.65 && bt.profit_factor >= 2) {
       verdict = "Elite Trader, Strong Edge Detected";
-      verdict_color = "#6aaa7a";
+      verdict_color = color.green;
     } else if (bt.win_rate >= 0.52 && bt.total_pnl_usd > 0) {
       verdict = "Smart Money, Consistent Performer";
-      verdict_color = "#60a5fa";
+      verdict_color = color.accent;
     } else if (bt.total_pnl_usd > 0 && bt.win_rate < 0.52) {
       verdict = "Risky but Profitable, High Avg Win";
-      verdict_color = "#f59e0b";
+      verdict_color = color.amber;
     } else {
       verdict = "Underperformer, Exercise Caution";
-      verdict_color = "#b06868";
+      verdict_color = color.red;
     }
 
     const closing = closingFills(fills);

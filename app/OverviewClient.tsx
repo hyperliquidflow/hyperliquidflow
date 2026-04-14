@@ -273,7 +273,7 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
       <div style={{ ...S.page, paddingTop: "20px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "16px" }}>
           {[
-            { label: "Smart Money",    value: `${data.wallet_count}`, sub: "wallets tracked" },
+            { label: "Smart Money",    value: `${data.total_active_wallets ?? data.wallet_count}`, sub: "wallets tracked" },
             { label: "Book Value",     value: formatUsd(totalAv),      sub: "across Smart Money" },
             { label: "Unrealised PnL", value: formatUsd(totalPnl), clr: totalPnl >= 0 ? color.green : color.red, sub: "open positions" },
             { label: "Avg Score",      value: avgScore.toFixed(2),     sub: "out of 1.00" },

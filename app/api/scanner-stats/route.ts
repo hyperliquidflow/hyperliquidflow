@@ -17,7 +17,8 @@ export async function GET(): Promise<NextResponse> {
       supabase.from("cohort_snapshots")
         .select("wallet_id, equity_tier, snapshot_time")
         .not("equity_tier", "is", null)
-        .order("snapshot_time", { ascending: false }),
+        .order("snapshot_time", { ascending: false })
+        .limit(2000),
     ]);
 
     const wallets = walletStats.data ?? [];

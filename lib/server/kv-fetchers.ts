@@ -85,7 +85,8 @@ export async function fetchScannerStats(): Promise<ScannerStats | null> {
       supabase.from("cohort_snapshots")
         .select("wallet_id, equity_tier, snapshot_time")
         .not("equity_tier", "is", null)
-        .order("snapshot_time", { ascending: false }),
+        .order("snapshot_time", { ascending: false })
+        .limit(2000),
     ]);
     const wallets = walletStats.data ?? [];
     const active   = wallets.filter((w) => w.is_active);
