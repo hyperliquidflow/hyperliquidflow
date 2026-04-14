@@ -20,6 +20,7 @@ const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const HYPERLIQUID_API_URL =
   process.env.HYPERLIQUID_API_URL ?? "https://api.hyperliquid.xyz/info";
+const HYPURRSCAN_API_URL = process.env.HYPURRSCAN_API_URL ?? "https://api.hypurrscan.io";
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error(
@@ -73,6 +74,53 @@ class Semaphore {
 }
 
 const sem = new Semaphore(CONCURRENCY);
+
+// ── Hypurrscan entity classification (inline — no lib/ import in scripts) ──
+
+type EntityType =
+  | "cex" | "deployer" | "protocol" | "gambling" | "fund" | "known" | "unknown";
+
+function classifyEntityLabel(label: string): EntityType {
+  const l = label.toLowerCase();
+  if (/bybit|binance|kucoin|gate\.io|okx|coinbase|kraken|bitfinex|huobi|mexc|bitget|deribit/.test(l))
+    return "cex";
+  if (/deployer|dev wallet|\bdev\b/.test(l))
+    return "deployer";
+  if (/burn|liquidat|hip-2|airdrop/.test(l))
+    return "protocol";
+  if (/gambl/.test(l))
+    return "gambling";
+  if (/fund|treasury|capital|trading firm|research/.test(l))
+    return "fund";
+  return "known";
+}
+
+function resolveEntityType(
+  address: string,
+  aliases: Record<string, string>
+): { entity_type: EntityType; entity_label: string | null } {
+  const label = aliases[address.toLowerCase()] ?? aliases[address];
+  if (!label) return { entity_type: "unknown", entity_label: null };
+  return { entity_type: classifyEntityLabel(label), entity_label: label };
+}
+
+async function fetchHypurrscanAliases(): Promise<Record<string, string>> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
+  try {
+    const res = await fetch(`${HYPURRSCAN_API_URL}/globalAliases`, {
+      headers: { Accept: "application/json" },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+    return res.json() as Promise<Record<string, string>>;
+  } catch (err) {
+    clearTimeout(timer);
+    console.warn("[identity] fetchHypurrscanAliases failed, skipping enrichment:", err);
+    return {};
+  }
+}
 
 // -- HTTP helper ---------------------------------------------------------------
 
@@ -715,6 +763,52 @@ async function main(): Promise<void> {
 
   console.log("[scan] Complete:", JSON.stringify(summary, null, 2));
   await fs.writeFile("scan-summary.json", JSON.stringify(summary, null, 2));
+
+  // ── Phase 6: Identity enrichment via Hypurrscan ───────────────────────────
+  console.log("\n[Phase 6] Fetching Hypurrscan global aliases...");
+  const aliases = await fetchHypurrscanAliases();
+  const aliasCount = Object.keys(aliases).length;
+  console.log(`[identity] Loaded ${aliasCount} aliases from Hypurrscan.`);
+
+  if (aliasCount > 0) {
+    const { data: allWallets, error: walletFetchErr } = await supabase
+      .from("wallets")
+      .select("id, address, is_active");
+
+    if (walletFetchErr) {
+      console.error("[identity] Could not fetch wallets:", walletFetchErr.message);
+    } else if (allWallets && allWallets.length > 0) {
+      let labeled = 0;
+      let deactivated = 0;
+
+      for (const wallet of allWallets) {
+        const { entity_type, entity_label } = resolveEntityType(wallet.address, aliases);
+        const shouldDeactivate =
+          wallet.is_active && (entity_type === "cex" || entity_type === "deployer");
+
+        const updatePayload: Record<string, unknown> = { entity_type, entity_label };
+        if (shouldDeactivate) {
+          updatePayload.is_active = false;
+          deactivated++;
+        }
+
+        const { error: updateErr } = await supabase
+          .from("wallets")
+          .update(updatePayload)
+          .eq("id", wallet.id);
+
+        if (updateErr) {
+          console.warn(`[identity] update failed for ${wallet.address}: ${updateErr.message}`);
+        } else if (entity_type !== "unknown") {
+          labeled++;
+        }
+      }
+
+      console.log(
+        `[identity] Labeled: ${labeled} wallets. Deactivated (CEX/deployer): ${deactivated} wallets.`
+      );
+    }
+  }
 }
 
 main().catch((err) => {
