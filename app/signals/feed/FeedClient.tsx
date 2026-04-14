@@ -150,7 +150,13 @@ export function FeedClient({ initialData }: { initialData: CohortCachePayload | 
                       )}
                     </div>
                     <div style={{ ...S.muted, marginTop: "3px" }}>
-                      {meta?.desc} · wallet <a href={`/wallets/discovery?address=${sig.wallet_id ?? ""}`} style={{ color: "inherit", textDecoration: "underline", textDecorationColor: "rgba(255,255,255,0.25)", textUnderlineOffset: "3px" }}>{truncateAddress(sig.wallet_id ?? "")}</a> · {timeAgo(sig.detected_at)}
+                      {meta?.desc} · {
+                        sig.metadata?.wallet_count > 1
+                          ? <span>{sig.metadata.wallet_count} smart money wallets</span>
+                          : sig.wallet_id
+                            ? <a href={`/wallets/discovery?address=${sig.wallet_id}`} style={{ color: "inherit", textDecoration: "underline", textDecorationColor: "rgba(255,255,255,0.25)", textUnderlineOffset: "3px" }}>{truncateAddress(sig.wallet_id)}</a>
+                            : <span>cohort signal</span>
+                      } · {timeAgo(sig.detected_at)}
                     </div>
                     {typeof sig.metadata?.description === "string" && (
                       <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.58)", marginTop: "4px" }}>{sig.metadata.description}</div>

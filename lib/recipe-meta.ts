@@ -4,8 +4,8 @@
 
 export const RECIPE_META: Record<string, { label: string; desc: string }> = {
   momentum_stack:       { label: "Whale Convergence",      desc: "8+ wallets add $500K+ same direction in under 5 min" },
-  divergence_squeeze:   { label: "Silent Loading",          desc: "Exposure rising, price flat, liq buffer below 15%" },
-  accumulation_reentry: { label: "Dip Conviction",          desc: "High-score wallets re-enter after 8%+ drawdown in 4h" },
+  divergence_squeeze:   { label: "Silent Loading",          desc: "2+ smart money wallets loading the same coin while price flat and margin thin" },
+  accumulation_reentry: { label: "Dip Conviction",          desc: "High-score wallet re-enters after coin drops past its volatility range from 4h high" },
   rotation_carry:       { label: "Funded Edge",             desc: "New position in positive-funding perp with 60%+ hist win rate" },
   liq_rebound:          { label: "Liquidation Flush",       desc: "Smart Money exposure drops sharply, possible cascade (approx.)" },
   streak_continuation:  { label: "Hot Streak",              desc: "5+ trade win streak with Sharpe proxy above 0.6" },
