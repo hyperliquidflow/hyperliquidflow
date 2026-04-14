@@ -16,4 +16,6 @@ export const RECIPE_META: Record<string, { label: string; desc: string }> = {
   concentration_risk:   { label: "Crowded Coin",            desc: "60%+ of cohort notional in one coin" },
   wallet_churn:         { label: "Coordinated Exit",        desc: "3+ wallets reducing same position, $500K+ combined" },
   funding_trend:        { label: "Funding Surge",           desc: "Funding rate rising 3+ cycles, longs overextended" },
+  bridge_inflow:        { label: "Capital Inflow",         desc: "Tracked whale bridged $100K+ into Hyperliquid" },
+  twap_accumulation:    { label: "Whale TWAP Active",       desc: "Tracked whale running an active TWAP order" },
 };
