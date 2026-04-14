@@ -86,21 +86,22 @@ function sign(szi: string): "LONG" | "SHORT" | "FLAT" {
 // ─────────────────────────────────────────────────────────────────────────────
 // Recipe 1 — High-Conviction Momentum Stack
 // ─────────────────────────────────────────────────────────────────────────────
-// ≥8 wallets add >$500k net notional in the same direction within <5 min.
+// ≥3 wallets adding in the same direction whose COMBINED notional delta
+// exceeds $500K within the snapshot window. Previously used a per-wallet
+// $500K threshold which was unreachable for most cohort account sizes.
 
 function recipe1(pairs: SnapshotPair[]): SignalEvent[] {
-  const WALLET_THRESHOLD = 8;
-  const NOTIONAL_THRESHOLD = 500_000;
-  const WINDOW_MS = 5 * 60 * 1000;
+  const WALLET_THRESHOLD    = 3;
+  const COMBINED_NOTIONAL   = 500_000;
+  const WINDOW_MS           = 5 * 60 * 1000;
 
-  const now = Date.now();
-  // Coin → { LONG: [], SHORT: [] }
-  const buckets = new Map<string, { LONG: string[]; SHORT: string[] }>();
+  // Coin → direction → { walletIds, totalDelta }
+  const buckets = new Map<string, { LONG: { ids: string[]; delta: number }; SHORT: { ids: string[]; delta: number } }>();
 
   for (const { walletId, curr, prev } of pairs) {
     if (!prev) continue;
     const timeDiff = new Date(curr.snapshot_time).getTime() - new Date(prev.snapshot_time).getTime();
-    if (timeDiff > WINDOW_MS) continue; // snapshots too far apart
+    if (timeDiff > WINDOW_MS) continue;
 
     const currPos = posMap(curr);
     const prevPos = posMap(prev);
@@ -109,34 +110,38 @@ function recipe1(pairs: SnapshotPair[]): SignalEvent[] {
     for (const coin of allCoins) {
       const cPos = currPos.get(coin);
       const pPos = prevPos.get(coin);
-      const currVal = cPos ? parseFloat(cPos.positionValue) : 0;
-      const prevVal = pPos ? parseFloat(pPos.positionValue) : 0;
-      const delta = Math.abs(currVal) - Math.abs(prevVal);
-      if (Math.abs(delta) < NOTIONAL_THRESHOLD) continue;
+      const currVal = cPos ? Math.abs(parseFloat(cPos.positionValue)) : 0;
+      const prevVal = pPos ? Math.abs(parseFloat(pPos.positionValue)) : 0;
+      const delta = currVal - prevVal;
+      if (delta <= 0) continue; // only count increases
 
       const direction = cPos ? sign(cPos.szi) : null;
       if (!direction || direction === "FLAT") continue;
 
-      if (!buckets.has(coin)) buckets.set(coin, { LONG: [], SHORT: [] });
-      buckets.get(coin)![direction].push(walletId);
+      if (!buckets.has(coin)) buckets.set(coin, { LONG: { ids: [], delta: 0 }, SHORT: { ids: [], delta: 0 } });
+      const side = buckets.get(coin)![direction];
+      side.ids.push(walletId);
+      side.delta += delta;
     }
   }
 
   const events: SignalEvent[] = [];
   for (const [coin, sides] of buckets) {
     for (const direction of ["LONG", "SHORT"] as const) {
-      if (sides[direction].length >= WALLET_THRESHOLD) {
+      const { ids, delta } = sides[direction];
+      if (ids.length >= WALLET_THRESHOLD && delta >= COMBINED_NOTIONAL) {
         events.push({
-          wallet_id:   sides[direction][0],
+          wallet_id:   ids[0],
           recipe_id:   "momentum_stack",
           coin,
           signal_type: "ENTRY",
           direction,
           ev_score:    null,
           metadata: {
-            wallet_count:  sides[direction].length,
-            wallet_ids:    sides[direction],
-            description:   `${sides[direction].length} wallets added >$500K ${direction} on ${coin} within 5 min`,
+            wallet_count:    ids.length,
+            wallet_ids:      ids,
+            combined_delta:  delta,
+            description: `${ids.length} wallets added combined $${(delta / 1e3).toFixed(0)}K ${direction} on ${coin}`,
           },
         });
       }

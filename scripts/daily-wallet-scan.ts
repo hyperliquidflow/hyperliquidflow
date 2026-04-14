@@ -354,7 +354,7 @@ async function scoreWallet(address: string): Promise<ScoringResult> {
     }
   }
 
-  const qualifies = win_rate >= WIN_RATE_THRESHOLD && trade_count_30d >= MIN_TRADES_30D;
+  const qualifies = win_rate >= WIN_RATE_THRESHOLD && trade_count_30d >= MIN_TRADES_30D && realized_pnl_30d > 0;
 
   return {
     address,

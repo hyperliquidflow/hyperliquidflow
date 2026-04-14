@@ -463,7 +463,8 @@ export async function pruneUnderperformers(
   const { data: snapshots, error } = await supabase
     .from("cohort_snapshots")
     .select("wallet_id, overall_score, snapshot_time")
-    .order("snapshot_time", { ascending: false });
+    .order("snapshot_time", { ascending: false })
+    .limit(2000);
 
   if (error || !snapshots) return;
 
