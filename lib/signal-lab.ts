@@ -154,21 +154,32 @@ function recipe1(pairs: SnapshotPair[]): SignalEvent[] {
 // ─────────────────────────────────────────────────────────────────────────────
 // Recipe 2 — Divergence Squeeze
 // ─────────────────────────────────────────────────────────────────────────────
-// Net exposure rising while price flat (last 30 min) + liq buffer <10%.
-// Guards: min $25K notional delta, min wallet score 0.55, 20-min KV cooldown
-// per wallet+coin to prevent repeat fires during prolonged sideways periods.
+// Cohort-level: 2+ qualifying wallets loading the same coin while price is flat
+// (last 30 min) and each is running thin margin (<10% liq buffer).
+// Emits one signal per coin, not one per wallet. 20-min KV cooldown per coin.
 
 async function recipe2(
   pairs: SnapshotPair[],
   candles5m: Map<string, HlCandle[]>   // coin -> recent 5m candles
 ): Promise<SignalEvent[]> {
-  const LIQ_BUFFER_THRESHOLD = 0.10;   // tightened from 0.15; only genuinely thin margin
-  const PRICE_FLAT_PCT       = 0.005;  // price moved < 0.5% -> "flat"
-  const MIN_NOTIONAL_DELTA   = 25_000; // ignore noise adds below $25K
-  const MIN_WALLET_SCORE     = 0.55;
-  const PRICE_FLAT_CANDLES   = 6;      // 30-min window (6 x 5m), not the full 4h
-  const COOLDOWN_SEC         = 1200;   // 20 min; prevents repeat fires on same wallet+coin
-  const events: SignalEvent[] = [];
+  const LIQ_BUFFER_THRESHOLD = 0.10;
+  const PRICE_FLAT_PCT       = 0.005;  // <0.5% move in last 30 min
+  const MIN_NOTIONAL_DELTA   = 25_000;
+  const MIN_WALLET_SCORE     = 0.60;
+  const PRICE_FLAT_CANDLES   = 6;      // 6 x 5m = 30 min
+  const MIN_WALLETS          = 2;      // require coordinated loading
+  const COOLDOWN_SEC         = 1200;   // 20-min cooldown keyed per coin
+
+  // Pass 1: collect wallets qualifying per coin
+  type QualifiedWallet = {
+    walletId: string;
+    notionalDelta: number;
+    liqBuffer: number;
+    score: number;
+    direction: "LONG" | "SHORT" | null;
+    priceChangePct: number;
+  };
+  const coinBuckets = new Map<string, QualifiedWallet[]>();
 
   for (const { walletId, curr, prev, overallScore } of pairs) {
     if (!prev) continue;
@@ -178,7 +189,6 @@ async function recipe2(
     const notionalDelta = curr.total_notional - prev.total_notional;
     if (notionalDelta < MIN_NOTIONAL_DELTA) continue;
 
-    // Check price flatness for the wallet's largest position coin
     const largestPos = [...posMap(curr).values()].sort(
       (a, b) => parseFloat(b.positionValue) - parseFloat(a.positionValue)
     )[0];
@@ -187,35 +197,64 @@ async function recipe2(
     const coinCandles = candles5m.get(largestPos.coin) ?? [];
     if (coinCandles.length < 2) continue;
 
-    // Use only the most recent 30 min of candles. Being flat over 4h is just a
-    // sideways day; being flat for 30 min while actively adding is the setup.
     const recentCandles = coinCandles.slice(-PRICE_FLAT_CANDLES);
-    const firstClose = parseFloat(recentCandles[0].c);
-    const lastClose  = parseFloat(recentCandles[recentCandles.length - 1].c);
-    const priceChange = firstClose > 0 ? Math.abs(lastClose - firstClose) / firstClose : 1;
+    const firstClose    = parseFloat(recentCandles[0].c);
+    const lastClose     = parseFloat(recentCandles[recentCandles.length - 1].c);
+    const priceChange   = firstClose > 0 ? Math.abs(lastClose - firstClose) / firstClose : 1;
+    if (priceChange >= PRICE_FLAT_PCT) continue;
 
-    if (priceChange >= PRICE_FLAT_PCT) continue; // price moved, not a squeeze setup
+    const coin = largestPos.coin;
+    const dir  = sign(largestPos.szi) === "FLAT" ? null : sign(largestPos.szi) as "LONG" | "SHORT";
+    const bucket = coinBuckets.get(coin) ?? [];
+    bucket.push({
+      walletId,
+      notionalDelta,
+      liqBuffer: curr.liq_buffer_pct ?? 0,
+      score: overallScore,
+      direction: dir,
+      priceChangePct: priceChange,
+    });
+    coinBuckets.set(coin, bucket);
+  }
 
-    // Cooldown: skip if this wallet+coin fired within the last 20 min
-    const cooldownKey = `r2:fired:${walletId}:${largestPos.coin}`;
+  // Pass 2: emit one signal per coin that has enough qualifying wallets
+  const events: SignalEvent[] = [];
+
+  for (const [coin, wallets] of coinBuckets) {
+    if (wallets.length < MIN_WALLETS) continue;
+
+    const cooldownKey  = `r2:fired:${coin}`;
     const alreadyFired = await kv.get(cooldownKey);
     if (alreadyFired) continue;
 
     kv.set(cooldownKey, 1, { ex: COOLDOWN_SEC }).catch(() => {});
 
+    const totalDelta   = wallets.reduce((s, w) => s + w.notionalDelta, 0);
+    const avgLiqBuf    = wallets.reduce((s, w) => s + w.liqBuffer, 0) / wallets.length;
+    const priceChg     = wallets[0].priceChangePct;
+    // Direction: majority vote; null if split
+    const longs  = wallets.filter((w) => w.direction === "LONG").length;
+    const shorts = wallets.filter((w) => w.direction === "SHORT").length;
+    const direction: "LONG" | "SHORT" | null =
+      longs > shorts ? "LONG" : shorts > longs ? "SHORT" : null;
+
+    // Use the highest-scoring wallet as the placeholder wallet_id
+    const anchor = wallets.sort((a, b) => b.score - a.score)[0];
+
     events.push({
-      wallet_id:   walletId,
+      wallet_id:   anchor.walletId,
       recipe_id:   "divergence_squeeze",
-      coin:        largestPos.coin,
+      coin,
       signal_type: "ALERT",
-      direction:   sign(largestPos.szi) === "FLAT" ? null : sign(largestPos.szi),
+      direction,
       ev_score:    null,
       metadata: {
-        liq_buffer_pct:   curr.liq_buffer_pct,
-        notional_delta:   notionalDelta,
-        price_change_pct: priceChange,
-        wallet_score:     overallScore,
-        description: `Exposure rising +$${(notionalDelta / 1e3).toFixed(0)}K while ${largestPos.coin} flat last 30m (${(priceChange * 100).toFixed(2)}%). Liq buffer ${((curr.liq_buffer_pct ?? 0) * 100).toFixed(1)}%`,
+        wallet_count:      wallets.length,
+        total_delta:       totalDelta,
+        avg_liq_buffer:    avgLiqBuf,
+        price_change_pct:  priceChg,
+        wallet_ids:        wallets.map((w) => w.walletId),
+        description: `${wallets.length} wallets loading ${coin} +$${(totalDelta / 1e3).toFixed(0)}K combined while flat last 30m (${(priceChg * 100).toFixed(2)}%). Avg liq buffer ${(avgLiqBuf * 100).toFixed(1)}%`,
       },
     });
   }

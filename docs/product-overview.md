@@ -100,7 +100,7 @@ Tier is stored in `cohort_snapshots.equity_tier` on every snapshot write. Wallet
 | Recipe ID | Display Name | Signal type | What it detects |
 |---|---|---|---|
 | `momentum_stack` | Whale Convergence | ENTRY | 3+ wallets add combined $500K+ notional same direction within 5 min |
-| `divergence_squeeze` | Silent Loading | ALERT | Per-wallet: exposure rising >$25K, price flat last 30m (<0.5%), liq buffer below 10%, wallet score >=0.55; 20-min cooldown per wallet+coin |
+| `divergence_squeeze` | Silent Loading | ALERT | Cohort-level: 2+ wallets (score >=0.60) each adding >$25K to the same coin while price flat last 30m (<0.5%) and liq buffer below 10%. Emits one signal per coin. 20-min KV cooldown per coin. |
 | `accumulation_reentry` | Dip Conviction | SCALE_IN | High-score wallet (>=0.65) increases position after coin drops from 4h high by a per-coin threshold: 2x the coin's 4h range, clamped [6%, 15%] |
 | `rotation_carry` | Funded Edge | ENTRY | New position with positive funding (>0.03%/hr); requires >=10 prior signals before win-rate gate activates |
 | `liq_rebound` | Liquidation Flush | ALERT | Cohort notional drops >5% on a coin AND price moves vs prior cycle mid by a per-coin threshold: BTC/ETH >1.5%, alts >3.5%. Direction derived from price move. First cycle silently skips until prior mids are in KV. |
