@@ -14,18 +14,18 @@
 | R5: price confirmation | DONE (2026-04-14) | P0 |
 | R8: freshness gate | DONE (2026-04-14) | P0 |
 | 100-wallet window rotation | DONE (2026-04-14) | P0 |
-| R4: cold-start gate | TODO | P1 |
-| BTC regime hourly storage | TODO | P1 |
-| R6: intraday streak refresh | TODO | P1 |
-| KV secondary fallback (24h TTL) | TODO | P1 |
-| Position aging signal (new recipe) | TODO | P2 |
-| Cross-wallet concentration risk (new recipe) | TODO | P2 |
-| Wallet churn signal (new recipe) | TODO | P2 |
-| Funding rate trend signal (new recipe) | TODO | P2 |
-| Intraday recipe_performance feedback | TODO | P2 |
-| Scoring weight validation | TODO | P3 |
-| pnl_consistency uses all 30 days | TODO | P3 |
-| Supplementary discovery (fills-based) | TODO | P3 |
+| R4: cold-start gate | DONE (2026-04-14) | P1 |
+| BTC regime hourly storage | DONE (2026-04-14) | P1 |
+| R6: intraday streak refresh | DONE (2026-04-14) | P1 |
+| KV secondary fallback (24h TTL) | DONE (2026-04-14) | P1 |
+| Position aging signal (new recipe) | DONE (2026-04-14) | P2 |
+| Cross-wallet concentration risk (new recipe) | DONE (2026-04-14) | P2 |
+| Wallet churn signal (new recipe) | DONE (2026-04-14) | P2 |
+| Funding rate trend signal (new recipe) | DONE (2026-04-14) | P2 |
+| Intraday recipe_performance feedback | DONE (2026-04-14) | P2 |
+| Scoring weight validation | DONE (2026-04-14) | P3 |
+| pnl_consistency uses all 30 days | DONE (2026-04-14) | P3 |
+| Supplementary discovery (fills-based) | DONE (2026-04-14) | P3 |
 | WebSocket for Recipe 5 | TODO | Phase 3 |
 
 ---
