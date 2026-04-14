@@ -7,6 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from "@/lib/env";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 import type { MarketTickerEntry } from "@/app/api/market-ticker/route";
+import { fetchGlobalAliases as hsGlobalAliases, type HsGlobalAliases } from "@/lib/hypurrscan-api-client";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -128,4 +129,21 @@ export async function fetchScannerStats(): Promise<ScannerStats | null> {
       tier_breakdown,
     };
   } catch { return null; }
+}
+
+const KV_ALIASES_KEY   = "hypurrscan:global_aliases";
+const KV_ALIASES_TTL_S = 24 * 3600; // 24 hours
+
+/**
+ * Return the Hypurrscan global alias map, reading from KV cache when warm.
+ * On KV miss or stale data, fetches from Hypurrscan API and re-caches.
+ * Weight cost: 1 (only on cache miss).
+ */
+export async function fetchGlobalAliasesFromKV(): Promise<HsGlobalAliases> {
+  const cached = await kv.get<HsGlobalAliases>(KV_ALIASES_KEY);
+  if (cached) return cached;
+
+  const aliases = await hsGlobalAliases();
+  await kv.set(KV_ALIASES_KEY, aliases, { ex: KV_ALIASES_TTL_S });
+  return aliases;
 }
