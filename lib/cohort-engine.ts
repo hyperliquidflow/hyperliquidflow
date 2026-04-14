@@ -105,20 +105,19 @@ export function computeSharpeProxy(dailyPnls: number[]): number {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Fraction of 7-day windows (non-overlapping, 4 within 30 days) with positive PnL.
+ * Fraction of 7-day windows (non-overlapping) with positive PnL.
  * Formula:
- *   Split daily_pnls into 4 windows of 7 days.
+ *   Split daily_pnls into windows of 7 days.
  *   pnl_consistency = count(windows where sum > 0) / count(windows with data)
  *
- * @param dailyPnls Array of 30 daily PnL values (index 0 = oldest day)
+ * @param dailyPnls Array of daily PnL values (index 0 = oldest day)
  */
 export function computePnlConsistency(dailyPnls: number[]): number {
   const WINDOW = 7;
-  const TOTAL = 30;
   let positiveWindows = 0;
   let totalWindows = 0;
 
-  for (let start = 0; start < TOTAL; start += WINDOW) {
+  for (let start = 0; start < dailyPnls.length; start += WINDOW) {
     const slice = dailyPnls.slice(start, start + WINDOW);
     if (slice.length === 0) continue;
     const hasData = slice.some((v) => v !== 0);
