@@ -297,6 +297,8 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       // Store allMids for next cycle's Recipe 5 price-confirmation check
       kv.set("market:prior_mids", allMids, { ex: KV_TTL_SECONDS * 5 }),
     ]);
+    // Secondary fallback key: survives cron gaps up to 24h, prevents Supabase fallback on KV miss
+    kv.set("cohort:active:fallback", JSON.stringify(payload), { ex: 24 * 3600 }).catch(() => {});
 
     const durationMs = Date.now() - startMs;
 

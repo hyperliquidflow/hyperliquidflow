@@ -49,9 +49,20 @@ export async function GET(): Promise<NextResponse> {
       });
     }
 
-    // ── Fallback: KV miss → read directly from Supabase, kick off refresh ────
-    console.warn("[cohort-state] KV miss — falling back to Supabase");
+    // ── Fallback: KV miss → try secondary key, then Supabase ─────────────────
+    console.warn("[cohort-state] KV miss, checking secondary fallback");
     triggerBackgroundRefresh();
+
+    const fallbackRaw = await kv.get<string>("cohort:active:fallback");
+    if (fallbackRaw) {
+      const fallbackPayload: CohortCachePayload =
+        typeof fallbackRaw === "string" ? JSON.parse(fallbackRaw) : fallbackRaw;
+      return NextResponse.json(fallbackPayload, {
+        headers: { "Cache-Control": "public, max-age=30" },
+      });
+    }
+
+    console.warn("[cohort-state] secondary fallback miss, falling back to Supabase");
 
     const { data: wallets, error: walletErr } = await supabase
       .from("wallets")
