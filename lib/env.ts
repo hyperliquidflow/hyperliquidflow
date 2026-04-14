@@ -52,6 +52,12 @@ export const HYPERLIQUID_API_URL = optionalEnv(
   "https://api.hyperliquid.xyz/info"
 );
 
+/** Hypurrscan L1 explorer API. No auth required for public endpoints. */
+export const HYPURRSCAN_API_URL = optionalEnv(
+  "HYPURRSCAN_API_URL",
+  "https://api.hypurrscan.io"
+);
+
 /** Client-side polling interval in milliseconds. Default 60 seconds. */
 export const POLL_INTERVAL_MS = parseInt(
   optionalEnv("NEXT_PUBLIC_POLL_INTERVAL_MS", "60000"),
