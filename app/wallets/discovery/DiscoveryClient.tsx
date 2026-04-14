@@ -75,7 +75,7 @@ function WalletProfileCard({ profile }: { profile: WalletProfile }) {
           { label: "Avg Win",       value: formatUsd(profile.stats.avg_win),  clr: color.green },
           { label: "Avg Loss",      value: formatUsd(profile.stats.avg_loss), clr: color.red },
           { label: "Profit Factor", value: profile.stats.profit_factor.toFixed(2) },
-          { label: `${profile.stats.is_win_streak ? "Win" : "Loss"} Streak`, value: `${profile.stats.current_streak}` },
+          { label: `${profile.stats.is_win_streak ? "Win" : "Loss"} Streak`, value: `${profile.stats.current_streak}* ${profile.stats.is_win_streak ? "W" : "L"}` },
         ].map(({ label, value, clr }) => (
           <div key={label} style={{ ...S.card, padding: "16px" }}>
             <div style={S.label}>{label}</div>
@@ -83,6 +83,7 @@ function WalletProfileCard({ profile }: { profile: WalletProfile }) {
           </div>
         ))}
       </div>
+      <div style={{ ...S.muted, fontSize: "11px", textAlign: "right" as const, marginTop: "4px" }}>* as of last daily scan</div>
       <div style={S.card}>
         <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
           {(["overview", "positions", "trades"] as const).map((t) => (
@@ -106,7 +107,7 @@ function WalletProfileCard({ profile }: { profile: WalletProfile }) {
               </div>
               <div>
                 <div style={{ ...S.label, marginBottom: "10px" }}>Performance</div>
-                {[["Win Rate", formatPct(profile.stats.win_rate)], ["Trade Count", `${profile.stats.trade_count}`], ["Profit Factor", profile.stats.profit_factor.toFixed(2)], ["Current Streak", `${profile.stats.current_streak} ${profile.stats.is_win_streak ? "W" : "L"}`]].map(([k, v]) => (
+                {[["Win Rate", formatPct(profile.stats.win_rate)], ["Trade Count", `${profile.stats.trade_count}`], ["Profit Factor", profile.stats.profit_factor.toFixed(2)], ["Current Streak", `${profile.stats.current_streak}* ${profile.stats.is_win_streak ? "W" : "L"}`]].map(([k, v]) => (
                   <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
                     <span style={S.muted}>{k}</span>
                     <span style={{ fontSize: "13px" }}>{v}</span>
