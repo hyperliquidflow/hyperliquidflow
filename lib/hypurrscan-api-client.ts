@@ -224,16 +224,46 @@ export async function fetchTagsBatch(addresses: string[]): Promise<HsTagsMap> {
   await consumeWeight(4);
 
   const url = `${HYPURRSCAN_API_URL}/tags/addresses`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ addresses }),
-  });
+  let lastError: unknown;
 
-  if (!res.ok) {
-    throw new HypurrscanApiError(res.status, await res.text(), "/tags/addresses");
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 10_000);
+
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ addresses }),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+
+      if (res.status === 429 || res.status >= 500) {
+        const wait = Math.min(BASE_BACKOFF * 2 ** attempt, 30_000);
+        console.warn(`[hs-api] /tags/addresses got ${res.status} (attempt ${attempt + 1}). Retry in ${wait}ms.`);
+        lastError = new HypurrscanApiError(res.status, await res.text(), "/tags/addresses");
+        await new Promise((r) => setTimeout(r, wait));
+        continue;
+      }
+
+      if (!res.ok) {
+        throw new HypurrscanApiError(res.status, await res.text(), "/tags/addresses");
+      }
+
+      return res.json() as Promise<HsTagsMap>;
+    } catch (err) {
+      clearTimeout(timer);
+      if ((err as Error).name === "AbortError") {
+        lastError = new Error(`/tags/addresses timed out after 10000ms`);
+        await new Promise((r) => setTimeout(r, Math.min(BASE_BACKOFF * 2 ** attempt, 16_000)));
+        continue;
+      }
+      throw err;
+    }
   }
-  return res.json() as Promise<HsTagsMap>;
+
+  throw lastError;
 }
 
 /**
