@@ -110,17 +110,15 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
 
     // ── Step 4: Detect market regime from BTC price ───────────────────────────
     const currentBtcMid = parseFloat(allMids["BTC"] ?? "0");
-    // Load BTC mid from 24h ago (stored in KV from previous day)
-    const storedBtcMid = await kv.get<number>("btc_mid_24h_ago");
-    const prevBtcMid = storedBtcMid ?? currentBtcMid * 0.99; // fallback: assume slight change
+    // Store current BTC mid keyed by current UTC hour; read from 24h-ago hour for stable window.
+    const nowHour = new Date().getUTCHours().toString().padStart(2, "0");
+    const agoHour = new Date(Date.now() - 24 * 3600 * 1000).getUTCHours().toString().padStart(2, "0");
+    const [, priorBtcMid] = await Promise.all([
+      kv.set(`btc_mid:${nowHour}`, currentBtcMid, { ex: 25 * 3600 }),
+      kv.get<number>(`btc_mid:${agoHour}`),
+    ]);
+    const prevBtcMid = priorBtcMid ?? currentBtcMid * 0.99;
     const regimeResult = detectRegime(currentBtcMid, prevBtcMid);
-
-    // Rotate the 24h BTC mid: store current as tomorrow's "24h ago" value (every 24h)
-    const lastBtcRefresh = await kv.get<number>("btc_mid_refresh_ts");
-    if (!lastBtcRefresh || Date.now() - lastBtcRefresh > 24 * 60 * 60 * 1000) {
-      await kv.set("btc_mid_24h_ago", currentBtcMid, { ex: 25 * 3600 });
-      await kv.set("btc_mid_refresh_ts", Date.now(), { ex: 25 * 3600 });
-    }
 
     // ── Step 5: Load previous snapshots from Supabase ────────────────────────
     const walletIds = wallets.map((w) => w.id);
