@@ -32,6 +32,10 @@ import {
   pruneUnderperformers,
 } from "@/lib/cohort-engine";
 import { runSignalLab, type SnapshotPair, type SnapshotRow } from "@/lib/signal-lab";
+import {
+  runBridgeInflowEnrichment,
+  runTwapEnrichment,
+} from "@/lib/hypurrscan-enrichment";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -300,6 +304,13 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
     // Secondary fallback key: survives cron gaps up to 24h, prevents Supabase fallback on KV miss
     kv.set("cohort:active:fallback", JSON.stringify(payload), { ex: 24 * 3600 }).catch(() => {});
 
+    // Top wallets for TWAP scanning: sort by account_value, take top 20
+    const twapCandidates = [...cohortSummary]
+      .filter((w) => w.account_value >= 250_000)
+      .sort((a, b) => b.account_value - a.account_value)
+      .slice(0, 20)
+      .map((w) => ({ id: w.wallet_id, address: w.address }));
+
     const durationMs = Date.now() - startMs;
 
     console.log(
@@ -314,11 +325,19 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       })
     );
 
-    // Prune underperformers in the background so it doesn't eat into the 10s cron budget
+    // Run background tasks after response: prune + enrichment signals
     after(
-      pruneUnderperformers().catch((err) =>
-        console.error("[refresh-cohort] pruneUnderperformers error:", err)
-      )
+      Promise.all([
+        pruneUnderperformers().catch((err) =>
+          console.error("[refresh-cohort] pruneUnderperformers error:", err)
+        ),
+        runBridgeInflowEnrichment(wallets.map((w) => ({ id: w.id, address: w.address }))).catch((err) =>
+          console.error("[refresh-cohort] bridgeInflowEnrichment error:", err)
+        ),
+        runTwapEnrichment(twapCandidates).catch((err) =>
+          console.error("[refresh-cohort] twapEnrichment error:", err)
+        ),
+      ])
     );
 
     return NextResponse.json({
