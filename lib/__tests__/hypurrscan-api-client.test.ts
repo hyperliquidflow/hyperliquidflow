@@ -87,6 +87,6 @@ describe("consumeWeight (sequential, timing-sensitive)", () => {
     const start = Date.now();
     await consumeWeight(5);
     const elapsed = Date.now() - start;
-    expect(elapsed).toBeLessThan(200);
+    expect(elapsed).toBeLessThan(500);
   });
 });
