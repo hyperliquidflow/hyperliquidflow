@@ -6,6 +6,7 @@
 // Realized PnL comes exclusively from userFills.closedPnl — never conflate these.
 
 import { createClient } from "@supabase/supabase-js";
+import { kv } from "@vercel/kv";
 import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from "@/lib/env";
 import { computeEv, estimateTradeCost } from "@/lib/risk-engine";
 import type { HlL2Book, HlCandle, HlAssetCtx } from "@/lib/hyperliquid-api-client";
@@ -643,6 +644,248 @@ function recipe9(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Recipe 10 — Position Aging
+// ─────────────────────────────────────────────────────────────────────────────
+// High-score wallet holding a losing position for 2+ consecutive cycles
+// without reducing size — patience trap alert.
+
+async function recipe10(pairs: SnapshotPair[]): Promise<SignalEvent[]> {
+  const HIGH_SCORE = 0.65;
+  const LOSS_RATIO_THRESHOLD = -0.05;
+  const events: SignalEvent[] = [];
+
+  const underwaterCounts = (await kv.get<Record<string, number>>("cohort:underwater_counts")) ?? {};
+
+  for (const { walletId, overallScore, curr, prev } of pairs) {
+    if (overallScore < HIGH_SCORE) continue;
+    if (!prev) continue;
+
+    const currPos = posMap(curr);
+    const prevPos = posMap(prev);
+
+    for (const [coin, pos] of currPos) {
+      const key = `${walletId}:${coin}`;
+      const posValue = Math.abs(parseFloat(pos.positionValue));
+      const ratio = parseFloat(pos.unrealizedPnl) / (posValue + 1e-8);
+
+      const prevPosEntry = prevPos.get(coin);
+      const currSzi = Math.abs(parseFloat(pos.szi));
+      const prevSzi = prevPosEntry ? Math.abs(parseFloat(prevPosEntry.szi)) : 0;
+
+      const isUnderwater = ratio <= LOSS_RATIO_THRESHOLD;
+      const notReducing = currSzi >= prevSzi * 0.95;
+
+      if (isUnderwater && notReducing) {
+        underwaterCounts[key] = (underwaterCounts[key] ?? 0) + 1;
+        const count = underwaterCounts[key];
+        if (count >= 2) {
+          const dir = sign(pos.szi);
+          events.push({
+            wallet_id:   walletId,
+            recipe_id:   "position_aging",
+            coin,
+            signal_type: "ALERT",
+            direction:   dir === "FLAT" ? null : dir,
+            ev_score:    null,
+            metadata: {
+              unrealized_pnl_ratio: ratio,
+              consecutive_cycles:   count,
+              wallet_score:         overallScore,
+              description: `Wallet holding losing ${coin} position for ${count}+ cycles (unreal PnL ${(ratio * 100).toFixed(1)}%)`,
+            },
+          });
+        }
+      } else {
+        underwaterCounts[key] = 0;
+      }
+    }
+
+    // Reset counts for coins no longer held
+    for (const key of Object.keys(underwaterCounts)) {
+      if (key.startsWith(`${walletId}:`) && !currPos.has(key.slice(walletId.length + 1))) {
+        underwaterCounts[key] = 0;
+      }
+    }
+  }
+
+  kv.set("cohort:underwater_counts", underwaterCounts, { ex: 25 * 3600 }).catch(() => {});
+
+  return events;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Recipe 11 — Cross-wallet Concentration Risk
+// ─────────────────────────────────────────────────────────────────────────────
+// More than 60% of cohort total notional concentrated in a single coin.
+
+function recipe11(pairs: SnapshotPair[]): SignalEvent[] {
+  const CONCENTRATION_THRESHOLD = 0.60;
+
+  // Coin → total notional + per-wallet breakdown
+  const coinNotional = new Map<string, number>();
+  const walletCoinNotional = new Map<string, Map<string, number>>();
+  let totalCohortNotional = 0;
+
+  for (const { walletId, curr } of pairs) {
+    const wMap = walletCoinNotional.get(walletId) ?? new Map<string, number>();
+    for (const ap of curr.positions) {
+      const coin = ap.position.coin;
+      const val  = Math.abs(parseFloat(ap.position.positionValue));
+      coinNotional.set(coin, (coinNotional.get(coin) ?? 0) + val);
+      wMap.set(coin, (wMap.get(coin) ?? 0) + val);
+      totalCohortNotional += val;
+    }
+    walletCoinNotional.set(walletId, wMap);
+  }
+
+  if (totalCohortNotional === 0) return [];
+
+  const events: SignalEvent[] = [];
+  for (const [coin, notional] of coinNotional) {
+    const ratio = notional / totalCohortNotional;
+    if (ratio <= CONCENTRATION_THRESHOLD) continue;
+
+    // Top 3 wallets by exposure to this coin
+    const walletExposures: { wallet_id: string; notional: number }[] = [];
+    for (const [walletId, wMap] of walletCoinNotional) {
+      const wNotional = wMap.get(coin) ?? 0;
+      if (wNotional > 0) walletExposures.push({ wallet_id: walletId, notional: wNotional });
+    }
+    walletExposures.sort((a, b) => b.notional - a.notional);
+    const topWallets = walletExposures.slice(0, 3);
+
+    events.push({
+      wallet_id:   "",
+      recipe_id:   "concentration_risk",
+      coin,
+      signal_type: "ALERT",
+      direction:   null,
+      ev_score:    null,
+      metadata: {
+        concentration_pct:      ratio,
+        total_cohort_notional:  totalCohortNotional,
+        top_wallets:            topWallets,
+        description: `${(ratio * 100).toFixed(1)}% of cohort notional in ${coin} -- concentration risk`,
+      },
+    });
+  }
+  return events;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Recipe 12 — Wallet Churn (Coordinated Exit)
+// ─────────────────────────────────────────────────────────────────────────────
+// 3+ wallets simultaneously reducing/closing positions on the same coin,
+// combined notional reduction >= $500K within the snapshot window.
+
+function recipe12(pairs: SnapshotPair[]): SignalEvent[] {
+  const WALLET_THRESHOLD  = 3;
+  const COMBINED_NOTIONAL = 500_000;
+  const WINDOW_MS         = 5 * 60 * 1000;
+
+  // Coin → { walletIds, totalReduction, direction }
+  const buckets = new Map<string, { ids: string[]; delta: number; direction: "LONG" | "SHORT" | null }>();
+
+  for (const { walletId, curr, prev } of pairs) {
+    if (!prev) continue;
+    const timeDiff = new Date(curr.snapshot_time).getTime() - new Date(prev.snapshot_time).getTime();
+    if (timeDiff > WINDOW_MS) continue;
+
+    const currPos = posMap(curr);
+    const prevPos = posMap(prev);
+    const allCoins = new Set([...currPos.keys(), ...prevPos.keys()]);
+
+    for (const coin of allCoins) {
+      const cPos = currPos.get(coin);
+      const pPos = prevPos.get(coin);
+      const currVal = cPos ? Math.abs(parseFloat(cPos.positionValue)) : 0;
+      const prevVal = pPos ? Math.abs(parseFloat(pPos.positionValue)) : 0;
+      const delta = currVal - prevVal;
+      if (delta >= 0) continue; // only count reductions
+
+      const dir = pPos ? sign(pPos.szi) : null;
+      if (!dir || dir === "FLAT") continue;
+
+      if (!buckets.has(coin)) buckets.set(coin, { ids: [], delta: 0, direction: dir });
+      const bucket = buckets.get(coin)!;
+      bucket.ids.push(walletId);
+      bucket.delta += delta; // accumulates as negative
+    }
+  }
+
+  const events: SignalEvent[] = [];
+  for (const [coin, { ids, delta, direction }] of buckets) {
+    if (ids.length >= WALLET_THRESHOLD && Math.abs(delta) >= COMBINED_NOTIONAL) {
+      events.push({
+        wallet_id:   ids[0],
+        recipe_id:   "wallet_churn",
+        coin,
+        signal_type: "EXIT",
+        direction,
+        ev_score:    null,
+        metadata: {
+          wallet_count:       ids.length,
+          wallet_ids:         ids,
+          combined_reduction: Math.abs(delta),
+          description: `${ids.length} wallets reducing ${coin} ${direction} combined $${(Math.abs(delta) / 1e3).toFixed(0)}K`,
+        },
+      });
+    }
+  }
+  return events;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Recipe 13 — Funding Rate Trend
+// ─────────────────────────────────────────────────────────────────────────────
+// Funding rate for a coin rising for 3+ consecutive cycles and above 0.03%/hr.
+
+async function recipe13(
+  assetCtxMap: Map<string, HlAssetCtx>
+): Promise<SignalEvent[]> {
+  const FUNDING_THRESHOLD = 0.0003; // 0.03%/hr
+
+  const coins = [...assetCtxMap.keys()];
+
+  const results = await Promise.all(
+    coins.map(async (coin) => {
+      const ctx = assetCtxMap.get(coin)!;
+      const funding = parseFloat(ctx.funding);
+      const kvKey = `market:funding_history:${coin}`;
+
+      const history = (await kv.get<number[]>(kvKey)) ?? [];
+      history.push(funding);
+      if (history.length > 4) history.shift();
+      kv.set(kvKey, history, { ex: 25 * 3600 }).catch(() => {});
+
+      // Need 3+ readings, current above threshold, all last 3 increasing
+      if (history.length < 3) return null;
+      if (funding <= FUNDING_THRESHOLD) return null;
+      const last3 = history.slice(-3);
+      const allIncreasing = last3[1] > last3[0] && last3[2] > last3[1];
+      if (!allIncreasing) return null;
+
+      const event: SignalEvent = {
+        wallet_id:   "",
+        recipe_id:   "funding_trend",
+        coin,
+        signal_type: "ALERT",
+        direction:   "SHORT", // rising funding = overextended longs = fade
+        ev_score:    null,
+        metadata: {
+          current_funding:  funding,
+          funding_history:  history,
+          description: `${coin} funding rising for 3+ cycles, now ${(funding * 100).toFixed(4)}%. Possible overextended longs.`,
+        },
+      };
+      return event;
+    })
+  );
+
+  return results.filter((r): r is SignalEvent => r !== null);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // EV enrichment — attach EV scores where backtest data is available
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -708,8 +951,15 @@ export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalEvent
   const r5 = recipe5(pairs, allMids, priorAllMids);
   const r6 = recipe6(pairs, backtestMap);
   const r7 = recipe7(pairs, assetCtxMap);
+  // Recipes 10 and 13 are async (KV reads); run in parallel to minimise latency
+  const [r10, r13] = await Promise.all([
+    recipe10(pairs),
+    recipe13(assetCtxMap),
+  ]);
+  const r11 = recipe11(pairs);
+  const r12 = recipe12(pairs);
   // Recipe 8 validates signals from other recipes
-  const preValidation = [...r1, ...r2, ...r3, ...r4, ...r5, ...r6, ...r7];
+  const preValidation = [...r1, ...r2, ...r3, ...r4, ...r5, ...r6, ...r7, ...r10, ...r11, ...r12, ...r13];
   const r8 = recipe8(pairs, preValidation);
   const r9 = recipe9(pairs, regime);
 
@@ -725,6 +975,31 @@ export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalEvent
 
   // Enrich with EV scores
   const enriched = enrichWithEv(allEvents, backtestMap, l2Books);
+
+  // Compute intraday recipe performance from recent signals_history (last 6h)
+  const sixHoursAgo = new Date(Date.now() - 6 * 3600 * 1000).toISOString();
+  const { data: recentPerf } = await supabase
+    .from("signals_history")
+    .select("recipe_id, ev_score")
+    .gte("detected_at", sixHoursAgo)
+    .not("ev_score", "is", null);
+
+  if (recentPerf && recentPerf.length > 0) {
+    const byRecipe = new Map<string, number[]>();
+    for (const row of recentPerf) {
+      const list = byRecipe.get(row.recipe_id) ?? [];
+      list.push(row.ev_score as number);
+      byRecipe.set(row.recipe_id, list);
+    }
+    const intradayPerf: Record<string, { avg_ev: number; count: number }> = {};
+    for (const [recipeId, scores] of byRecipe) {
+      intradayPerf[recipeId] = {
+        avg_ev: scores.reduce((a, b) => a + b, 0) / scores.length,
+        count:  scores.length,
+      };
+    }
+    kv.set("recipe:intraday_perf", intradayPerf, { ex: 7 * 3600 }).catch(() => {});
+  }
 
   // Persist to Supabase (skip cohort-level events with empty wallet_id)
   // wallet_id is a Supabase UUID (36 chars: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)

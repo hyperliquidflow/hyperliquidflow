@@ -12,4 +12,8 @@ export const RECIPE_META: Record<string, { label: string; desc: string }> = {
   funding_divergence:   { label: "Smart Money vs. Retail",  desc: "Smart Money and non-Smart Money OI diverge with extreme funding" },
   whale_validated:      { label: "Alpha Confirmation",      desc: "Signal confirmed by 3+ high-score wallets" },
   anti_whale_trap:      { label: "Smart Exit Signal",       desc: "High-score wallet rapidly cutting exposure in adverse Market Vibes" },
+  position_aging:       { label: "Patience Trap",           desc: "High-score wallet holding losing position for 2+ cycles without reducing" },
+  concentration_risk:   { label: "Crowded Coin",            desc: "60%+ of cohort notional in one coin" },
+  wallet_churn:         { label: "Coordinated Exit",        desc: "3+ wallets reducing same position, $500K+ combined" },
+  funding_trend:        { label: "Funding Surge",           desc: "Funding rate rising 3+ cycles, longs overextended" },
 };
