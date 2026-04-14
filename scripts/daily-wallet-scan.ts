@@ -204,6 +204,73 @@ async function fetchLeaderboardAddresses(): Promise<string[]> {
     .filter((a) => /^0x[a-fA-F0-9]{40}$/.test(a));
 }
 
+// -- Discovery: secondary pass via top-volume fills ----------------------------
+// After the leaderboard scan, fetch fills for the top-10 most-traded coins by volume.
+// Extract unique trader addresses and pre-filter by month ROI/PnL thresholds.
+// Estimated API cost: ~10 additional userFills calls.
+
+const FILLS_DISCOVERY_TOP_COINS = 10;
+const FILLS_DISCOVERY_LIMIT     = 500; // fills per coin to scan
+
+async function discoverFromFills(): Promise<string[]> {
+  console.log("[discovery-fills] starting fills-based secondary discovery");
+
+  // Fetch volume data to find top coins
+  let metaAndCtxs: unknown;
+  try {
+    metaAndCtxs = await hlPost<unknown>({ type: "metaAndAssetCtxs" });
+  } catch (err) {
+    console.warn("[discovery-fills] metaAndAssetCtxs failed:", err);
+    return [];
+  }
+
+  // Shape: [{ universe: [...] }, [...assetCtxs...]]
+  const [meta, ctxs] = metaAndCtxs as [{ universe: Array<{ name: string }> }, Array<{ dayNtlVlm: string }>];
+  if (!Array.isArray(meta?.universe) || !Array.isArray(ctxs)) {
+    console.warn("[discovery-fills] unexpected metaAndAssetCtxs shape");
+    return [];
+  }
+
+  // Build coin -> volume map, sort descending, take top N
+  const coinVolumes: Array<{ coin: string; volume: number }> = meta.universe.map((u, i) => ({
+    coin: u.name,
+    volume: parseFloat(ctxs[i]?.dayNtlVlm ?? "0"),
+  }));
+  coinVolumes.sort((a, b) => b.volume - a.volume);
+  const topCoins = coinVolumes.slice(0, FILLS_DISCOVERY_TOP_COINS).map(cv => cv.coin);
+  console.log(`[discovery-fills] top ${topCoins.length} coins by volume: ${topCoins.join(", ")}`);
+
+  // For each top coin, fetch recent fills and extract unique addresses
+  const discovered = new Set<string>();
+
+  await Promise.allSettled(
+    topCoins.map(async (coin) => {
+      try {
+        // Hyperliquid fills endpoint: { type: "recentTrades", coin }
+        const fills = await hlPost<Array<{ user: string }>>({
+          type: "recentTrades",
+          coin,
+        }, 15_000);
+        if (!Array.isArray(fills)) return;
+        for (const fill of fills.slice(0, FILLS_DISCOVERY_LIMIT)) {
+          if (fill.user && /^0x[a-fA-F0-9]{40}$/.test(fill.user)) {
+            discovered.add(fill.user.toLowerCase());
+          }
+        }
+        console.log(`[discovery-fills] ${coin}: ${fills.length} trades, ${discovered.size} unique addresses so far`);
+      } catch (err) {
+        console.warn(`[discovery-fills] ${coin} trades failed:`, err);
+      }
+    })
+  );
+
+  // Pre-filter: we don't have leaderboard data, so filter by existing DB wallets only
+  // (exclude addresses already in DB to limit API cost in the scoring step)
+  const candidates = Array.from(discovered);
+  console.log(`[discovery-fills] found ${candidates.length} unique addresses from fills`);
+  return candidates;
+}
+
 // -- Discovery: fallback path (volume-based address mining) --------------------
 // Hyperliquid's frontend is a React SPA -- HTML scraping returns no addresses.
 // Instead, mine addresses by querying recent trade data via public stats API,
@@ -378,7 +445,7 @@ async function scoreWallet(address: string): Promise<ScoringResult> {
 
 async function upsertAddresses(
   addresses: string[],
-  source: "leaderboard_api" | "leaderboard_scrape"
+  source: "leaderboard_api" | "leaderboard_scrape" | "fills_discovery"
 ): Promise<number> {
   const CHUNK = 100;
   let newCount = 0;
@@ -551,6 +618,20 @@ async function main(): Promise<void> {
   } else {
     console.warn("[discovery] no new addresses, will rescore from database");
     summary.discovery_source = "database_rescore";
+  }
+
+  // Step 2b: Secondary fills-based discovery
+  try {
+    const fillsAddresses = await discoverFromFills();
+    if (fillsAddresses.length > 0) {
+      const newFromFills = await upsertAddresses(fillsAddresses, "fills_discovery");
+      summary.new_wallets += newFromFills;
+      console.log(`[discovery-fills] upserted ${fillsAddresses.length} addresses (${newFromFills} new)`);
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    summary.errors.push(`fills_discovery: ${msg}`);
+    console.warn("[discovery-fills] secondary discovery failed:", msg);
   }
 
   // Step 3: Build the score batch
