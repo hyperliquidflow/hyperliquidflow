@@ -70,9 +70,21 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
   let cycleWeight = 0;
 
   try {
-    // ── Step 1: Load active wallets (max MAX_WALLETS_PER_CYCLE) ──────────────
+    // ── Step 1: Load active wallets with rotating window ─────────────────────
+    // Each cycle processes a different 100-wallet slice so all active wallets
+    // get intraday snapshots and signal coverage, not just the top 100 by win_rate.
     const allActive = await fetchActiveWallets();
-    const wallets = allActive.slice(0, MAX_WALLETS_PER_CYCLE);
+    let wallets = allActive;
+    if (allActive.length > MAX_WALLETS_PER_CYCLE) {
+      const offset = (await kv.get<number>("cohort:cycle_offset")) ?? 0;
+      const start  = offset % allActive.length;
+      const end    = start + MAX_WALLETS_PER_CYCLE;
+      wallets = end <= allActive.length
+        ? allActive.slice(start, end)
+        : [...allActive.slice(start), ...allActive.slice(0, end - allActive.length)];
+      const nextOffset = end % allActive.length;
+      kv.set("cohort:cycle_offset", nextOffset, { ex: 25 * 3600 }).catch(() => {});
+    }
 
     if (wallets.length === 0) {
       console.log("[refresh-cohort] No active wallets — skipping cycle");
@@ -85,9 +97,12 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
     cycleWeight += wallets.length * 2; // weight 2 per clearinghouseState
 
     // ── Step 3: Fetch market data (shared across all wallets) ─────────────────
-    const [allMids, metaAndCtxs] = await Promise.all([
+    // Load prior allMids from KV before fetching fresh — used by Recipe 5
+    // price-confirmation check to distinguish cascade from voluntary exit.
+    const [allMids, metaAndCtxs, priorAllMids] = await Promise.all([
       fetchAllMids(),
       fetchMetaAndAssetCtxs(),
+      kv.get<Record<string, string>>("market:prior_mids"),
     ]);
     cycleWeight += 2 + 2; // allMids + metaAndAssetCtxs weight
 
@@ -236,6 +251,7 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       candles4h,
       assetCtxMap,
       allMids,
+      priorAllMids: priorAllMids ?? null,
       backtestMap,
       l2Books,
       recipeWinRates,
@@ -271,7 +287,11 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       })),
     };
 
-    await kv.set(KV_COHORT_KEY, JSON.stringify(payload), { ex: KV_TTL_SECONDS });
+    await Promise.all([
+      kv.set(KV_COHORT_KEY, JSON.stringify(payload), { ex: KV_TTL_SECONDS }),
+      // Store allMids for next cycle's Recipe 5 price-confirmation check
+      kv.set("market:prior_mids", allMids, { ex: KV_TTL_SECONDS * 5 }),
+    ]);
 
     const durationMs = Date.now() - startMs;
 

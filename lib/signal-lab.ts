@@ -343,11 +343,15 @@ function recipe4(
 
 function recipe5(
   pairs: SnapshotPair[],
-  allMids: Record<string, string>
+  allMids: Record<string, string>,
+  priorAllMids: Record<string, string> | null
 ): SignalEvent[] {
   const POSITION_SHRINK_PCT = 0.05;   // cohort net notional drops >5%
-  const PRICE_SPIKE_PCT     = 0.02;   // price spikes >2% after shrink
+  const PRICE_SPIKE_PCT     = 0.02;   // price must have moved >2% since prior cycle
   const events: SignalEvent[] = [];
+
+  // Without prior mids we cannot confirm price movement — skip to avoid false fires
+  if (!priorAllMids) return events;
 
   // Aggregate cohort-level notional delta per coin
   const coinDelta = new Map<string, { before: number; after: number }>();
@@ -368,28 +372,40 @@ function recipe5(
   for (const [coin, { before, after }] of coinDelta) {
     if (before < 1_000_000) continue; // too small to matter
     const shrink = (before - after) / before;
-    if (shrink < POSITION_SHRINK_PCT) continue; // not a big enough reduction
+    if (shrink < POSITION_SHRINK_PCT) continue;
 
-    // Check allMids for price spike — compare current mid vs prior mid in metadata
-    // (We use the fact that allMids changed since last refresh)
-    const midStr = allMids[coin];
-    if (!midStr) continue;
+    const currentMidStr = allMids[coin];
+    const priorMidStr   = priorAllMids[coin];
+    if (!currentMidStr || !priorMidStr) continue;
 
-    // Emit ALERT — UI will annotate as "possible liq cascade + rebound setup"
+    const currentMid = parseFloat(currentMidStr);
+    const priorMid   = parseFloat(priorMidStr);
+    if (priorMid <= 0) continue;
+
+    // Price must have moved >2% since the prior cycle — confirms market stress,
+    // distinguishes cascade from routine de-risking
+    const priceMove = Math.abs(currentMid - priorMid) / priorMid;
+    if (priceMove < PRICE_SPIKE_PCT) continue;
+
+    // Rebound direction: if price dropped → longs got liquidated → LONG rebound
+    const direction: "LONG" | "SHORT" = currentMid < priorMid ? "LONG" : "SHORT";
+
     events.push({
       wallet_id:   "", // cohort-level event, no single wallet
       recipe_id:   "liq_rebound",
       coin,
       signal_type: "ALERT",
-      direction:   "LONG",            // rebound bias is long after liquidation cascade
+      direction,
       ev_score:    null,
       metadata: {
         cohort_notional_before: before,
         cohort_notional_after:  after,
         shrink_pct:             shrink,
-        current_mid:            midStr,
+        price_move_pct:         priceMove,
+        current_mid:            currentMidStr,
+        prior_mid:              priorMidStr,
         warning: "APPROXIMATION: true liq cascade detection requires WebSocket (Phase 3)",
-        description: `Cohort ${coin} exposure dropped ${(shrink * 100).toFixed(1)}%, possible liquidation cascade. Rebound watch.`,
+        description: `Cohort ${coin} exposure dropped ${(shrink * 100).toFixed(1)}% + price moved ${(priceMove * 100).toFixed(2)}%. Possible liquidation cascade. ${direction} rebound watch.`,
       },
     });
   }
@@ -467,19 +483,20 @@ function recipe7(
     const ctx = assetCtxMap.get(coin);
     if (!ctx) continue;
 
-    const funding    = parseFloat(ctx.funding);
-    const totalOi    = parseFloat(ctx.openInterest);
-    // Retail OI proxy: total OI not explained by the cohort
-    // NOTE: This is an approximation — "retail" here means "non-cohort"
-    const retailOiProxy = totalOi - Math.abs(netNotional);
-
-    // Divergence: cohort bias vs retail proxy
-    const cohortLong    = netNotional > 0;
-    const retailNetLong = retailOiProxy > 0;
-
-    // Signal only when they diverge AND funding is extreme
-    if (cohortLong === retailNetLong) continue;
+    const funding = parseFloat(ctx.funding);
     if (Math.abs(funding) < FUNDING_THRESHOLD) continue;
+
+    const cohortLong = netNotional > 0;
+
+    // Funding rate direction as crowd positioning proxy:
+    //   positive funding → longs paying shorts → market crowd is net long
+    //   negative funding → shorts paying longs → market crowd is net short
+    // This fixes the original unsigned-OI approach which was always positive
+    // and therefore only detected divergence when the cohort was net short.
+    const crowdLong = funding > 0;
+
+    // Signal only when smart money and crowd are on opposite sides
+    if (cohortLong === crowdLong) continue;
 
     events.push({
       wallet_id:   "",   // cohort-level
@@ -489,12 +506,10 @@ function recipe7(
       direction:   cohortLong ? "LONG" : "SHORT",
       ev_score:    null,
       metadata: {
-        cohort_net_notional:  netNotional,
-        retail_oi_proxy:      retailOiProxy,
-        funding_rate:         funding,
-        divergence_usd:       Math.abs(netNotional - retailOiProxy),
-        warning: "retail_oi_proxy is an approximation (totalOI − cohortNotional), not true retail data",
-        description: `Smart money ${cohortLong ? "LONG" : "SHORT"} while retail proxy ${cohortLong ? "SHORT" : "LONG"} on ${coin}. Funding ${(funding * 100).toFixed(4)}%.`,
+        cohort_net_notional: netNotional,
+        funding_rate:        funding,
+        crowd_bias:          crowdLong ? "LONG" : "SHORT",
+        description: `Smart money ${cohortLong ? "LONG" : "SHORT"} while funding implies crowd ${crowdLong ? "LONG" : "SHORT"} on ${coin}. Funding ${(funding * 100).toFixed(4)}%.`,
       },
     });
   }
@@ -514,13 +529,26 @@ function recipe8(
   const WHALE_SCORE     = 0.75;
   const events: SignalEvent[] = [];
 
-  // Build map of coin+direction → whale wallets active in this cycle
+  // Build map of coin+direction → whale wallets with FRESH activity.
+  // "Fresh" means the position is new (not in prev) or grew since prev.
+  // Whales holding week-old unchanged positions are excluded — they would
+  // otherwise launder unrelated signals indefinitely in their direction.
   const whaleActivity = new Map<string, string[]>();
-  for (const { walletId, overallScore, curr } of pairs) {
+  for (const { walletId, overallScore, curr, prev } of pairs) {
     if (overallScore < WHALE_SCORE) continue;
+    const prevPositions = prev ? posMap(prev) : null;
     for (const ap of curr.positions) {
       const dir = sign(ap.position.szi);
       if (dir === "FLAT") continue;
+
+      const prevPos = prevPositions?.get(ap.position.coin);
+      const currSzi = Math.abs(parseFloat(ap.position.szi));
+      const prevSzi = prevPos ? Math.abs(parseFloat(prevPos.szi)) : 0;
+
+      // Accept: new position (no prev entry) or position size grew by >5%
+      const isActive = !prevPos || currSzi > prevSzi * 1.05;
+      if (!isActive) continue;
+
       const key = `${ap.position.coin}:${dir}`;
       const list = whaleActivity.get(key) ?? [];
       list.push(walletId);
@@ -648,6 +676,8 @@ export interface SignalLabInputs {
   candles4h:      Map<string, HlCandle[]>;
   assetCtxMap:    Map<string, HlAssetCtx>;
   allMids:        Record<string, string>;
+  /** allMids from the previous cron cycle, stored in KV. Used by R5 price confirmation. */
+  priorAllMids:   Record<string, string> | null;
   backtestMap:    Map<string, { win_rate: number; avg_win_usd: number; avg_loss_usd: number; win_streak: number; sharpe_ratio: number }>;
   l2Books:        Map<string, HlL2Book>;
   recipeWinRates: Map<string, number>;
@@ -662,7 +692,7 @@ export interface SignalLabInputs {
  */
 export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalEvent[]> {
   const {
-    pairs, candles5m, candles4h, assetCtxMap, allMids,
+    pairs, candles5m, candles4h, assetCtxMap, allMids, priorAllMids,
     backtestMap, l2Books, recipeWinRates, regime,
   } = inputs;
 
@@ -671,7 +701,7 @@ export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalEvent
   const r2 = recipe2(pairs, candles5m);
   const r3 = recipe3(pairs, candles4h);
   const r4 = recipe4(pairs, assetCtxMap, recipeWinRates);
-  const r5 = recipe5(pairs, allMids);
+  const r5 = recipe5(pairs, allMids, priorAllMids);
   const r6 = recipe6(pairs, backtestMap);
   const r7 = recipe7(pairs, assetCtxMap);
   // Recipe 8 validates signals from other recipes
