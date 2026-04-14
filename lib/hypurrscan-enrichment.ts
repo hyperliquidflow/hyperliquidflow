@@ -167,8 +167,6 @@ export async function runTwapEnrichment(
 
   // Deduplicate: don't re-emit a TWAP alert for the same hash if one fired
   // in the last 30 minutes.
-  const hashes = signals.map((s) => (s.metadata as Record<string, unknown>).hash as string);
-  void hashes;
   const { data: existing } = await supabase
     .from("signals_history")
     .select("metadata")
