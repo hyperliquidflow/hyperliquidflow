@@ -237,12 +237,18 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
     // ── Step 9: Run all 9 signal recipes ──────────────────────────────────────
     const { data: recipePerf } = await supabase
       .from("recipe_performance")
-      .select("recipe_id, win_rate")
+      .select("recipe_id, win_rate, signal_count")
       .order("measured_at", { ascending: false })
       .limit(50);
 
     const recipeWinRates = new Map(
       (recipePerf ?? []).map((r) => [r.recipe_id as string, r.win_rate ?? 0])
+    );
+    const recipeSignalCounts = new Map(
+      (recipePerf ?? []).map((r) => [
+        r.recipe_id as string,
+        ((r as Record<string, unknown>).signal_count as number) ?? 0,
+      ])
     );
 
     const signalEvents = await runSignalLab({
@@ -255,6 +261,7 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       backtestMap,
       l2Books,
       recipeWinRates,
+      recipeSignalCounts,
       regime: regimeResult.regime,
     });
 

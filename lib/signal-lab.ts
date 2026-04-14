@@ -283,7 +283,8 @@ function recipe3(
 function recipe4(
   pairs: SnapshotPair[],
   assetCtxMap: Map<string, HlAssetCtx>,
-  recipeWinRates: Map<string, number>   // recipe_id:coin → historical win rate
+  recipeWinRates: Map<string, number>,
+  recipeSignalCounts: Map<string, number>
 ): SignalEvent[] {
   const MIN_FUNDING = 0.0003;           // 0.03%/hr minimum positive funding
   const MIN_HISTORICAL_WINRATE = 0.60;
@@ -308,10 +309,12 @@ function recipe4(
 
       // Check historical follow-through for this recipe.
       // recipeWinRates keys are recipe IDs only (e.g. "rotation_carry"), not "recipe:coin".
-      // Default to 0.65 when no history exists yet (bootstrap: fire on first occurrence,
-      // accumulate real data in recipe_performance via the daily scan).
-      const histWinRate = recipeWinRates.get("rotation_carry") ?? 0.65;
-      if (histWinRate < MIN_HISTORICAL_WINRATE) continue;
+      // Disable during bootstrap: wait for at least 10 historical signals before
+      // applying the win-rate filter; prevents free-firing for weeks on the 0.65 default.
+      const histWinRate = recipeWinRates.get("rotation_carry");
+      const histCount   = recipeSignalCounts.get("rotation_carry") ?? 0;
+      if (histCount < 10) continue;
+      if ((histWinRate ?? 0) < MIN_HISTORICAL_WINRATE) continue;
 
       events.push({
         wallet_id:   walletId,
@@ -324,7 +327,7 @@ function recipe4(
           funding_rate:    funding,
           hist_win_rate:   histWinRate,
           open_interest:   ctx.openInterest,
-          description: `New ${coin} position with +${(funding * 100).toFixed(4)}% funding. Historical follow-through: ${(histWinRate * 100).toFixed(0)}%`,
+          description: `New ${coin} position with +${(funding * 100).toFixed(4)}% funding. Historical follow-through: ${((histWinRate ?? 0) * 100).toFixed(0)}%`,
         },
       });
     }
@@ -671,17 +674,18 @@ function enrichWithEv(
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface SignalLabInputs {
-  pairs:          SnapshotPair[];
-  candles5m:      Map<string, HlCandle[]>;
-  candles4h:      Map<string, HlCandle[]>;
-  assetCtxMap:    Map<string, HlAssetCtx>;
-  allMids:        Record<string, string>;
+  pairs:               SnapshotPair[];
+  candles5m:           Map<string, HlCandle[]>;
+  candles4h:           Map<string, HlCandle[]>;
+  assetCtxMap:         Map<string, HlAssetCtx>;
+  allMids:             Record<string, string>;
   /** allMids from the previous cron cycle, stored in KV. Used by R5 price confirmation. */
-  priorAllMids:   Record<string, string> | null;
-  backtestMap:    Map<string, { win_rate: number; avg_win_usd: number; avg_loss_usd: number; win_streak: number; sharpe_ratio: number }>;
-  l2Books:        Map<string, HlL2Book>;
-  recipeWinRates: Map<string, number>;
-  regime:         "BULL" | "BEAR" | "RANGING";
+  priorAllMids:        Record<string, string> | null;
+  backtestMap:         Map<string, { win_rate: number; avg_win_usd: number; avg_loss_usd: number; win_streak: number; sharpe_ratio: number }>;
+  l2Books:             Map<string, HlL2Book>;
+  recipeWinRates:      Map<string, number>;
+  recipeSignalCounts:  Map<string, number>;
+  regime:              "BULL" | "BEAR" | "RANGING";
 }
 
 /**
@@ -693,14 +697,14 @@ export interface SignalLabInputs {
 export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalEvent[]> {
   const {
     pairs, candles5m, candles4h, assetCtxMap, allMids, priorAllMids,
-    backtestMap, l2Books, recipeWinRates, regime,
+    backtestMap, l2Books, recipeWinRates, recipeSignalCounts, regime,
   } = inputs;
 
   // Run each recipe
   const r1 = recipe1(pairs);
   const r2 = recipe2(pairs, candles5m);
   const r3 = recipe3(pairs, candles4h);
-  const r4 = recipe4(pairs, assetCtxMap, recipeWinRates);
+  const r4 = recipe4(pairs, assetCtxMap, recipeWinRates, recipeSignalCounts);
   const r5 = recipe5(pairs, allMids, priorAllMids);
   const r6 = recipe6(pairs, backtestMap);
   const r7 = recipe7(pairs, assetCtxMap);
