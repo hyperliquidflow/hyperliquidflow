@@ -42,7 +42,7 @@ const DELAY_BETWEEN_MS     = 600; // ms delay per slot before firing -- keeps bu
 // to high-signal candidates using data already present in the leaderboard response.
 // Tune these; currently targets roughly the top 5-10% of leaderboard by performance.
 const PRE_QUALIFY_MIN_MONTH_ROI   = 0.03;  // >=3% monthly ROI
-const PRE_QUALIFY_MIN_MONTH_PNL   = 1_000; // >=$1k monthly realized PnL
+const PRE_QUALIFY_MIN_MONTH_PNL   = 5_000; // >=$5k monthly realized PnL
 const PRE_QUALIFY_MIN_ALLTIME_ROI = 0.0;   // net-positive all-time (filters out lucky months)
 
 // -- In-process semaphore (valid here -- long-running Node.js process, not serverless) --
