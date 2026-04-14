@@ -154,22 +154,29 @@ function recipe1(pairs: SnapshotPair[]): SignalEvent[] {
 // ─────────────────────────────────────────────────────────────────────────────
 // Recipe 2 — Divergence Squeeze
 // ─────────────────────────────────────────────────────────────────────────────
-// Net exposure rising while price flat + liquidation buffer <15%.
+// Net exposure rising while price flat (last 30 min) + liq buffer <10%.
+// Guards: min $25K notional delta, min wallet score 0.55, 20-min KV cooldown
+// per wallet+coin to prevent repeat fires during prolonged sideways periods.
 
-function recipe2(
+async function recipe2(
   pairs: SnapshotPair[],
-  candles5m: Map<string, HlCandle[]>   // coin → recent 5m candles
-): SignalEvent[] {
-  const LIQ_BUFFER_THRESHOLD = 0.15;
-  const PRICE_FLAT_PCT = 0.005; // price moved < 0.5% → "flat"
+  candles5m: Map<string, HlCandle[]>   // coin -> recent 5m candles
+): Promise<SignalEvent[]> {
+  const LIQ_BUFFER_THRESHOLD = 0.10;   // tightened from 0.15; only genuinely thin margin
+  const PRICE_FLAT_PCT       = 0.005;  // price moved < 0.5% -> "flat"
+  const MIN_NOTIONAL_DELTA   = 25_000; // ignore noise adds below $25K
+  const MIN_WALLET_SCORE     = 0.55;
+  const PRICE_FLAT_CANDLES   = 6;      // 30-min window (6 x 5m), not the full 4h
+  const COOLDOWN_SEC         = 1200;   // 20 min; prevents repeat fires on same wallet+coin
   const events: SignalEvent[] = [];
 
   for (const { walletId, curr, prev, overallScore } of pairs) {
     if (!prev) continue;
+    if (overallScore < MIN_WALLET_SCORE) continue;
     if ((curr.liq_buffer_pct ?? 1) >= LIQ_BUFFER_THRESHOLD) continue;
 
     const notionalDelta = curr.total_notional - prev.total_notional;
-    if (notionalDelta <= 0) continue; // exposure not rising
+    if (notionalDelta < MIN_NOTIONAL_DELTA) continue;
 
     // Check price flatness for the wallet's largest position coin
     const largestPos = [...posMap(curr).values()].sort(
@@ -180,11 +187,21 @@ function recipe2(
     const coinCandles = candles5m.get(largestPos.coin) ?? [];
     if (coinCandles.length < 2) continue;
 
-    const firstClose = parseFloat(coinCandles[0].c);
-    const lastClose  = parseFloat(coinCandles[coinCandles.length - 1].c);
+    // Use only the most recent 30 min of candles. Being flat over 4h is just a
+    // sideways day; being flat for 30 min while actively adding is the setup.
+    const recentCandles = coinCandles.slice(-PRICE_FLAT_CANDLES);
+    const firstClose = parseFloat(recentCandles[0].c);
+    const lastClose  = parseFloat(recentCandles[recentCandles.length - 1].c);
     const priceChange = firstClose > 0 ? Math.abs(lastClose - firstClose) / firstClose : 1;
 
-    if (priceChange >= PRICE_FLAT_PCT) continue; // price moved — not a squeeze setup
+    if (priceChange >= PRICE_FLAT_PCT) continue; // price moved, not a squeeze setup
+
+    // Cooldown: skip if this wallet+coin fired within the last 20 min
+    const cooldownKey = `r2:fired:${walletId}:${largestPos.coin}`;
+    const alreadyFired = await kv.get(cooldownKey);
+    if (alreadyFired) continue;
+
+    kv.set(cooldownKey, 1, { ex: COOLDOWN_SEC }).catch(() => {});
 
     events.push({
       wallet_id:   walletId,
@@ -194,11 +211,11 @@ function recipe2(
       direction:   sign(largestPos.szi) === "FLAT" ? null : sign(largestPos.szi),
       ev_score:    null,
       metadata: {
-        liq_buffer_pct:  curr.liq_buffer_pct,
-        notional_delta:  notionalDelta,
+        liq_buffer_pct:   curr.liq_buffer_pct,
+        notional_delta:   notionalDelta,
         price_change_pct: priceChange,
-        wallet_score:    overallScore,
-        description: `Exposure rising +$${(notionalDelta / 1e3).toFixed(0)}K while ${largestPos.coin} price flat (${(priceChange * 100).toFixed(2)}%). Liq buffer ${((curr.liq_buffer_pct ?? 0) * 100).toFixed(1)}%`,
+        wallet_score:     overallScore,
+        description: `Exposure rising +$${(notionalDelta / 1e3).toFixed(0)}K while ${largestPos.coin} flat last 30m (${(priceChange * 100).toFixed(2)}%). Liq buffer ${((curr.liq_buffer_pct ?? 0) * 100).toFixed(1)}%`,
       },
     });
   }
@@ -208,24 +225,36 @@ function recipe2(
 // ─────────────────────────────────────────────────────────────────────────────
 // Recipe 3 — Accumulation Re-Entry
 // ─────────────────────────────────────────────────────────────────────────────
-// Winners cohort increases positions after >8% drawdown in last 4h.
+// Winners cohort increases positions after a meaningful drawdown in last 4h.
+// Threshold is per-coin: 2x the coin's 4h high-low range, clamped [6%, 15%].
+// BTC/ETH: threshold lands ~6%; volatile alts: up to 15%. Prevents the flat
+// 8% bar from being noise on alts while missing signals on low-vol majors.
 
 function recipe3(
   pairs: SnapshotPair[],
-  candles4h: Map<string, HlCandle[]>  // coin → last 4h candles (e.g. 48 × 5m)
+  candles4h: Map<string, HlCandle[]>  // coin -> last 4h candles (e.g. 48 x 5m)
 ): SignalEvent[] {
-  const DRAWDOWN_THRESHOLD = 0.08;
   const HIGH_SCORE = 0.65;
+  const DRAWDOWN_MULTIPLIER  = 2.0;  // threshold = 2x the coin's typical 4h range
+  const DRAWDOWN_MIN         = 0.06; // floor: even stable coins need a real dip
+  const DRAWDOWN_MAX         = 0.15; // ceiling: above this is capitulation, not dip-buy
+  const DRAWDOWN_FALLBACK    = 0.09; // for coins without candle data (outside top-10)
   const events: SignalEvent[] = [];
 
   const coinsWithDrawdown = new Set<string>();
 
-  // Identify coins with >8% drawdown in last 4h
+  // Identify coins with a meaningful drawdown in last 4h.
+  // Threshold scales with each coin's own volatility so the bar is equally
+  // selective across BTC, ETH, and small alts.
   for (const [coin, candles] of candles4h) {
     if (candles.length < 2) continue;
-    const highPx = Math.max(...candles.map((c) => parseFloat(c.h)));
+    const highPx    = Math.max(...candles.map((c) => parseFloat(c.h)));
+    const lowPx     = Math.min(...candles.map((c) => parseFloat(c.l)));
     const lastClose = parseFloat(candles[candles.length - 1].c);
-    if (highPx > 0 && (highPx - lastClose) / highPx >= DRAWDOWN_THRESHOLD) {
+    const midPx     = parseFloat(candles[Math.floor(candles.length / 2)].c);
+    const vol4h     = midPx > 0 ? (highPx - lowPx) / midPx : DRAWDOWN_FALLBACK;
+    const threshold = Math.max(DRAWDOWN_MIN, Math.min(DRAWDOWN_MAX, vol4h * DRAWDOWN_MULTIPLIER));
+    if (highPx > 0 && (highPx - lastClose) / highPx >= threshold) {
       coinsWithDrawdown.add(coin);
     }
   }
@@ -350,8 +379,10 @@ function recipe5(
   allMids: Record<string, string>,
   priorAllMids: Record<string, string> | null
 ): SignalEvent[] {
-  const POSITION_SHRINK_PCT = 0.05;   // cohort net notional drops >5%
-  const PRICE_SPIKE_PCT     = 0.02;   // price must have moved >2% since prior cycle
+  const POSITION_SHRINK_PCT      = 0.05;   // cohort net notional drops >5%
+  const PRICE_SPIKE_PCT_MAJOR    = 0.015;  // BTC/ETH: cascade-level only (was 0.02 flat)
+  const PRICE_SPIKE_PCT_ALT      = 0.035;  // alts: filter routine volatility
+  const MAJOR_COINS              = new Set(["BTC", "ETH"]);
   const events: SignalEvent[] = [];
 
   // Without prior mids we cannot confirm price movement — skip to avoid false fires
@@ -386,9 +417,11 @@ function recipe5(
     const priorMid   = parseFloat(priorMidStr);
     if (priorMid <= 0) continue;
 
-    // Price must have moved >2% since the prior cycle — confirms market stress,
-    // distinguishes cascade from routine de-risking
-    const priceMove = Math.abs(currentMid - priorMid) / priorMid;
+    // Price must have moved meaningfully since the prior cycle to confirm market
+    // stress vs routine de-risking. Threshold is lower for majors (cascade-only)
+    // and higher for alts (filters routine volatility).
+    const priceMove     = Math.abs(currentMid - priorMid) / priorMid;
+    const PRICE_SPIKE_PCT = MAJOR_COINS.has(coin) ? PRICE_SPIKE_PCT_MAJOR : PRICE_SPIKE_PCT_ALT;
     if (priceMove < PRICE_SPIKE_PCT) continue;
 
     // Rebound direction: if price dropped → longs got liquidated → LONG rebound
@@ -720,8 +753,12 @@ async function recipe10(pairs: SnapshotPair[]): Promise<SignalEvent[]> {
 
 function recipe11(pairs: SnapshotPair[]): SignalEvent[] {
   const CONCENTRATION_THRESHOLD = 0.60;
+  // BTC is always the dominant cohort holding; concentration there is not a signal.
+  // ETH gets a higher bar since moderate ETH dominance is common but not universal.
+  const EXCLUDED_COINS  = new Set(["BTC"]);
+  const ETH_THRESHOLD   = 0.70;
 
-  // Coin → total notional + per-wallet breakdown
+  // Coin -> total notional + per-wallet breakdown
   const coinNotional = new Map<string, number>();
   const walletCoinNotional = new Map<string, Map<string, number>>();
   let totalCohortNotional = 0;
@@ -742,8 +779,10 @@ function recipe11(pairs: SnapshotPair[]): SignalEvent[] {
 
   const events: SignalEvent[] = [];
   for (const [coin, notional] of coinNotional) {
-    const ratio = notional / totalCohortNotional;
-    if (ratio <= CONCENTRATION_THRESHOLD) continue;
+    if (EXCLUDED_COINS.has(coin)) continue;
+    const ratio     = notional / totalCohortNotional;
+    const threshold = coin === "ETH" ? ETH_THRESHOLD : CONCENTRATION_THRESHOLD;
+    if (ratio <= threshold) continue;
 
     // Top 3 wallets by exposure to this coin
     const walletExposures: { wallet_id: string; notional: number }[] = [];
@@ -945,14 +984,14 @@ export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalEvent
 
   // Run each recipe
   const r1 = recipe1(pairs);
-  const r2 = recipe2(pairs, candles5m);
   const r3 = recipe3(pairs, candles4h);
   const r4 = recipe4(pairs, assetCtxMap, recipeWinRates, recipeSignalCounts);
   const r5 = recipe5(pairs, allMids, priorAllMids);
   const r6 = recipe6(pairs, backtestMap);
   const r7 = recipe7(pairs, assetCtxMap);
-  // Recipes 10 and 13 are async (KV reads); run in parallel to minimise latency
-  const [r10, r13] = await Promise.all([
+  // R2, R10, R13 are async (KV reads/writes); run in parallel to minimise latency
+  const [r2, r10, r13] = await Promise.all([
+    recipe2(pairs, candles5m),
     recipe10(pairs),
     recipe13(assetCtxMap),
   ]);
