@@ -168,7 +168,6 @@ async function recipe2(
   const MIN_WALLET_SCORE     = 0.65;   // high-conviction wallets only
   const PRICE_FLAT_CANDLES   = 6;      // 6 x 5m = 30 min
   const MIN_WALLETS          = 3;      // require 3 coordinating wallets
-  const COOLDOWN_SEC         = 3600;   // 60-min cooldown per coin
 
   // Pass 1: collect wallets qualifying per coin
   type QualifiedWallet = {
@@ -229,12 +228,6 @@ async function recipe2(
 
   for (const [coin, wallets] of coinBuckets) {
     if (wallets.length < MIN_WALLETS) continue;
-
-    const cooldownKey  = `r2:fired:${coin}`;
-    const alreadyFired = await kv.get(cooldownKey);
-    if (alreadyFired) continue;
-
-    kv.set(cooldownKey, 1, { ex: COOLDOWN_SEC }).catch(() => {});
 
     const totalDelta   = wallets.reduce((s, w) => s + w.notionalDelta, 0);
     const avgLiqBuf    = wallets.reduce((s, w) => s + w.liqBuffer, 0) / wallets.length;
