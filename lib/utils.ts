@@ -61,6 +61,23 @@ export function timeAgo(isoOrMs: string | number): string {
 }
 
 /**
+ * Format a signal timestamp for the feed.
+ * Under 2 hours: relative ("2m ago", "1h ago").
+ * 2 hours or older: absolute ("Apr 16, 14:32").
+ */
+export function formatSignalTime(isoOrMs: string | number): string {
+  const ms = typeof isoOrMs === "string" ? new Date(isoOrMs).getTime() : isoOrMs;
+  const ageMs = Date.now() - ms;
+  if (ageMs < 2 * 60 * 60 * 1000) return timeAgo(ms);
+  const d = new Date(ms);
+  const month = d.toLocaleString("en-US", { month: "short" });
+  const day   = d.getDate();
+  const hh    = String(d.getHours()).padStart(2, "0");
+  const mm    = String(d.getMinutes()).padStart(2, "0");
+  return `${month} ${day}, ${hh}:${mm}`;
+}
+
+/**
  * Clamp a number between min and max (inclusive).
  */
 export function clamp(value: number, min: number, max: number): number {
