@@ -28,30 +28,6 @@ export async function GET(): Promise<NextResponse> {
 
   if (perfErr) return NextResponse.json({ error: perfErr.message }, { status: 500 });
 
-  // Build outcome stats map from RPC result
-  type OutcomeEntry = typeof OUTCOME_DEFAULTS;
-  const outcomeMap = new Map<string, OutcomeEntry>();
-  for (const row of outcomeData ?? []) {
-    outcomeMap.set(row.recipe_id, {
-      resolved_7d:      row.resolved_7d      ?? 0,
-      resolved_30d:     row.resolved_30d     ?? 0,
-      accuracy_1h_7d:   row.accuracy_1h_7d   ?? null,
-      accuracy_4h_7d:   row.accuracy_4h_7d   ?? null,
-      accuracy_24h_7d:  row.accuracy_24h_7d  ?? null,
-      avg_move_1h_7d:   row.avg_move_1h_7d   ?? null,
-      avg_move_4h_7d:   row.avg_move_4h_7d   ?? null,
-      avg_move_24h_7d:  row.avg_move_24h_7d  ?? null,
-      accuracy_1h_30d:  row.accuracy_1h_30d  ?? null,
-      accuracy_4h_30d:  row.accuracy_4h_30d  ?? null,
-      accuracy_24h_30d: row.accuracy_24h_30d ?? null,
-      avg_move_1h_30d:  row.avg_move_1h_30d  ?? null,
-      avg_move_4h_30d:  row.avg_move_4h_30d  ?? null,
-      avg_move_24h_30d: row.avg_move_24h_30d ?? null,
-      top_coins_7d:  [],
-      top_coins_30d: [],
-    });
-  }
-
   // Build top coins per recipe per window from the coin query
   const since7d = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const coinCount7d  = new Map<string, Map<string, number>>();
@@ -76,9 +52,35 @@ export async function GET(): Promise<NextResponse> {
   const topCoins = (m: Map<string, number>) =>
     [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([coin]) => coin);
 
-  for (const [recipeId, outcome] of outcomeMap) {
-    outcome.top_coins_7d  = topCoins(coinCount7d.get(recipeId)  ?? new Map());
-    outcome.top_coins_30d = topCoins(coinCount30d.get(recipeId) ?? new Map());
+  // Build outcome stats map from RPC result, including top coins
+  type MutableOutcomeEntry = {
+    resolved_7d: number; resolved_30d: number;
+    accuracy_1h_7d: number | null; accuracy_4h_7d: number | null; accuracy_24h_7d: number | null;
+    avg_move_1h_7d: number | null; avg_move_4h_7d: number | null; avg_move_24h_7d: number | null;
+    accuracy_1h_30d: number | null; accuracy_4h_30d: number | null; accuracy_24h_30d: number | null;
+    avg_move_1h_30d: number | null; avg_move_4h_30d: number | null; avg_move_24h_30d: number | null;
+    top_coins_7d: string[]; top_coins_30d: string[];
+  };
+  const outcomeMap = new Map<string, MutableOutcomeEntry>();
+  for (const row of outcomeData ?? []) {
+    outcomeMap.set(row.recipe_id, {
+      resolved_7d:      row.resolved_7d      ?? 0,
+      resolved_30d:     row.resolved_30d     ?? 0,
+      accuracy_1h_7d:   row.accuracy_1h_7d   ?? null,
+      accuracy_4h_7d:   row.accuracy_4h_7d   ?? null,
+      accuracy_24h_7d:  row.accuracy_24h_7d  ?? null,
+      avg_move_1h_7d:   row.avg_move_1h_7d   ?? null,
+      avg_move_4h_7d:   row.avg_move_4h_7d   ?? null,
+      avg_move_24h_7d:  row.avg_move_24h_7d  ?? null,
+      accuracy_1h_30d:  row.accuracy_1h_30d  ?? null,
+      accuracy_4h_30d:  row.accuracy_4h_30d  ?? null,
+      accuracy_24h_30d: row.accuracy_24h_30d ?? null,
+      avg_move_1h_30d:  row.avg_move_1h_30d  ?? null,
+      avg_move_4h_30d:  row.avg_move_4h_30d  ?? null,
+      avg_move_24h_30d: row.avg_move_24h_30d ?? null,
+      top_coins_7d:  topCoins(coinCount7d.get(row.recipe_id)  ?? new Map()),
+      top_coins_30d: topCoins(coinCount30d.get(row.recipe_id) ?? new Map()),
+    });
   }
 
   // Deduplicate perf rows: keep most recent per recipe_id
