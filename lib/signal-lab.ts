@@ -186,15 +186,22 @@ async function recipe2(
     if (overallScore < MIN_WALLET_SCORE) continue;
     if ((curr.liq_buffer_pct ?? 1) >= LIQ_BUFFER_THRESHOLD) continue;
 
-    const notionalDelta = curr.total_notional - prev.total_notional;
-    if (notionalDelta < MIN_NOTIONAL_DELTA) continue;
+    // Find the coin with the largest per-coin notional increase (the coin being loaded)
+    const currPos = posMap(curr);
+    const prevPos = posMap(prev);
+    let maxCoinDelta = 0;
+    let targetCoin   = "";
+    for (const [c, p] of currPos) {
+      const pp    = prevPos.get(c);
+      const delta = parseFloat(p.positionValue) - (pp ? parseFloat(pp.positionValue) : 0);
+      if (delta > maxCoinDelta) { maxCoinDelta = delta; targetCoin = c; }
+    }
+    if (!targetCoin || maxCoinDelta < MIN_NOTIONAL_DELTA) continue;
 
-    const largestPos = [...posMap(curr).values()].sort(
-      (a, b) => parseFloat(b.positionValue) - parseFloat(a.positionValue)
-    )[0];
-    if (!largestPos) continue;
+    const notionalDelta = maxCoinDelta;
+    const targetPos     = currPos.get(targetCoin)!;
 
-    const coinCandles = candles5m.get(largestPos.coin) ?? [];
+    const coinCandles = candles5m.get(targetCoin) ?? [];
     if (coinCandles.length < 2) continue;
 
     const recentCandles = coinCandles.slice(-PRICE_FLAT_CANDLES);
@@ -203,8 +210,8 @@ async function recipe2(
     const priceChange   = firstClose > 0 ? Math.abs(lastClose - firstClose) / firstClose : 1;
     if (priceChange >= PRICE_FLAT_PCT) continue;
 
-    const coin = largestPos.coin;
-    const dir  = sign(largestPos.szi) === "FLAT" ? null : sign(largestPos.szi) as "LONG" | "SHORT";
+    const coin = targetCoin;
+    const dir  = sign(targetPos.szi) === "FLAT" ? null : sign(targetPos.szi) as "LONG" | "SHORT";
     const bucket = coinBuckets.get(coin) ?? [];
     bucket.push({
       walletId,

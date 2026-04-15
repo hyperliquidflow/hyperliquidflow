@@ -151,8 +151,8 @@ export function FeedClient({ initialData }: { initialData: CohortCachePayload | 
                     </div>
                     <div style={{ ...S.muted, marginTop: "3px" }}>
                       {meta?.desc} · {
-                        sig.metadata?.wallet_count > 1
-                          ? <span>{sig.metadata.wallet_count} smart money wallets</span>
+                        Number(sig.metadata?.wallet_count) > 1
+                          ? <span>{sig.metadata.wallet_count as number} smart money wallets</span>
                           : sig.wallet_id
                             ? <a href={`/wallets/discovery?address=${sig.wallet_id}`} style={{ color: "inherit", textDecoration: "underline", textDecorationColor: "rgba(255,255,255,0.25)", textUnderlineOffset: "3px" }}>{truncateAddress(sig.wallet_id)}</a>
                             : <span>smart money signal</span>
