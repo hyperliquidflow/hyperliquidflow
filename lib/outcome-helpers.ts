@@ -11,6 +11,7 @@ export function computeOutcome(
 }
 
 export function computeMovePct(priceAtSignal: number, priceNow: number): number {
+  if (priceAtSignal <= 0) return 0;
   return ((priceNow - priceAtSignal) / priceAtSignal) * 100;
 }
 
