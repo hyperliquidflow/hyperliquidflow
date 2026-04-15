@@ -626,6 +626,70 @@ async function computeAndSaveRecipePerformance(): Promise<void> {
   }
 }
 
+// -- Wallet outcome resolution -------------------------------------------------
+
+async function resolveWalletOutcomes(): Promise<void> {
+  console.log("[wallet-outcomes] resolving open signal outcomes...");
+
+  const { data: openOutcomes, error } = await supabase
+    .from("signal_outcomes")
+    .select("signal_id, signal_events!inner(wallet_ids, coin, direction)")
+    .eq("wallet_outcome", "OPEN")
+    .limit(500);
+
+  if (error || !openOutcomes || openOutcomes.length === 0) {
+    console.log("[wallet-outcomes] no open outcomes to resolve");
+    return;
+  }
+
+  const allWalletIds = new Set<string>();
+  for (const row of openOutcomes) {
+    const event = Array.isArray(row.signal_events) ? row.signal_events[0] : row.signal_events;
+    for (const wid of (event?.wallet_ids ?? [])) allWalletIds.add(wid);
+  }
+
+  const { data: backtestRows } = await supabase
+    .from("user_pnl_backtest")
+    .select("wallet_id, win_rate, avg_win_usd, avg_loss_usd, profit_factor")
+    .in("wallet_id", [...allWalletIds]);
+
+  const backtestByWallet = new Map(
+    (backtestRows ?? []).map((r) => [r.wallet_id, r])
+  );
+
+  let resolved = 0;
+  for (const row of openOutcomes) {
+    const event = Array.isArray(row.signal_events) ? row.signal_events[0] : row.signal_events;
+    if (!event?.wallet_ids?.length) continue;
+
+    const walletReturns = event.wallet_ids
+      .map((wid: string) => backtestByWallet.get(wid))
+      .filter(Boolean)
+      .map((bt: { win_rate: number; avg_win_usd: number; avg_loss_usd: number }) =>
+        bt.win_rate > 0.5
+          ? bt.avg_win_usd / Math.max(1, bt.avg_win_usd + Math.abs(bt.avg_loss_usd))
+          : -(Math.abs(bt.avg_loss_usd) / Math.max(1, bt.avg_win_usd + Math.abs(bt.avg_loss_usd)))
+      );
+
+    if (walletReturns.length === 0) continue;
+
+    const walletReturnAvg = walletReturns.reduce((a: number, b: number) => a + b, 0) / walletReturns.length;
+    const walletOutcome   = walletReturnAvg > 0 ? "WIN" : "LOSS";
+
+    const { error: updateError } = await supabase
+      .from("signal_outcomes")
+      .update({
+        wallet_return_avg: walletReturnAvg,
+        wallet_outcome:    walletOutcome,
+      })
+      .eq("signal_id", row.signal_id);
+
+    if (!updateError) resolved++;
+  }
+
+  console.log(`[wallet-outcomes] resolved ${resolved} of ${openOutcomes.length} open outcomes`);
+}
+
 // -- Main ----------------------------------------------------------------------
 
 async function main(): Promise<void> {
@@ -809,6 +873,8 @@ async function main(): Promise<void> {
       );
     }
   }
+
+  await resolveWalletOutcomes();
 }
 
 main().catch((err) => {
