@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Search Bar Variants — HyperliquidFLOW</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Geist+Mono:wght@400;600;700&display=swap" rel="stylesheet" />
+<style>
+  /* ── tokens ── */
+  :root {
+    --bg:           #060606;
+    --text:         #f0f0f0;
+    --textMuted:    rgba(255,255,255,0.38);
+    --textDim:      rgba(255,255,255,0.28);
+    --textFaint:    rgba(255,255,255,0.22);
+    --green:        #6aaa7a;
+    --red:          #c92435;
+    --amber:        #c4925a;
+    --accent:       #50d2c1;
+    --card:         rgba(12,12,12,0.7);
+    --border:       rgba(255,255,255,0.07);
+    --borderFaint:  rgba(255,255,255,0.05);
+    --borderHover:  rgba(255,255,255,0.12);
+    --inputBg:      rgba(255,255,255,0.06);
+    --inputBorder:  rgba(255,255,255,0.10);
+    --neutral:      #9ca3af;
+    --neutralBg:    rgba(156,163,175,0.08);
+    --neutralBorder:rgba(156,163,175,0.19);
+    --navActivebg:  rgba(80,210,193,0.05);
+    --navActive:    rgba(80,210,193,0.7);
+    --sans: 'DM Sans', system-ui, sans-serif;
+    --mono: 'Geist Mono', monospace;
+    --r-card: 12px;
+    --r-input: 6px;
+    --r-tag: 5px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  * { user-select: none; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── bg aura ── */
+  body::before {
+    content: '';
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+    background: radial-gradient(ellipse at 100% 100% in oklch,
+      oklch(32% 0.06 170) 0%, oklch(25% 0.045 170) 18%,
+      oklch(20% 0.032 170) 32%, oklch(15% 0.022 170) 45%,
+      oklch(12% 0.014 170) 57%, oklch(8% 0.008 170) 68%,
+      oklch(6% 0.004 170) 78%, oklch(3.5% 0 0) 100%);
+  }
+
+  main { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 0 32px 60px; }
+
+  /* ── divider between variants ── */
+  .divider { height: 1px; background: var(--border); margin: 0 0 48px; }
+
+  /* ── variant block ── */
+  .variant { margin-bottom: 48px; }
+  .variant-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--textFaint);
+    margin-bottom: 20px;
+  }
+
+  /* ── page header row (simulated) ── */
+  .page-header-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 28px 0 0;
+  }
+  .page-title { font-size: 26px; font-weight: 700; color: var(--text); }
+
+  /* ─────────────────────────────────────────────────────────────────
+     VARIANT 1 — Ghost Pill
+     Input: pill shape, inputBg + inputBorder, mono font
+     Button: accent fill, pill, icon only
+  ───────────────────────────────────────────────────────────────── */
+  .v1-wrap {
+    display: flex; align-items: center; gap: 0;
+    background: var(--inputBg);
+    border: 1px solid var(--inputBorder);
+    border-radius: 40px;
+    padding: 0 4px 0 16px;
+    transition: border-color 0.2s;
+  }
+  .v1-wrap:focus-within { border-color: rgba(80,210,193,0.4); }
+  .v1-input {
+    background: transparent; border: none; outline: none;
+    color: var(--text); font-family: var(--mono); font-size: 13px;
+    width: 220px; padding: 10px 0;
+  }
+  .v1-input::placeholder { color: var(--textFaint); }
+  .v1-btn {
+    width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0;
+    background: var(--accent); border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity 0.15s;
+    position: relative; overflow: hidden;
+  }
+  .v1-btn:hover { opacity: 0.85; }
+  .v1-btn svg { width: 14px; height: 14px; color: #060606; }
+
+  /* ─────────────────────────────────────────────────────────────────
+     VARIANT 2 — Card Shell
+     Input: card background, radius.input (6px), left search icon
+     Button: text label, card border, right side
+  ───────────────────────────────────────────────────────────────── */
+  .v2-wrap {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .v2-inner {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(12,12,12,0.7);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0 12px;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    transition: border-color 0.2s;
+  }
+  .v2-inner:focus-within { border-color: var(--borderHover); }
+  .v2-icon { color: var(--textFaint); flex-shrink: 0; }
+  .v2-icon svg { display: block; width: 14px; height: 14px; }
+  .v2-input {
+    background: transparent; border: none; outline: none;
+    color: var(--text); font-family: var(--sans); font-size: 13px;
+    width: 200px; padding: 10px 0;
+  }
+  .v2-input::placeholder { color: var(--textFaint); }
+  .v2-btn {
+    padding: 0 16px; height: 38px; border-radius: 7px; cursor: pointer;
+    background: transparent; border: 1px solid var(--inputBorder);
+    color: var(--text); font-family: var(--sans); font-size: 13px; font-weight: 700;
+    transition: border-color 0.15s, background 0.15s;
+    position: relative; overflow: hidden;
+  }
+  .v2-btn:hover { border-color: var(--borderHover); background: rgba(255,255,255,0.03); }
+
+  /* ─────────────────────────────────────────────────────────────────
+     VARIANT 3 — Accent Underline
+     Borderless input, just a bottom accent line on focus
+     Button: small accent-tinted ghost
+  ───────────────────────────────────────────────────────────────── */
+  .v3-wrap {
+    display: flex; align-items: center; gap: 10px;
+  }
+  .v3-input-wrap {
+    position: relative; display: flex; align-items: center;
+  }
+  .v3-input-wrap::after {
+    content: '';
+    position: absolute; bottom: 0; left: 0; right: 0; height: 1px;
+    background: var(--inputBorder);
+    transition: background 0.2s;
+  }
+  .v3-input-wrap:focus-within::after { background: var(--accent); }
+  .v3-input {
+    background: transparent; border: none; outline: none;
+    color: var(--text); font-family: var(--mono); font-size: 13px;
+    width: 220px; padding: 8px 0;
+  }
+  .v3-input::placeholder { color: var(--textFaint); }
+  .v3-btn {
+    padding: 0 14px; height: 34px; border-radius: 6px; cursor: pointer;
+    background: rgba(80,210,193,0.07); border: 1px solid rgba(80,210,193,0.18);
+    color: var(--accent); font-family: var(--sans); font-size: 13px; font-weight: 700;
+    display: flex; align-items: center; gap: 6px;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .v3-btn:hover { background: rgba(80,210,193,0.12); border-color: rgba(80,210,193,0.28); }
+  .v3-btn svg { width: 13px; height: 13px; }
+
+  /* ─────────────────────────────────────────────────────────────────
+     VARIANT 4 — Frosted Wide
+     Full-width-ish, glass frosted shell, monospace placeholder,
+     kbd hint on right, accent icon button attached inside
+  ───────────────────────────────────────────────────────────────── */
+  .v4-wrap {
+    display: flex; align-items: center;
+    background: rgba(12,12,12,0.6);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0 6px 0 14px;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    gap: 8px;
+    transition: border-color 0.2s;
+  }
+  .v4-wrap:focus-within { border-color: rgba(80,210,193,0.3); }
+  .v4-search-icon { color: var(--textFaint); flex-shrink: 0; }
+  .v4-search-icon svg { display: block; width: 14px; height: 14px; }
+  .v4-input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--text); font-family: var(--mono); font-size: 13px;
+    padding: 11px 0; min-width: 0;
+  }
+  .v4-input::placeholder { color: var(--textFaint); }
+  .v4-kbd {
+    font-size: 11px; font-family: var(--mono); color: var(--textFaint);
+    background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+    border-radius: 4px; padding: 2px 6px; flex-shrink: 0;
+  }
+  .v4-btn {
+    width: 30px; height: 30px; border-radius: 7px; flex-shrink: 0;
+    background: rgba(80,210,193,0.1); border: 1px solid rgba(80,210,193,0.2);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    color: var(--accent); transition: background 0.15s;
+  }
+  .v4-btn:hover { background: rgba(80,210,193,0.18); }
+  .v4-btn svg { width: 13px; height: 13px; }
+
+  /* ─────────────────────────────────────────────────────────────────
+     VARIANT 5 — Segmented Neutral
+     Input + button as a single segmented control, card-surface,
+     neutral border + separator, no color until focus/hover
+  ───────────────────────────────────────────────────────────────── */
+  .v5-wrap {
+    display: flex; align-items: center;
+    background: var(--inputBg);
+    border: 1px solid var(--neutralBorder);
+    border-radius: 8px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .v5-wrap:focus-within { border-color: var(--borderHover); }
+  .v5-input {
+    flex: 1; background: transparent; border: none; outline: none;
+    color: var(--text); font-family: var(--mono); font-size: 13px;
+    padding: 10px 14px; min-width: 180px;
+  }
+  .v5-input::placeholder { color: var(--textFaint); }
+  .v5-sep { width: 1px; height: 20px; background: var(--neutralBorder); flex-shrink: 0; }
+  .v5-btn {
+    padding: 0 16px; height: 100%; min-height: 40px; cursor: pointer;
+    background: transparent; border: none;
+    color: var(--neutral); font-family: var(--sans); font-size: 13px; font-weight: 700;
+    display: flex; align-items: center; gap: 6px;
+    transition: color 0.15s, background 0.15s;
+    white-space: nowrap;
+  }
+  .v5-btn:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+  .v5-btn svg { width: 13px; height: 13px; }
+
+  /* ── shimmer glow ── */
+  .glow-btn { position: relative; overflow: hidden; }
+  .glow-btn::before {
+    content: '';
+    position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(circle at var(--gx,50%) var(--gy,50%),
+      rgba(235,235,235,0.13) 0%, rgba(200,200,200,0.06) 35%, transparent 65%);
+    opacity: 0; transition: opacity 0.9s ease-out;
+    border-radius: inherit;
+  }
+  .glow-btn:hover::before { opacity: 1; transition: opacity 0.12s ease-in; }
+
+  /* ── variant number badge ── */
+  .vnum {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--neutralBg); border: 1px solid var(--neutralBorder);
+    font-size: 11px; font-weight: 700; color: var(--neutral);
+    margin-right: 8px; flex-shrink: 0;
+  }
+  .vlabel-row { display: flex; align-items: center; margin-bottom: 20px; }
+  .vlabel-text { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--textFaint); }
+  .vname { font-size: 13px; font-weight: 600; color: var(--textMuted); margin-left: 10px; border-left: 1px solid var(--border); padding-left: 10px; }
+
+  /* ── simulated page content ghost ── */
+  .ghost-row {
+    display: flex; gap: 12px; margin-top: 20px;
+  }
+  .ghost-card {
+    flex: 1; height: 72px; border-radius: 12px;
+    background: rgba(255,255,255,0.03); border: 1px solid var(--borderFaint);
+  }
+</style>
+</head>
+<body>
+<main>
+
+  <!-- ── top banner ── -->
+  <div style="padding: 40px 0 36px; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 44px;">
+    <div style="font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); margin-bottom: 10px;">Search Bar Variants</div>
+    <div style="font-size: 26px; font-weight: 700; color: var(--text);">Discovery Page Header</div>
+    <div style="font-size: 13px; color: var(--textMuted); margin-top: 6px;">5 search bar designs using HyperliquidFLOW design tokens. All inline styles, no invented values.</div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════
+       VARIANT 1 — Ghost Pill
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="variant">
+    <div class="vlabel-row">
+      <span class="vnum">1</span>
+      <span class="vlabel-text">Ghost Pill</span>
+      <span class="vname">Pill shape, accent fill button, mono input</span>
+    </div>
+
+    <div class="page-header-row">
+      <div class="page-title">Discovery</div>
+
+      <div class="v1-wrap glow-btn">
+        <input class="v1-input" placeholder="0x... wallet address" />
+        <button class="v1-btn glow-btn" title="Search">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="6.5" cy="6.5" r="4"/>
+            <line x1="10" y1="10" x2="14" y2="14"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="ghost-row">
+      <div class="ghost-card"></div><div class="ghost-card"></div><div class="ghost-card"></div><div class="ghost-card"></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ════════════════════════════════════════════════════════
+       VARIANT 2 — Card Shell
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="variant">
+    <div class="vlabel-row">
+      <span class="vnum">2</span>
+      <span class="vlabel-text">Card Shell</span>
+      <span class="vname">Glass card input + separate text button</span>
+    </div>
+
+    <div class="page-header-row">
+      <div class="page-title">Discovery</div>
+
+      <div class="v2-wrap">
+        <div class="v2-inner">
+          <span class="v2-icon">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="6.5" cy="6.5" r="4"/><line x1="10" y1="10" x2="14" y2="14"/>
+            </svg>
+          </span>
+          <input class="v2-input" placeholder="0x... wallet address" />
+        </div>
+        <button class="v2-btn glow-btn">Lookup</button>
+      </div>
+    </div>
+
+    <div class="ghost-row">
+      <div class="ghost-card"></div><div class="ghost-card"></div><div class="ghost-card"></div><div class="ghost-card"></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ════════════════════════════════════════════════════════
+       VARIANT 3 — Accent Underline
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="variant">
+    <div class="vlabel-row">
+      <span class="vnum">3</span>
+      <span class="vlabel-text">Accent Underline</span>
+      <span class="vname">Borderless input, accent line on focus, ghost accent button</span>
+    </div>
+
+    <div class="page-header-row">
+      <div class="page-title">Discovery</div>
+
+      <div class="v3-wrap">
+        <div class="v3-input-wrap">
+          <input class="v3-input" placeholder="0x... wallet address" />
+        </div>
+        <button class="v3-btn glow-btn">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="6.5" cy="6.5" r="4"/><line x1="10" y1="10" x2="14" y2="14"/>
+          </svg>
+          Lookup
+        </button>
+      </div>
+    </div>
+
+    <div class="ghost-row">
+      <div class="ghost-card"></div><div class="ghost-card"></div><div class="ghost-card"></div><div class="ghost-card"></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ════════════════════════════════════════════════════════
+       VARIANT 4 — Frosted Wide
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="variant">
+    <div class="vlabel-row">
+      <span class="vnum">4</span>
+      <span class="vlabel-text">Frosted Wide</span>
+      <span class="vname">Glass shell, search icon left, kbd hint, accent icon button inside</span>
+    </div>
+
+    <div class="page-header-row">
+      <div class="page-title">Discovery</div>
+
+      <div class="v4-wrap" style="width: 320px;">
+        <span class="v4-search-icon">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="6.5" cy="6.5" r="4"/><line x1="10" y1="10" x2="14" y2="14"/>
+          </svg>
+        </span>
+        <input class="v4-input" placeholder="0x... wallet address" />
+        <span class="v4-kbd">↵</span>
+        <button class="v4-btn glow-btn" title="Lookup">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="3" y1="8" x2="13" y2="8"/><polyline points="9,4 13,8 9,12"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="ghost-row">
+      <div class="ghost-card"></div><div class="ghost-card"></div><div class="ghost-card"></div><div class="ghost-card"></div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- ════════════════════════════════════════════════════════
+       VARIANT 5 — Segmented Neutral
+  ═══════════════════════════════════════════════════════════ -->
+  <div class="variant">
+    <div class="vlabel-row">
+      <span class="vnum">5</span>
+      <span class="vlabel-text">Segmented Neutral</span>
+      <span class="vname">Single unified control, separator divider, no color until interaction</span>
+    </div>
+
+    <div class="page-header-row">
+      <div class="page-title">Discovery</div>
+
+      <div class="v5-wrap">
+        <input class="v5-input" placeholder="0x... wallet address" />
+        <div class="v5-sep"></div>
+        <button class="v5-btn glow-btn">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="6.5" cy="6.5" r="4"/><line x1="10" y1="10" x2="14" y2="14"/>
+          </svg>
+          Search
+        </button>
+      </div>
+    </div>
+
+    <div class="ghost-row">
+      <div class="ghost-card"></div><div class="ghost-card"></div><div class="ghost-card"></div><div class="ghost-card"></div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+  // shimmer mouse tracking
+  document.querySelectorAll('.glow-btn').forEach(el => {
+    el.addEventListener('mousemove', e => {
+      const r = el.getBoundingClientRect();
+      el.style.setProperty('--gx', ((e.clientX - r.left) / r.width * 100) + '%');
+      el.style.setProperty('--gy', ((e.clientY - r.top) / r.height * 100) + '%');
+    });
+  });
+</script>
+</body>
+</html>

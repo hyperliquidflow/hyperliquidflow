@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HyperliquidFLOW — Bias Trend</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Geist+Mono:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    /* ── Reset ─────────────────────────────────────────────────────────────── */
+    *, *::before, *::after {
+      box-sizing: border-box; margin: 0; padding: 0;
+      user-select: none; -webkit-user-select: none;
+      cursor: default;
+    }
+    a { color: inherit; text-decoration: none; }
+    button { font-family: inherit; outline: none; }
+
+    /* ── Design tokens (mirrored from lib/design-tokens.ts) ─────────────────── */
+    :root {
+      /* color */
+      --bg:              #060606;
+      --text:            #f0f0f0;
+      --text-muted:      rgba(255,255,255,0.38);
+      --text-dim:        rgba(255,255,255,0.28);
+      --text-faint:      rgba(255,255,255,0.22);
+      --green:           #6aaa7a;
+      --red:             #c92435;
+      --amber:           #c4925a;
+      --accent:          #50d2c1;
+      --card:            rgba(12,12,12,0.7);
+      --card-hover:      rgba(18,18,18,0.7);
+      --nav-bg:          rgba(8,8,8,0.8);
+      --nav-active-bg:   rgba(80,210,193,0.05);
+      --border:          rgba(255,255,255,0.07);
+      --border-faint:    rgba(255,255,255,0.05);
+      --border-hover:    rgba(255,255,255,0.12);
+      --nav-active:      rgba(80,210,193,0.7);
+      --divider:         rgba(255,255,255,0.04);
+      /* type */
+      --sans: 'DM Sans', system-ui, sans-serif;
+      --mono: 'Geist Mono', monospace;
+      /* layout */
+      --nav-width: 200px;
+      /* radius */
+      --radius-card: 12px;
+      --radius-tag:  5px;
+      /* shadow */
+      --shadow-card: 0 2px 20px rgba(0,0,0,0.4);
+    }
+
+    /* ── Base ───────────────────────────────────────────────────────────────── */
+    html, body { height: 100%; }
+    body {
+      font-family: var(--sans);
+      color: var(--text);
+      background:
+        radial-gradient(ellipse at 100% 100% in oklch,
+          oklch(32%  0.06  170)  0%,
+          oklch(25%  0.045 170) 18%,
+          oklch(20%  0.032 170) 32%,
+          oklch(15%  0.022 170) 45%,
+          oklch(12%  0.014 170) 57%,
+          oklch(8%   0.008 170) 68%,
+          oklch(6%   0.004 170) 78%,
+          oklch(3.5% 0     0)  100%),
+        radial-gradient(ellipse at 100% 100% in oklab,
+          oklch(16%  0.04  170)  0%,
+          oklch(3.5% 0     0)  100%);
+      min-height: 100vh;
+    }
+    /* grain */
+    body::after {
+      content: '';
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.90' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.15'/%3E%3C/svg%3E");
+      opacity: 0.22;
+    }
+
+    /* ── Layout ─────────────────────────────────────────────────────────────── */
+    .layout { display: flex; min-height: 100vh; position: relative; z-index: 1; }
+
+    /* ── Nav rail ───────────────────────────────────────────────────────────── */
+    .nav {
+      width: var(--nav-width); min-height: 100vh;
+      background: var(--nav-bg);
+      border-right: 1px solid var(--border-faint);
+      display: flex; flex-direction: column;
+      position: fixed; left: 0; top: 0; bottom: 0; z-index: 100;
+      padding-top: 24px;
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    }
+    .nav-logo {
+      padding: 0 20px 24px;
+      border-bottom: 1px solid var(--border-faint);
+      margin-bottom: 16px;
+      font-size: 16px; font-weight: 700; letter-spacing: 0.01em;
+      color: var(--text);
+    }
+    .nav-section {
+      font-size: 11px; font-weight: 700;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--text-faint);
+      padding: 12px 20px 4px;
+    }
+    .nav-item {
+      display: flex; align-items: center;
+      padding: 10px 20px;
+      font-size: 16px; font-weight: 500;
+      color: rgba(255,255,255,0.44);
+      border-left: 2px solid transparent;
+      transition: color 0.15s, border-color 0.15s, background 0.15s;
+    }
+    .nav-item.child { padding: 7px 20px 7px 28px; }
+    .nav-item.active {
+      color: var(--text);
+      border-left-color: var(--nav-active);
+      background: var(--nav-active-bg);
+    }
+    .nav-footer {
+      margin-top: auto;
+      padding: 18px 0;
+      border-top: 1px solid var(--border-faint);
+      text-align: center;
+    }
+    .live-wrap { display: inline-flex; align-items: center; gap: 8px; }
+    .live-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--green);
+      box-shadow: 0 0 6px var(--green);
+      animation: glow-pulse 2s ease-in-out infinite;
+    }
+    @keyframes glow-pulse { 0%,100%{opacity:1} 50%{opacity:.45} }
+    .live-label { font-size: 13px; color: rgba(255,255,255,0.5); }
+    .live-time  { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
+    /* ── Main content ───────────────────────────────────────────────────────── */
+    .main {
+      margin-left: var(--nav-width);
+      flex: 1;
+      padding: 28px 32px 40px;
+    }
+    .page-title    { font-size: 26px; font-weight: 700; color: var(--text); }
+    .page-subtitle { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+    /* ── Chart card ─────────────────────────────────────────────────────────── */
+    .chart-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      overflow: hidden;
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+      box-shadow: var(--shadow-card);
+      margin-top: 24px;
+    }
+
+    /* window selector row */
+    .window-row {
+      display: flex; align-items: center; gap: 6px;
+      padding: 14px 20px 12px;
+      border-bottom: 1px solid var(--border-faint);
+    }
+    .window-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+      text-transform: uppercase; color: var(--text-faint);
+      margin-right: 2px;
+    }
+    .win-btn {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+      padding: 4px 10px; border-radius: var(--radius-tag);
+      border: 1px solid rgba(255,255,255,0.08);
+      background: transparent; color: rgba(255,255,255,0.35);
+      font-family: var(--sans);
+      position: relative; overflow: hidden;
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
+    }
+    .win-btn.active {
+      border-color: rgba(255,255,255,0.18);
+      color: var(--text);
+      background: rgba(255,255,255,0.05);
+    }
+
+    /* chart svg area */
+    .chart-area {
+      padding: 20px 20px 8px;
+      position: relative;
+    }
+    .chart-area svg { display: block; width: 100%; height: auto; }
+
+    /* tier toggle row */
+    .tier-row {
+      display: flex; flex-wrap: wrap; gap: 8px;
+      padding: 14px 20px 18px;
+      border-top: 1px solid var(--border-faint);
+    }
+    .tier-btn {
+      display: inline-flex; align-items: center; gap: 7px;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 5px 12px; border-radius: var(--radius-tag);
+      border: 1px solid rgba(255,255,255,0.08);
+      background: transparent; color: rgba(255,255,255,0.30);
+      font-family: var(--sans);
+      position: relative; overflow: hidden;
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
+    }
+    .tier-btn.active {
+      border-color: rgba(255,255,255,0.20);
+      color: var(--text);
+    }
+    .tier-dot {
+      width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+    }
+
+    /* shimmer on hover */
+    .glow-btn::before {
+      content: ''; position: absolute; inset: 0; pointer-events: none;
+      background: radial-gradient(
+        circle at var(--gx,50%) var(--gy,50%),
+        rgba(235,235,235,0.13) 0%, rgba(200,200,200,0.06) 35%, transparent 65%
+      );
+      opacity: 0; transition: opacity 0.9s ease-out;
+    }
+    .glow-btn:hover::before { opacity: 1; transition: opacity 0.12s ease-in; }
+
+    /* tooltip */
+    .tooltip {
+      position: absolute;
+      background: rgba(10,10,10,0.92);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      pointer-events: none;
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      min-width: 148px;
+      display: none;
+      z-index: 10;
+    }
+    .tt-time {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
+      color: var(--text-faint); text-transform: uppercase; margin-bottom: 8px;
+    }
+    .tt-row {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 13px; margin-bottom: 3px;
+      font-variant-numeric: tabular-nums;
+    }
+    .tt-row:last-child { margin-bottom: 0; }
+    .tt-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .tt-tier { color: rgba(255,255,255,0.42); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+    .tt-val { margin-left: auto; color: var(--text); font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+<div class="layout">
+
+  <!-- Nav rail -->
+  <nav class="nav">
+    <div class="nav-logo">HyperliquidFLOW</div>
+
+    <a href="#" class="nav-item">Overview</a>
+
+    <div class="nav-section">Wallets</div>
+    <a href="#" class="nav-item child">Discovery</a>
+    <a href="#" class="nav-item child">Leaderboard</a>
+    <a href="#" class="nav-item child">In Position</a>
+
+    <div class="nav-section">Signals</div>
+    <a href="#" class="nav-item child">Feed</a>
+    <a href="#" class="nav-item child">Divergence</a>
+    <a href="#" class="nav-item child active">Bias Trend</a>
+
+    <a href="#" class="nav-item">Edge</a>
+
+    <div class="nav-footer">
+      <div class="live-wrap">
+        <span class="live-dot"></span>
+        <span class="live-label">Monitoring</span>
+      </div>
+      <div class="live-time">2 min ago</div>
+    </div>
+  </nav>
+
+  <!-- Main -->
+  <main class="main">
+    <div class="page-title">Bias Trend</div>
+    <div class="page-subtitle">Average long/short bias per wallet tier over time</div>
+
+    <div class="chart-card">
+
+      <!-- Window selector -->
+      <div class="window-row">
+        <span class="window-label">Window</span>
+        <button class="win-btn glow-btn" onclick="setWindow(7,this)">7d</button>
+        <button class="win-btn glow-btn active" onclick="setWindow(30,this)">30d</button>
+        <button class="win-btn glow-btn" onclick="setWindow(90,this)">90d</button>
+      </div>
+
+      <!-- Chart -->
+      <div class="chart-area" id="chart-area">
+        <div class="tooltip" id="tooltip"></div>
+      </div>
+
+      <!-- Tier toggles -->
+      <div class="tier-row" id="tier-row"></div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+// ── Tier config ───────────────────────────────────────────────────────────────
+const TIERS = ['Elite','Major','Large','Mid','Small','Micro','Dust'];
+const TIER_COLORS = {
+  Elite: 'rgba(255,255,255,0.90)',
+  Major: 'rgba(255,255,255,0.72)',
+  Large: 'rgba(255,255,255,0.55)',
+  Mid:   'rgba(255,255,255,0.40)',
+  Small: 'rgba(255,255,255,0.28)',
+  Micro: 'rgba(255,255,255,0.18)',
+  Dust:  'rgba(255,255,255,0.10)',
+};
+let visible = new Set(['Elite','Major','Large']);
+
+// ── Mock data (20 hourly snapshots — shows Elite/Major/Large falling as Dust rises) ──
+const N = 20;
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const BASE_MS = new Date('2026-04-13T00:00:00Z').getTime();
+
+function fmtTime(i) {
+  const d = new Date(BASE_MS + i * 3600000);
+  const h = String(d.getUTCHours()).padStart(2,'0');
+  const m = String(d.getUTCMinutes()).padStart(2,'0');
+  return `${MONTHS[d.getUTCMonth()]} ${d.getUTCDate()} ${h}:${m}`;
+}
+
+// Elite/Major/Large: strong bulls at open, steadily rotate to bearish
+// Small/Micro/Dust: laggards at open, build long exposure as smarts exit
+const DATA = {
+  Elite: [0.82,0.79,0.75,0.71,0.66,0.61,0.56,0.51,0.46,0.40,0.35,0.30,0.25,0.20,0.16,0.13,0.10,0.07,0.05,0.03],
+  Major: [0.69,0.67,0.64,0.60,0.57,0.53,0.49,0.45,0.41,0.37,0.33,0.29,0.25,0.22,0.19,0.16,0.14,0.12,0.10,0.08],
+  Large: [0.57,0.55,0.53,0.51,0.48,0.46,0.43,0.41,0.38,0.35,0.32,0.30,0.27,0.25,0.23,0.21,0.19,0.18,0.16,0.15],
+  Mid:   [0.30,0.32,0.34,0.35,0.37,0.36,0.35,0.33,0.32,0.30,0.29,0.27,0.26,0.25,0.24,0.23,0.22,0.21,0.20,0.19],
+  Small: [0.14,0.18,0.22,0.27,0.32,0.37,0.42,0.47,0.52,0.57,0.62,0.67,0.71,0.75,0.79,0.82,0.85,0.87,0.89,0.91],
+  Micro: [0.09,0.14,0.19,0.25,0.31,0.37,0.43,0.49,0.55,0.61,0.67,0.72,0.77,0.81,0.85,0.88,0.91,0.93,0.95,0.96],
+  Dust:  [0.06,0.11,0.17,0.23,0.30,0.37,0.44,0.51,0.57,0.63,0.69,0.75,0.80,0.84,0.88,0.91,0.93,0.95,0.96,0.97],
+};
+
+// ── SVG chart ─────────────────────────────────────────────────────────────────
+const VW = 1100, VH = 340;
+const PAD = { t: 18, r: 20, b: 44, l: 52 };
+const CW  = VW - PAD.l - PAD.r;
+const CH  = VH - PAD.t - PAD.b;
+
+const toY = v => PAD.t + (1 - v) / 2 * CH;
+const toX = i => PAD.l + i / (N - 1) * CW;
+
+function buildChart() {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${VW} ${VH}`);
+  svg.id = 'chart-svg';
+
+  const mk = (tag, attrs) => {
+    const el = document.createElementNS(ns, tag);
+    for (const [k,v] of Object.entries(attrs)) el.setAttribute(k, v);
+    return el;
+  };
+  const txt = (x,y,str,opts={}) => {
+    const el = mk('text', { x, y, 'font-family': "'DM Sans', system-ui, sans-serif", ...opts });
+    el.textContent = str;
+    return el;
+  };
+
+  // Y axis grid + labels
+  const yTicks = [
+    { v:  1.0, label: '+100%', fill: '#6aaa7a' },
+    { v:  0.5, label:  '+50%', fill: 'rgba(255,255,255,0.22)' },
+    { v:  0.0, label:     '0', fill: 'rgba(255,255,255,0.22)' },
+    { v: -0.5, label:  '-50%', fill: 'rgba(255,255,255,0.22)' },
+    { v: -1.0, label: '-100%', fill: '#c92435' },
+  ];
+  for (const { v, label, fill } of yTicks) {
+    const y = toY(v);
+    const isZero = v === 0;
+    const line = mk('line', {
+      x1: PAD.l, x2: PAD.l + CW, y1: y, y2: y,
+      stroke: isZero ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.04)',
+      'stroke-width': '1',
+      ...(isZero ? { 'stroke-dasharray': '4 4' } : {}),
+    });
+    svg.appendChild(line);
+    svg.appendChild(txt(PAD.l - 8, y + 4, label, {
+      'text-anchor': 'end', 'font-size': '11',
+      fill, 'font-weight': '700',
+    }));
+  }
+
+  // X axis ticks (every 4th)
+  for (let i = 0; i < N; i += 4) {
+    svg.appendChild(txt(toX(i), PAD.t + CH + 18, fmtTime(i), {
+      'text-anchor': 'middle', 'font-size': '11',
+      fill: 'rgba(255,255,255,0.26)',
+    }));
+  }
+
+  // Tier polylines
+  for (const tier of TIERS) {
+    if (!visible.has(tier)) continue;
+    const pts = DATA[tier].map((v,i) => `${toX(i)},${toY(v)}`).join(' ');
+    svg.appendChild(mk('polyline', {
+      points: pts, fill: 'none',
+      stroke: TIER_COLORS[tier],
+      'stroke-width': '1.5',
+      'stroke-linejoin': 'round', 'stroke-linecap': 'round',
+    }));
+  }
+
+  // Hover vertical line
+  const vline = mk('line', {
+    id: 'vline',
+    y1: PAD.t, y2: PAD.t + CH,
+    stroke: 'rgba(255,255,255,0.14)', 'stroke-width': '1',
+    'stroke-dasharray': '3 3', display: 'none',
+  });
+  svg.appendChild(vline);
+
+  // Hit overlay
+  const hit = mk('rect', {
+    x: PAD.l, y: PAD.t, width: CW, height: CH,
+    fill: 'transparent',
+  });
+  hit.style.cursor = 'crosshair';
+
+  hit.addEventListener('mousemove', e => {
+    const r   = svg.getBoundingClientRect();
+    const sx  = (e.clientX - r.left) / r.width * VW;
+    const idx = Math.max(0, Math.min(N-1, Math.round((sx - PAD.l) / CW * (N-1))));
+    const x   = toX(idx);
+    vline.setAttribute('x1', x); vline.setAttribute('x2', x);
+    vline.removeAttribute('display');
+    showTip(e, idx);
+  });
+  hit.addEventListener('mouseleave', () => {
+    vline.setAttribute('display','none');
+    document.getElementById('tooltip').style.display = 'none';
+  });
+  svg.appendChild(hit);
+
+  const area = document.getElementById('chart-area');
+  const old  = document.getElementById('chart-svg');
+  if (old) old.remove();
+  area.insertBefore(svg, document.getElementById('tooltip'));
+}
+
+function showTip(e, idx) {
+  const tip = document.getElementById('tooltip');
+  const visArr = TIERS.filter(t => visible.has(t));
+  tip.innerHTML = `
+    <div class="tt-time">${fmtTime(idx)}</div>
+    ${visArr.map(t => {
+      const val = DATA[t][idx];
+      const fmt = (val >= 0 ? '+' : '') + (val * 100).toFixed(0) + '%';
+      return `<div class="tt-row">
+        <span class="tt-dot" style="background:${TIER_COLORS[t]}"></span>
+        <span class="tt-tier">${t}</span>
+        <span class="tt-val">${fmt}</span>
+      </div>`;
+    }).join('')}
+  `;
+  tip.style.display = 'block';
+  const area = document.getElementById('chart-area');
+  const ar   = area.getBoundingClientRect();
+  let lx = e.clientX - ar.left + 14;
+  const ty = e.clientY - ar.top  - 10;
+  if (lx + 160 > ar.width) lx -= 168;
+  tip.style.left = Math.max(4, lx) + 'px';
+  tip.style.top  = Math.max(4, ty) + 'px';
+}
+
+// ── Tier toggles ──────────────────────────────────────────────────────────────
+function buildTierRow() {
+  const row = document.getElementById('tier-row');
+  row.innerHTML = TIERS.map(t => `
+    <button class="tier-btn glow-btn ${visible.has(t) ? 'active' : ''}"
+            onclick="toggleTier('${t}')" data-tier="${t}"
+            ${t === 'Dust' ? 'style="opacity:0.55"' : ''}>
+      <span class="tier-dot" style="background:${TIER_COLORS[t]}"></span>
+      ${t}
+    </button>
+  `).join('');
+  initShimmer();
+}
+
+function toggleTier(t) {
+  if (visible.has(t) && visible.size === 1) return;
+  visible.has(t) ? visible.delete(t) : visible.add(t);
+  buildTierRow(); buildChart();
+}
+
+// ── Window selector ───────────────────────────────────────────────────────────
+function setWindow(w, btn) {
+  document.querySelectorAll('.win-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+// ── Shimmer ───────────────────────────────────────────────────────────────────
+function initShimmer() {
+  document.querySelectorAll('.glow-btn').forEach(btn => {
+    btn.addEventListener('mousemove', e => {
+      const r = btn.getBoundingClientRect();
+      btn.style.setProperty('--gx', ((e.clientX - r.left) / r.width * 100).toFixed(1) + '%');
+      btn.style.setProperty('--gy', ((e.clientY - r.top)  / r.height * 100).toFixed(1) + '%');
+    });
+  });
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+buildChart();
+buildTierRow();
+initShimmer();
+</script>
+</body>
+</html>

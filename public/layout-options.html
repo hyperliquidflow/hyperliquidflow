@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Overview Layout Options</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Geist+Mono:wght@400;600&display=swap" rel="stylesheet" />
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+body {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background: #060606;
+  color: #f0f0f0;
+  min-height: 100vh;
+}
+
+/* ── shared tokens ── */
+:root {
+  --bg: #060606;
+  --card: rgba(12,12,12,0.7);
+  --border: rgba(255,255,255,0.07);
+  --border-faint: rgba(255,255,255,0.05);
+  --text: #f0f0f0;
+  --muted: rgba(255,255,255,0.38);
+  --dim: rgba(255,255,255,0.28);
+  --faint: rgba(255,255,255,0.22);
+  --green: #6aaa7a;
+  --red: #c92435;
+  --amber: #c4925a;
+  --accent: #50d2c1;
+  --divider: rgba(255,255,255,0.04);
+  --neutral: #9ca3af;
+  --nav: 200px;
+}
+
+/* ── nav selector ── */
+.selector {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 999;
+  display: flex; gap: 8px; align-items: center;
+  padding: 10px 20px;
+  background: rgba(6,6,6,0.95);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+}
+.selector span { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
+.tab {
+  padding: 6px 16px; border-radius: 6px; border: 1px solid var(--border);
+  background: transparent; color: rgba(255,255,255,0.4); font-family: inherit;
+  font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.15s;
+}
+.tab:hover { border-color: rgba(255,255,255,0.15); color: rgba(255,255,255,0.7); }
+.tab.active { background: rgba(80,210,193,0.1); border-color: rgba(80,210,193,0.4); color: var(--accent); }
+
+/* ── layout frames ── */
+.layout { display: none; height: 100vh; overflow: hidden; flex-direction: column; padding-top: 45px; }
+.layout.active { display: flex; }
+
+/* ── common pieces ── */
+.page-header { padding: 14px 24px 0; flex-shrink: 0; }
+.page-header h1 { font-size: 26px; font-weight: 700; }
+
+.ticker {
+  display: grid; grid-template-columns: repeat(6, 1fr);
+  margin: 10px 24px 0; flex-shrink: 0;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+  backdrop-filter: blur(16px);
+}
+.ticker-cell {
+  padding: 11px 16px; display: flex; flex-direction: column; gap: 3px;
+  border-right: 1px solid rgba(255,255,255,0.04);
+}
+.ticker-cell:last-child { border-right: none; }
+.coin-name { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; }
+.coin-price { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.coin-chg { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.pos { color: var(--green); } .neg { color: var(--red); }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px; overflow: hidden;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 2px 20px rgba(0,0,0,0.4);
+}
+.card-hdr {
+  padding: 10px 16px; border-bottom: 1px solid var(--border-faint);
+  display: flex; align-items: center;
+}
+.card-title { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.4); }
+.card-link { margin-left: auto; font-size: 13px; color: var(--dim); }
+
+.stat-label { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.stat-value { font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums; margin-top: 8px; line-height: 1; }
+.stat-sub { font-size: 13px; color: rgba(255,255,255,0.32); margin-top: 5px; }
+
+.sig-row {
+  display: grid; grid-template-columns: 24px 1fr auto auto;
+  align-items: center; gap: 10px; padding: 8px 14px;
+  border-bottom: 1px solid var(--divider);
+}
+.sig-num { font-size: 11px; color: rgba(255,255,255,0.2); text-align: right; }
+.sig-name { font-size: 16px; font-weight: 600; }
+.sig-sub { font-size: 13px; color: rgba(255,255,255,0.36); margin-top: 2px; }
+.dir-long { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; letter-spacing: 0.04em; background: rgba(106,170,122,0.1); color: var(--green); border: 1px solid rgba(106,170,122,0.2); }
+.dir-short { font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 4px; letter-spacing: 0.04em; background: rgba(201,36,53,0.1); color: var(--red); border: 1px solid rgba(201,36,53,0.2); }
+.coin-tag { font-size: 13px; font-weight: 700; padding: 2px 8px; border-radius: 5px; background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.7); }
+
+.wallet-row { padding: 8px 14px; border-bottom: 1px solid var(--divider); }
+.wallet-top { display: flex; align-items: center; justify-content: space-between; }
+.wallet-rank { font-size: 11px; color: var(--faint); }
+.wallet-score { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--green); }
+.wallet-addr { font-family: 'Geist Mono', monospace; font-size: 13px; color: rgba(156,163,175,0.8); margin-top: 3px; }
+
+.heatmap-bars { display: flex; align-items: flex-end; gap: 3px; }
+.hm-bar { flex: 1; border-radius: 2px 2px 0 0; min-height: 3px; }
+
+.regime-dots { display: flex; align-items: flex-start; position: relative; }
+.regime-line { position: absolute; height: 1px; background: rgba(255,255,255,0.07); }
+.regime-col { flex: 1; text-align: center; position: relative; z-index: 1; }
+.regime-dot { border-radius: 50%; margin: 0 auto 6px; border: 2px solid rgba(0,0,0,0.7); }
+.regime-day { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255,255,255,0.25); }
+.regime-type { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; margin-top: 3px; }
+
+.mover-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--divider); }
+.mover-coin { font-size: 13px; font-weight: 700; min-width: 38px; }
+.mover-count { margin-left: auto; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.exp-row { display: grid; grid-template-columns: 38px 1fr 36px; align-items: center; gap: 8px; }
+.exp-coin { font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.5); letter-spacing: 0.06em; }
+.exp-bar-track { height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
+.exp-bar-fill { height: 100%; background: var(--green); border-radius: 2px; }
+.exp-pct { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.38); text-align: right; font-variant-numeric: tabular-nums; }
+
+/* aura */
+.aura {
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background: radial-gradient(ellipse at 100% 100% in oklch,
+    oklch(32% 0.06 170) 0%, oklch(25% 0.045 170) 18%,
+    oklch(20% 0.032 170) 32%, oklch(15% 0.022 170) 45%,
+    oklch(12% 0.014 170) 57%, oklch(8% 0.008 170) 68%,
+    oklch(6% 0.004 170) 78%, oklch(3.5% 0 0) 100%);
+}
+</style>
+</head>
+<body>
+<div class="aura"></div>
+
+<!-- Tab selector -->
+<div class="selector">
+  <span>Layout</span>
+  <button class="tab active" onclick="show('a')">A — Current</button>
+  <button class="tab" onclick="show('b')">B — Bento</button>
+  <button class="tab" onclick="show('c')">C — Metrics Left</button>
+  <button class="tab" onclick="show('d')">D — Analytics Sidebar</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     LAYOUT A — Current (reference)
+     Ticker → Stats → Heatmap → Signals|Wallets → 3 bottom cards
+══════════════════════════════════════════════════════════════ -->
+<div class="layout active" id="layout-a" style="position:relative;z-index:1;">
+  <div class="page-header"><h1>Overview</h1></div>
+
+  <div class="ticker">
+    <div class="ticker-cell"><div class="coin-name">BTC</div><div class="coin-price">$84,250</div><div class="coin-chg pos">+1.2%</div></div>
+    <div class="ticker-cell"><div class="coin-name">ETH</div><div class="coin-price">$2,370</div><div class="coin-chg neg">−0.8%</div></div>
+    <div class="ticker-cell"><div class="coin-name">SOL</div><div class="coin-price">$135.40</div><div class="coin-chg pos">+2.1%</div></div>
+    <div class="ticker-cell"><div class="coin-name">HYPE</div><div class="coin-price">$16.82</div><div class="coin-chg pos">+4.3%</div></div>
+    <div class="ticker-cell"><div class="coin-name">ARB</div><div class="coin-price">$0.44</div><div class="coin-chg neg">−1.4%</div></div>
+    <div class="ticker-cell"><div class="coin-name">WIF</div><div class="coin-price">$1.08</div><div class="coin-chg pos">+0.9%</div></div>
+  </div>
+
+  <div style="flex:1;min-height:0;overflow:hidden;padding:10px 24px 12px;display:flex;flex-direction:column;gap:10px;">
+    <!-- stat cards -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;flex-shrink:0;">
+      <div class="card" style="padding:14px 16px;"><div class="stat-label">Smart Money</div><div class="stat-value">2234</div><div class="stat-sub">wallets tracked</div></div>
+      <div class="card" style="padding:14px 16px;"><div class="stat-label">Book Value</div><div class="stat-value">$201M</div><div class="stat-sub">across Smart Money</div></div>
+      <div class="card" style="padding:14px 16px;"><div class="stat-label">Unrealised PnL</div><div class="stat-value" style="color:var(--green);">$623K</div><div class="stat-sub">open positions</div></div>
+      <div class="card" style="padding:14px 16px;"><div class="stat-label">Avg Score</div><div class="stat-value">0.20</div><div class="stat-sub">out of 1.00</div></div>
+    </div>
+
+    <!-- heatmap -->
+    <div class="card" style="flex-shrink:0;">
+      <div class="card-hdr"><span class="card-title">Signal Activity · 24h</span></div>
+      <div style="padding:8px 16px 10px;">
+        <div class="heatmap-bars" style="height:40px;">
+          <div class="hm-bar" style="height:20%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:35%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:15%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:60%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:80%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:45%;background:rgba(201,36,53,0.5);"></div><div class="hm-bar" style="height:30%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:20%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:55%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:90%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:70%;background:rgba(201,36,53,0.5);"></div><div class="hm-bar" style="height:40%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:25%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:65%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:50%;background:rgba(201,36,53,0.5);"></div><div class="hm-bar" style="height:35%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:20%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:45%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:75%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:55%;background:rgba(201,36,53,0.5);"></div><div class="hm-bar" style="height:30%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:85%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:100%;background:rgba(106,170,122,0.5);box-shadow:0 0 10px rgba(106,170,122,0.4);"></div><div class="hm-bar" style="height:5%;background:rgba(255,255,255,0.09);"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:rgba(255,255,255,0.22);">
+          <span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>now</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- signals + wallets -->
+    <div style="display:grid;grid-template-columns:3fr 2fr;gap:10px;flex:1;min-height:0;overflow:hidden;">
+      <div class="card" style="display:flex;flex-direction:column;min-height:0;overflow:hidden;">
+        <div class="card-hdr"><span class="card-title">Recent Signals</span><span class="card-link">View all</span></div>
+        <div style="flex:1;min-height:0;overflow:hidden;">
+          <div class="sig-row"><span class="sig-num">1</span><div><div class="sig-name">Liquidation Flush</div><div class="sig-sub">2 min ago</div></div><span class="coin-tag">HYPE</span><span class="dir-long">LONG</span></div>
+          <div class="sig-row"><span class="sig-num">2</span><div><div class="sig-name">Silent Loading</div><div class="sig-sub">8 min ago</div></div><span class="coin-tag">BTC</span><span class="dir-long">LONG</span></div>
+          <div class="sig-row"><span class="sig-num">3</span><div><div class="sig-name">Liquidation Flush</div><div class="sig-sub">15 min ago</div></div><span class="coin-tag">ETH</span><span class="dir-short">SHORT</span></div>
+          <div class="sig-row"><span class="sig-num">4</span><div><div class="sig-name">Position Aging</div><div class="sig-sub">31 min ago</div></div><span class="coin-tag">SOL</span><span class="dir-long">LONG</span></div>
+        </div>
+      </div>
+      <div class="card" style="display:flex;flex-direction:column;min-height:0;overflow:hidden;">
+        <div class="card-hdr"><span class="card-title">Top Wallets</span><span class="card-link">Full report</span></div>
+        <div style="flex:1;min-height:0;overflow:hidden;">
+          <div class="wallet-row"><div class="wallet-top"><span class="wallet-rank">#1</span><span class="wallet-score">0.93</span></div><div class="wallet-addr">0x4f2a...e81d</div></div>
+          <div class="wallet-row"><div class="wallet-top"><span class="wallet-rank">#2</span><span class="wallet-score">0.91</span></div><div class="wallet-addr">0x7c1b...a33f</div></div>
+          <div class="wallet-row"><div class="wallet-top"><span class="wallet-rank">#3</span><span class="wallet-score" style="color:var(--text);">0.82</span></div><div class="wallet-addr">0x9d3e...c72a</div></div>
+          <div class="wallet-row"><div class="wallet-top"><span class="wallet-rank">#4</span><span class="wallet-score" style="color:var(--text);">0.77</span></div><div class="wallet-addr">0x1a8f...b04c</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- bottom 3 -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;flex-shrink:0;">
+      <div class="card"><div class="card-hdr"><span class="card-title">Market Vibes</span><span class="card-link">7 days</span></div>
+        <div style="padding:10px 16px 12px;display:flex;position:relative;">
+          <div style="position:absolute;top:18px;left:28px;right:28px;height:1px;background:rgba(255,255,255,0.07);"></div>
+          <div class="regime-col"><div class="regime-dot" style="width:10px;height:10px;background:var(--red);box-shadow:0 0 6px rgba(201,36,53,0.5);"></div><div class="regime-day">Mon</div><div class="regime-type" style="color:var(--red);">Bear</div></div>
+          <div class="regime-col"><div class="regime-dot" style="width:10px;height:10px;background:var(--red);box-shadow:0 0 6px rgba(201,36,53,0.5);"></div><div class="regime-day">Tue</div><div class="regime-type" style="color:var(--red);">Bear</div></div>
+          <div class="regime-col"><div class="regime-dot" style="width:10px;height:10px;background:rgba(255,255,255,0.2);"></div><div class="regime-day">Wed</div><div class="regime-type" style="color:rgba(255,255,255,0.3);">Range</div></div>
+          <div class="regime-col"><div class="regime-dot" style="width:10px;height:10px;background:var(--green);box-shadow:0 0 6px rgba(106,170,122,0.5);"></div><div class="regime-day">Thu</div><div class="regime-type" style="color:var(--green);">Bull</div></div>
+          <div class="regime-col"><div class="regime-dot" style="width:10px;height:10px;background:var(--green);box-shadow:0 0 6px rgba(106,170,122,0.5);"></div><div class="regime-day">Fri</div><div class="regime-type" style="color:var(--green);">Bull</div></div>
+          <div class="regime-col"><div class="regime-dot" style="width:10px;height:10px;background:rgba(255,255,255,0.2);"></div><div class="regime-day">Sat</div><div class="regime-type" style="color:rgba(255,255,255,0.3);">Range</div></div>
+          <div class="regime-col"><div class="regime-dot" style="width:12px;height:12px;background:var(--green);box-shadow:0 0 6px rgba(106,170,122,0.5);margin-top:-1px;"></div><div class="regime-day" style="color:rgba(255,255,255,0.5);">Today</div><div class="regime-type" style="color:var(--green);">Bull</div></div>
+        </div>
+      </div>
+      <div class="card"><div class="card-hdr"><span class="card-title">Top Movers</span><span class="card-link">24h</span></div>
+        <div style="padding:8px 12px 10px;">
+          <div class="mover-row"><span class="mover-coin">HYPE</span><span class="dir-long">LONG</span><span class="mover-count">12 signals</span></div>
+          <div class="mover-row"><span class="mover-coin">BTC</span><span class="dir-long">LONG</span><span class="mover-count">9 signals</span></div>
+          <div class="mover-row"><span class="mover-coin">ETH</span><span class="dir-short">SHORT</span><span class="mover-count">7 signals</span></div>
+          <div class="mover-row" style="border-bottom:none;"><span class="mover-coin">SOL</span><span class="dir-long">LONG</span><span class="mover-count">5 signals</span></div>
+        </div>
+      </div>
+      <div class="card"><div class="card-hdr"><span class="card-title">SM Exposure</span><span class="card-link">by size</span></div>
+        <div style="padding:8px 12px 10px;display:flex;flex-direction:column;gap:8px;">
+          <div class="exp-row"><span class="exp-coin">HYPE</span><div class="exp-bar-track"><div class="exp-bar-fill" style="width:82%;"></div></div><span class="exp-pct">82%</span></div>
+          <div class="exp-row"><span class="exp-coin">BTC</span><div class="exp-bar-track"><div class="exp-bar-fill" style="width:64%;"></div></div><span class="exp-pct">64%</span></div>
+          <div class="exp-row"><span class="exp-coin">ETH</span><div class="exp-bar-track"><div class="exp-bar-fill" style="width:41%;"></div></div><span class="exp-pct">41%</span></div>
+          <div class="exp-row"><span class="exp-coin">SOL</span><div class="exp-bar-track"><div class="exp-bar-fill" style="width:28%;"></div></div><span class="exp-pct">28%</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     LAYOUT B — Bento
+     Ticker → [Signals hero (left) | Right col: stats 2x2 + wallets]
+              → Bottom: heatmap | vibes | movers | exposure (4 equal)
+══════════════════════════════════════════════════════════════ -->
+<div class="layout" id="layout-b" style="position:relative;z-index:1;">
+  <div class="page-header"><h1>Overview</h1></div>
+
+  <div class="ticker">
+    <div class="ticker-cell"><div class="coin-name">BTC</div><div class="coin-price">$84,250</div><div class="coin-chg pos">+1.2%</div></div>
+    <div class="ticker-cell"><div class="coin-name">ETH</div><div class="coin-price">$2,370</div><div class="coin-chg neg">−0.8%</div></div>
+    <div class="ticker-cell"><div class="coin-name">SOL</div><div class="coin-price">$135.40</div><div class="coin-chg pos">+2.1%</div></div>
+    <div class="ticker-cell"><div class="coin-name">HYPE</div><div class="coin-price">$16.82</div><div class="coin-chg pos">+4.3%</div></div>
+    <div class="ticker-cell"><div class="coin-name">ARB</div><div class="coin-price">$0.44</div><div class="coin-chg neg">−1.4%</div></div>
+    <div class="ticker-cell"><div class="coin-name">WIF</div><div class="coin-price">$1.08</div><div class="coin-chg pos">+0.9%</div></div>
+  </div>
+
+  <div style="flex:1;min-height:0;overflow:hidden;padding:10px 24px 12px;display:flex;flex-direction:column;gap:10px;">
+    <!-- main 2-col -->
+    <div style="flex:1;min-height:0;overflow:hidden;display:grid;grid-template-columns:3fr 2fr;gap:10px;">
+
+      <!-- left: signals (hero) -->
+      <div class="card" style="display:flex;flex-direction:column;min-height:0;overflow:hidden;">
+        <div class="card-hdr"><span class="card-title">Recent Signals</span><span class="card-link">View all</span></div>
+        <div style="flex:1;min-height:0;overflow:hidden;">
+          <div class="sig-row"><span class="sig-num">1</span><div><div class="sig-name">Liquidation Flush</div><div class="sig-sub">2 min ago</div></div><span class="coin-tag">HYPE</span><span class="dir-long">LONG</span></div>
+          <div class="sig-row"><span class="sig-num">2</span><div><div class="sig-name">Silent Loading</div><div class="sig-sub">8 min ago</div></div><span class="coin-tag">BTC</span><span class="dir-long">LONG</span></div>
+          <div class="sig-row"><span class="sig-num">3</span><div><div class="sig-name">Liquidation Flush</div><div class="sig-sub">15 min ago</div></div><span class="coin-tag">ETH</span><span class="dir-short">SHORT</span></div>
+          <div class="sig-row"><span class="sig-num">4</span><div><div class="sig-name">Position Aging</div><div class="sig-sub">31 min ago</div></div><span class="coin-tag">SOL</span><span class="dir-long">LONG</span></div>
+          <div class="sig-row"><span class="sig-num">5</span><div><div class="sig-name">Churn Detector</div><div class="sig-sub">44 min ago</div></div><span class="coin-tag">ARB</span><span class="dir-short">SHORT</span></div>
+          <div class="sig-row" style="border-bottom:none;"><span class="sig-num">6</span><div><div class="sig-name">Funding Trend</div><div class="sig-sub">1 hr ago</div></div><span class="coin-tag">WIF</span><span class="dir-long">LONG</span></div>
+        </div>
+      </div>
+
+      <!-- right col: 2x2 stats + wallets -->
+      <div style="display:flex;flex-direction:column;gap:10px;min-height:0;overflow:hidden;">
+        <!-- stats 2x2 -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;flex-shrink:0;">
+          <div class="card" style="padding:12px 14px;"><div class="stat-label">Smart Money</div><div class="stat-value" style="font-size:24px;">2234</div><div class="stat-sub">wallets</div></div>
+          <div class="card" style="padding:12px 14px;"><div class="stat-label">Book Value</div><div class="stat-value" style="font-size:24px;">$201M</div><div class="stat-sub">total AV</div></div>
+          <div class="card" style="padding:12px 14px;"><div class="stat-label">Unrealised PnL</div><div class="stat-value" style="font-size:24px;color:var(--green);">$623K</div><div class="stat-sub">open</div></div>
+          <div class="card" style="padding:12px 14px;"><div class="stat-label">Avg Score</div><div class="stat-value" style="font-size:24px;">0.20</div><div class="stat-sub">out of 1.00</div></div>
+        </div>
+        <!-- wallets -->
+        <div class="card" style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;">
+          <div class="card-hdr"><span class="card-title">Top Wallets</span><span class="card-link">Full report</span></div>
+          <div style="flex:1;min-height:0;overflow:hidden;">
+            <div class="wallet-row"><div class="wallet-top"><span class="wallet-rank">#1</span><span class="wallet-score">0.93</span></div><div class="wallet-addr">0x4f2a...e81d</div></div>
+            <div class="wallet-row"><div class="wallet-top"><span class="wallet-rank">#2</span><span class="wallet-score">0.91</span></div><div class="wallet-addr">0x7c1b...a33f</div></div>
+            <div class="wallet-row"><div class="wallet-top"><span class="wallet-rank">#3</span><span class="wallet-score" style="color:var(--text);">0.82</span></div><div class="wallet-addr">0x9d3e...c72a</div></div>
+            <div class="wallet-row"><div class="wallet-top"><span class="wallet-rank">#4</span><span class="wallet-score" style="color:var(--text);">0.77</span></div><div class="wallet-addr">0x1a8f...b04c</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- bottom 4 equal -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;flex-shrink:0;">
+      <div class="card"><div class="card-hdr"><span class="card-title">Signal Activity</span></div>
+        <div style="padding:8px 14px 10px;">
+          <div class="heatmap-bars" style="height:32px;">
+            <div class="hm-bar" style="height:20%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:35%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:60%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:80%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:45%;background:rgba(201,36,53,0.5);"></div><div class="hm-bar" style="height:55%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:90%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:70%;background:rgba(201,36,53,0.5);"></div><div class="hm-bar" style="height:65%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:50%;background:rgba(201,36,53,0.5);"></div><div class="hm-bar" style="height:45%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:75%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:100%;background:rgba(106,170,122,0.5);box-shadow:0 0 8px rgba(106,170,122,0.4);"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:5px;font-size:10px;color:rgba(255,255,255,0.22);"><span>12h ago</span><span>now</span></div>
+        </div>
+      </div>
+      <div class="card"><div class="card-hdr"><span class="card-title">Market Vibes</span></div>
+        <div style="padding:8px 14px 10px;display:flex;position:relative;">
+          <div style="position:absolute;top:16px;left:20px;right:20px;height:1px;background:rgba(255,255,255,0.07);"></div>
+          <div class="regime-col"><div class="regime-dot" style="width:8px;height:8px;background:var(--red);"></div><div class="regime-day" style="font-size:10px;">M</div><div class="regime-type" style="font-size:10px;color:var(--red);">B</div></div>
+          <div class="regime-col"><div class="regime-dot" style="width:8px;height:8px;background:var(--red);"></div><div class="regime-day" style="font-size:10px;">T</div><div class="regime-type" style="font-size:10px;color:var(--red);">B</div></div>
+          <div class="regime-col"><div class="regime-dot" style="width:8px;height:8px;background:rgba(255,255,255,0.2);"></div><div class="regime-day" style="font-size:10px;">W</div><div class="regime-type" style="font-size:10px;color:rgba(255,255,255,0.3);">R</div></div>
+          <div class="regime-col"><div class="regime-dot" style="width:8px;height:8px;background:var(--green);"></div><div class="regime-day" style="font-size:10px;">T</div><div class="regime-type" style="font-size:10px;color:var(--green);">B</div></div>
+          <div class="regime-col"><div class="regime-dot" style="width:8px;height:8px;background:var(--green);"></div><div class="regime-day" style="font-size:10px;">F</div><div class="regime-type" style="font-size:10px;color:var(--green);">B</div></div>
+          <div class="regime-col"><div class="regime-dot" style="width:8px;height:8px;background:rgba(255,255,255,0.2);"></div><div class="regime-day" style="font-size:10px;">S</div><div class="regime-type" style="font-size:10px;color:rgba(255,255,255,0.3);">R</div></div>
+          <div class="regime-col"><div class="regime-dot" style="width:10px;height:10px;background:var(--green);margin-top:-1px;"></div><div class="regime-day" style="font-size:10px;color:rgba(255,255,255,0.5);">Now</div><div class="regime-type" style="font-size:10px;color:var(--green);">B</div></div>
+        </div>
+      </div>
+      <div class="card"><div class="card-hdr"><span class="card-title">Top Movers</span></div>
+        <div style="padding:6px 12px 8px;">
+          <div class="mover-row" style="padding:5px 0;"><span class="mover-coin">HYPE</span><span class="dir-long">LONG</span><span class="mover-count">12</span></div>
+          <div class="mover-row" style="padding:5px 0;"><span class="mover-coin">BTC</span><span class="dir-long">LONG</span><span class="mover-count">9</span></div>
+          <div class="mover-row" style="padding:5px 0;border-bottom:none;"><span class="mover-coin">ETH</span><span class="dir-short">SHORT</span><span class="mover-count">7</span></div>
+        </div>
+      </div>
+      <div class="card"><div class="card-hdr"><span class="card-title">SM Exposure</span></div>
+        <div style="padding:6px 12px 8px;display:flex;flex-direction:column;gap:7px;">
+          <div class="exp-row"><span class="exp-coin">HYPE</span><div class="exp-bar-track"><div class="exp-bar-fill" style="width:82%;"></div></div><span class="exp-pct">82%</span></div>
+          <div class="exp-row"><span class="exp-coin">BTC</span><div class="exp-bar-track"><div class="exp-bar-fill" style="width:64%;"></div></div><span class="exp-pct">64%</span></div>
+          <div class="exp-row"><span class="exp-coin">ETH</span><div class="exp-bar-track"><div class="exp-bar-fill" style="width:41%;"></div></div><span class="exp-pct">41%</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     LAYOUT C — Metrics Left
+     Ticker → [Stats (col, 1fr) | Signals (2fr) | Analytics (1fr)]
+              → Bottom: heatmap full width
+══════════════════════════════════════════════════════════════ -->
+<div class="layout" id="layout-c" style="position:relative;z-index:1;">
+  <div class="page-header"><h1>Overview</h1></div>
+
+  <div class="ticker">
+    <div class="ticker-cell"><div class="coin-name">BTC</div><div class="coin-price">$84,250</div><div class="coin-chg pos">+1.2%</div></div>
+    <div class="ticker-cell"><div class="coin-name">ETH</div><div class="coin-price">$2,370</div><div class="coin-chg neg">−0.8%</div></div>
+    <div class="ticker-cell"><div class="coin-name">SOL</div><div class="coin-price">$135.40</div><div class="coin-chg pos">+2.1%</div></div>
+    <div class="ticker-cell"><div class="coin-name">HYPE</div><div class="coin-price">$16.82</div><div class="coin-chg pos">+4.3%</div></div>
+    <div class="ticker-cell"><div class="coin-name">ARB</div><div class="coin-price">$0.44</div><div class="coin-chg neg">−1.4%</div></div>
+    <div class="ticker-cell"><div class="coin-name">WIF</div><div class="coin-price">$1.08</div><div class="coin-chg pos">+0.9%</div></div>
+  </div>
+
+  <div style="flex:1;min-height:0;overflow:hidden;padding:10px 24px 12px;display:flex;flex-direction:column;gap:10px;">
+    <!-- 3-col main -->
+    <div style="flex:1;min-height:0;overflow:hidden;display:grid;grid-template-columns:1fr 2fr 1fr;gap:10px;">
+
+      <!-- left: stat cards stacked -->
+      <div style="display:flex;flex-direction:column;gap:10px;min-height:0;overflow:hidden;">
+        <div class="card" style="padding:14px 16px;flex-shrink:0;"><div class="stat-label">Smart Money</div><div class="stat-value">2234</div><div class="stat-sub">wallets</div></div>
+        <div class="card" style="padding:14px 16px;flex-shrink:0;"><div class="stat-label">Book Value</div><div class="stat-value">$201M</div><div class="stat-sub">total AV</div></div>
+        <div class="card" style="padding:14px 16px;flex-shrink:0;"><div class="stat-label">Unrealised PnL</div><div class="stat-value" style="color:var(--green);">$623K</div><div class="stat-sub">open positions</div></div>
+        <div class="card" style="padding:14px 16px;flex-shrink:0;"><div class="stat-label">Avg Score</div><div class="stat-value">0.20</div><div class="stat-sub">out of 1.00</div></div>
+      </div>
+
+      <!-- center: signals (hero) -->
+      <div class="card" style="display:flex;flex-direction:column;min-height:0;overflow:hidden;">
+        <div class="card-hdr"><span class="card-title">Recent Signals</span><span class="card-link">View all</span></div>
+        <div style="flex:1;min-height:0;overflow:hidden;">
+          <div class="sig-row"><span class="sig-num">1</span><div><div class="sig-name">Liquidation Flush</div><div class="sig-sub">2 min ago</div></div><span class="coin-tag">HYPE</span><span class="dir-long">LONG</span></div>
+          <div class="sig-row"><span class="sig-num">2</span><div><div class="sig-name">Silent Loading</div><div class="sig-sub">8 min ago</div></div><span class="coin-tag">BTC</span><span class="dir-long">LONG</span></div>
+          <div class="sig-row"><span class="sig-num">3</span><div><div class="sig-name">Liquidation Flush</div><div class="sig-sub">15 min ago</div></div><span class="coin-tag">ETH</span><span class="dir-short">SHORT</span></div>
+          <div class="sig-row"><span class="sig-num">4</span><div><div class="sig-name">Position Aging</div><div class="sig-sub">31 min ago</div></div><span class="coin-tag">SOL</span><span class="dir-long">LONG</span></div>
+          <div class="sig-row"><span class="sig-num">5</span><div><div class="sig-name">Churn Detector</div><div class="sig-sub">44 min ago</div></div><span class="coin-tag">ARB</span><span class="dir-short">SHORT</span></div>
+          <div class="sig-row" style="border-bottom:none;"><span class="sig-num">6</span><div><div class="sig-name">Funding Trend</div><div class="sig-sub">1 hr ago</div></div><span class="coin-tag">WIF</span><span class="dir-long">LONG</span></div>
+        </div>
+      </div>
+
+      <!-- right: wallets + movers + exposure stacked -->
+      <div style="display:flex;flex-direction:column;gap:10px;min-height:0;overflow:hidden;">
+        <div class="card" style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;">
+          <div class="card-hdr"><span class="card-title">Top Wallets</span><span class="card-link">Report</span></div>
+          <div style="flex:1;min-height:0;overflow:hidden;">
+            <div class="wallet-row"><div class="wallet-top"><span class="wallet-rank">#1</span><span class="wallet-score">0.93</span></div><div class="wallet-addr">0x4f2a...e81d</div></div>
+            <div class="wallet-row"><div class="wallet-top"><span class="wallet-rank">#2</span><span class="wallet-score">0.91</span></div><div class="wallet-addr">0x7c1b...a33f</div></div>
+            <div class="wallet-row"><div class="wallet-top"><span class="wallet-rank">#3</span><span class="wallet-score" style="color:var(--text);">0.82</span></div><div class="wallet-addr">0x9d3e...c72a</div></div>
+          </div>
+        </div>
+        <div class="card" style="flex-shrink:0;">
+          <div class="card-hdr"><span class="card-title">Top Movers</span></div>
+          <div style="padding:6px 12px 8px;">
+            <div class="mover-row" style="padding:5px 0;"><span class="mover-coin">HYPE</span><span class="dir-long">LONG</span><span class="mover-count">12</span></div>
+            <div class="mover-row" style="padding:5px 0;"><span class="mover-coin">BTC</span><span class="dir-long">LONG</span><span class="mover-count">9</span></div>
+            <div class="mover-row" style="padding:5px 0;border-bottom:none;"><span class="mover-coin">ETH</span><span class="dir-short">SHORT</span><span class="mover-count">7</span></div>
+          </div>
+        </div>
+        <div class="card" style="flex-shrink:0;">
+          <div class="card-hdr"><span class="card-title">SM Exposure</span></div>
+          <div style="padding:6px 12px 8px;display:flex;flex-direction:column;gap:7px;">
+            <div class="exp-row"><span class="exp-coin">HYPE</span><div class="exp-bar-track"><div class="exp-bar-fill" style="width:82%;"></div></div><span class="exp-pct">82%</span></div>
+            <div class="exp-row"><span class="exp-coin">BTC</span><div class="exp-bar-track"><div class="exp-bar-fill" style="width:64%;"></div></div><span class="exp-pct">64%</span></div>
+            <div class="exp-row"><span class="exp-coin">ETH</span><div class="exp-bar-track"><div class="exp-bar-fill" style="width:41%;"></div></div><span class="exp-pct">41%</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- bottom: heatmap full width + regime -->
+    <div style="display:grid;grid-template-columns:2fr 1fr;gap:10px;flex-shrink:0;">
+      <div class="card"><div class="card-hdr"><span class="card-title">Signal Activity · 24h</span></div>
+        <div style="padding:8px 16px 10px;">
+          <div class="heatmap-bars" style="height:36px;">
+            <div class="hm-bar" style="height:20%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:35%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:15%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:60%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:80%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:45%;background:rgba(201,36,53,0.5);"></div><div class="hm-bar" style="height:30%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:20%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:55%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:90%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:70%;background:rgba(201,36,53,0.5);"></div><div class="hm-bar" style="height:40%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:25%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:65%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:50%;background:rgba(201,36,53,0.5);"></div><div class="hm-bar" style="height:35%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:20%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:45%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:75%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:55%;background:rgba(201,36,53,0.5);"></div><div class="hm-bar" style="height:30%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:85%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:100%;background:rgba(106,170,122,0.5);box-shadow:0 0 10px rgba(106,170,122,0.4);"></div><div class="hm-bar" style="height:5%;background:rgba(255,255,255,0.09);"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:5px;font-size:11px;color:rgba(255,255,255,0.22);"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>now</span></div>
+        </div>
+      </div>
+      <div class="card"><div class="card-hdr"><span class="card-title">Market Vibes</span><span class="card-link">7 days</span></div>
+        <div style="padding:8px 14px 10px;display:flex;position:relative;">
+          <div style="position:absolute;top:16px;left:20px;right:20px;height:1px;background:rgba(255,255,255,0.07);"></div>
+          <div class="regime-col"><div class="regime-dot" style="width:8px;height:8px;background:var(--red);"></div><div class="regime-day">Mon</div><div class="regime-type" style="color:var(--red);">Bear</div></div>
+          <div class="regime-col"><div class="regime-dot" style="width:8px;height:8px;background:var(--red);"></div><div class="regime-day">Tue</div><div class="regime-type" style="color:var(--red);">Bear</div></div>
+          <div class="regime-col"><div class="regime-dot" style="width:8px;height:8px;background:rgba(255,255,255,0.2);"></div><div class="regime-day">Wed</div><div class="regime-type" style="color:rgba(255,255,255,0.3);">Range</div></div>
+          <div class="regime-col"><div class="regime-dot" style="width:8px;height:8px;background:var(--green);"></div><div class="regime-day">Thu</div><div class="regime-type" style="color:var(--green);">Bull</div></div>
+          <div class="regime-col"><div class="regime-dot" style="width:8px;height:8px;background:var(--green);"></div><div class="regime-day">Fri</div><div class="regime-type" style="color:var(--green);">Bull</div></div>
+          <div class="regime-col"><div class="regime-dot" style="width:8px;height:8px;background:rgba(255,255,255,0.2);"></div><div class="regime-day">Sat</div><div class="regime-type" style="color:rgba(255,255,255,0.3);">Range</div></div>
+          <div class="regime-col"><div class="regime-dot" style="width:10px;height:10px;background:var(--green);margin-top:-1px;"></div><div class="regime-day" style="color:rgba(255,255,255,0.5);">Today</div><div class="regime-type" style="color:var(--green);">Bull</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════
+     LAYOUT D — Analytics Sidebar
+     Ticker → [Main 3fr: stats(4 col) + signals | Sidebar 1fr: wallets + vibes + movers + exposure]
+══════════════════════════════════════════════════════════════ -->
+<div class="layout" id="layout-d" style="position:relative;z-index:1;">
+  <div class="page-header"><h1>Overview</h1></div>
+
+  <div class="ticker">
+    <div class="ticker-cell"><div class="coin-name">BTC</div><div class="coin-price">$84,250</div><div class="coin-chg pos">+1.2%</div></div>
+    <div class="ticker-cell"><div class="coin-name">ETH</div><div class="coin-price">$2,370</div><div class="coin-chg neg">−0.8%</div></div>
+    <div class="ticker-cell"><div class="coin-name">SOL</div><div class="coin-price">$135.40</div><div class="coin-chg pos">+2.1%</div></div>
+    <div class="ticker-cell"><div class="coin-name">HYPE</div><div class="coin-price">$16.82</div><div class="coin-chg pos">+4.3%</div></div>
+    <div class="ticker-cell"><div class="coin-name">ARB</div><div class="coin-price">$0.44</div><div class="coin-chg neg">−1.4%</div></div>
+    <div class="ticker-cell"><div class="coin-name">WIF</div><div class="coin-price">$1.08</div><div class="coin-chg pos">+0.9%</div></div>
+  </div>
+
+  <div style="flex:1;min-height:0;overflow:hidden;padding:10px 24px 12px;display:grid;grid-template-columns:3fr 1fr;gap:10px;">
+
+    <!-- main: stats + heatmap + signals -->
+    <div style="display:flex;flex-direction:column;gap:10px;min-height:0;overflow:hidden;">
+      <!-- stat cards -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;flex-shrink:0;">
+        <div class="card" style="padding:14px 16px;"><div class="stat-label">Smart Money</div><div class="stat-value">2234</div><div class="stat-sub">wallets</div></div>
+        <div class="card" style="padding:14px 16px;"><div class="stat-label">Book Value</div><div class="stat-value">$201M</div><div class="stat-sub">total AV</div></div>
+        <div class="card" style="padding:14px 16px;"><div class="stat-label">Unrealised PnL</div><div class="stat-value" style="color:var(--green);">$623K</div><div class="stat-sub">open</div></div>
+        <div class="card" style="padding:14px 16px;"><div class="stat-label">Avg Score</div><div class="stat-value">0.20</div><div class="stat-sub">out of 1.00</div></div>
+      </div>
+      <!-- heatmap -->
+      <div class="card" style="flex-shrink:0;">
+        <div class="card-hdr"><span class="card-title">Signal Activity · 24h</span></div>
+        <div style="padding:8px 16px 10px;">
+          <div class="heatmap-bars" style="height:36px;">
+            <div class="hm-bar" style="height:20%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:60%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:80%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:45%;background:rgba(201,36,53,0.5);"></div><div class="hm-bar" style="height:55%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:90%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:70%;background:rgba(201,36,53,0.5);"></div><div class="hm-bar" style="height:25%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:65%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:50%;background:rgba(201,36,53,0.5);"></div><div class="hm-bar" style="height:20%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:45%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:75%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:30%;background:rgba(255,255,255,0.09);"></div><div class="hm-bar" style="height:85%;background:rgba(106,170,122,0.5);"></div><div class="hm-bar" style="height:100%;background:rgba(106,170,122,0.5);box-shadow:0 0 10px rgba(106,170,122,0.4);"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:5px;font-size:11px;color:rgba(255,255,255,0.22);"><span>00:00</span><span>06:00</span><span>12:00</span><span>18:00</span><span>now</span></div>
+        </div>
+      </div>
+      <!-- signals -->
+      <div class="card" style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;">
+        <div class="card-hdr"><span class="card-title">Recent Signals</span><span class="card-link">View all</span></div>
+        <div style="flex:1;min-height:0;overflow:hidden;">
+          <div class="sig-row"><span class="sig-num">1</span><div><div class="sig-name">Liquidation Flush</div><div class="sig-sub">2 min ago</div></div><span class="coin-tag">HYPE</span><span class="dir-long">LONG</span></div>
+          <div class="sig-row"><span class="sig-num">2</span><div><div class="sig-name">Silent Loading</div><div class="sig-sub">8 min ago</div></div><span class="coin-tag">BTC</span><span class="dir-long">LONG</span></div>
+          <div class="sig-row"><span class="sig-num">3</span><div><div class="sig-name">Liquidation Flush</div><div class="sig-sub">15 min ago</div></div><span class="coin-tag">ETH</span><span class="dir-short">SHORT</span></div>
+          <div class="sig-row"><span class="sig-num">4</span><div><div class="sig-name">Position Aging</div><div class="sig-sub">31 min ago</div></div><span class="coin-tag">SOL</span><span class="dir-long">LONG</span></div>
+          <div class="sig-row"><span class="sig-num">5</span><div><div class="sig-name">Churn Detector</div><div class="sig-sub">44 min ago</div></div><span class="coin-tag">ARB</span><span class="dir-short">SHORT</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- sidebar: wallets + vibes + movers + exposure -->
+    <div style="display:flex;flex-direction:column;gap:10px;min-height:0;overflow:hidden;">
+      <div class="card" style="flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;">
+        <div class="card-hdr"><span class="card-title">Top Wallets</span><span class="card-link">Report</span></div>
+        <div style="flex:1;min-height:0;overflow:hidden;">
+          <div class="wallet-row"><div class="wallet-top"><span class="wallet-rank">#1</span><span class="wallet-score">0.93</span></div><div class="wallet-addr">0x4f2a...e81d</div></div>
+          <div class="wallet-row"><div class="wallet-top"><span class="wallet-rank">#2</span><span class="wallet-score">0.91</span></div><div class="wallet-addr">0x7c1b...a33f</div></div>
+          <div class="wallet-row"><div class="wallet-top"><span class="wallet-rank">#3</span><span class="wallet-score" style="color:var(--text);">0.82</span></div><div class="wallet-addr">0x9d3e...c72a</div></div>
+          <div class="wallet-row"><div class="wallet-top"><span class="wallet-rank">#4</span><span class="wallet-score" style="color:var(--text);">0.77</span></div><div class="wallet-addr">0x1a8f...b04c</div></div>
+        </div>
+      </div>
+      <div class="card" style="flex-shrink:0;">
+        <div class="card-hdr"><span class="card-title">Market Vibes</span></div>
+        <div style="padding:8px 12px 10px;display:flex;position:relative;">
+          <div style="position:absolute;top:16px;left:16px;right:16px;height:1px;background:rgba(255,255,255,0.07);"></div>
+          <div class="regime-col"><div class="regime-dot" style="width:8px;height:8px;background:var(--red);"></div><div class="regime-day">M</div><div class="regime-type" style="color:var(--red);">B</div></div>
+          <div class="regime-col"><div class="regime-dot" style="width:8px;height:8px;background:var(--red);"></div><div class="regime-day">T</div><div class="regime-type" style="color:var(--red);">B</div></div>
+          <div class="regime-col"><div class="regime-dot" style="width:8px;height:8px;background:rgba(255,255,255,0.2);"></div><div class="regime-day">W</div><div class="regime-type" style="color:rgba(255,255,255,0.3);">R</div></div>
+          <div class="regime-col"><div class="regime-dot" style="width:8px;height:8px;background:var(--green);"></div><div class="regime-day">T</div><div class="regime-type" style="color:var(--green);">B</div></div>
+          <div class="regime-col"><div class="regime-dot" style="width:8px;height:8px;background:var(--green);"></div><div class="regime-day">F</div><div class="regime-type" style="color:var(--green);">B</div></div>
+          <div class="regime-col"><div class="regime-dot" style="width:8px;height:8px;background:rgba(255,255,255,0.2);"></div><div class="regime-day">S</div><div class="regime-type" style="color:rgba(255,255,255,0.3);">R</div></div>
+          <div class="regime-col"><div class="regime-dot" style="width:10px;height:10px;background:var(--green);margin-top:-1px;"></div><div class="regime-day" style="color:rgba(255,255,255,0.5);">Now</div><div class="regime-type" style="color:var(--green);">B</div></div>
+        </div>
+      </div>
+      <div class="card" style="flex-shrink:0;">
+        <div class="card-hdr"><span class="card-title">Top Movers</span></div>
+        <div style="padding:6px 12px 8px;">
+          <div class="mover-row" style="padding:5px 0;"><span class="mover-coin">HYPE</span><span class="dir-long">LONG</span><span class="mover-count">12</span></div>
+          <div class="mover-row" style="padding:5px 0;"><span class="mover-coin">BTC</span><span class="dir-long">LONG</span><span class="mover-count">9</span></div>
+          <div class="mover-row" style="padding:5px 0;border-bottom:none;"><span class="mover-coin">ETH</span><span class="dir-short">SHORT</span><span class="mover-count">7</span></div>
+        </div>
+      </div>
+      <div class="card" style="flex-shrink:0;">
+        <div class="card-hdr"><span class="card-title">SM Exposure</span></div>
+        <div style="padding:6px 12px 8px;display:flex;flex-direction:column;gap:7px;">
+          <div class="exp-row"><span class="exp-coin">HYPE</span><div class="exp-bar-track"><div class="exp-bar-fill" style="width:82%;"></div></div><span class="exp-pct">82%</span></div>
+          <div class="exp-row"><span class="exp-coin">BTC</span><div class="exp-bar-track"><div class="exp-bar-fill" style="width:64%;"></div></div><span class="exp-pct">64%</span></div>
+          <div class="exp-row"><span class="exp-coin">ETH</span><div class="exp-bar-track"><div class="exp-bar-fill" style="width:41%;"></div></div><span class="exp-pct">41%</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function show(id) {
+  document.querySelectorAll('.layout').forEach(l => l.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('layout-' + id).classList.add('active');
+  event.target.classList.add('active');
+}
+</script>
+</body>
+</html>

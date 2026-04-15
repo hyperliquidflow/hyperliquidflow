@@ -5,11 +5,11 @@ At the start of each session, read this file to know where to pick up.
 
 ## Active Sprint
 
-**Sprint 2 — Bias Trend Chart**  
-Status: READY TO START  
-Spec: `docs/superpowers/specs/2026-04-13-sprint-2-bias-trend.md`  
+**Sprint 3 — Global Position Heatmap**  
+Status: NOT STARTED  
+Spec: `docs/superpowers/specs/2026-04-13-sprint-3-heatmap.md`  
 Plan: pending  
-Last worked on: 2026-04-14
+Last worked on: -
 
 ---
 
@@ -18,7 +18,7 @@ Last worked on: 2026-04-14
 | # | Name | Status | Spec | Plan |
 |---|---|---|---|---|
 | 1 | Wallet Tier System | COMPLETE | [spec](../superpowers/specs/2026-04-13-sprint-1-wallet-tiers.md) | [plan](../superpowers/plans/2026-04-13-sprint-1-wallet-tiers.md) |
-| 2 | Bias Trend Chart | NOT STARTED | [spec](../superpowers/specs/2026-04-13-sprint-2-bias-trend.md) | pending |
+| 2 | Bias Trend Chart | COMPLETE | [spec](../superpowers/specs/2026-04-13-sprint-2-bias-trend.md) | [plan](../superpowers/plans/2026-04-14-sprint-2-bias-trend.md) |
 | 3 | Global Position Heatmap | NOT STARTED | [spec](../superpowers/specs/2026-04-13-sprint-3-heatmap.md) | pending |
 | 4 | Market Radar | NOT STARTED | [spec](../superpowers/specs/2026-04-13-sprint-4-market-radar.md) | pending |
 | 5 | Wallet Alerts + Paper Copy Trading | NOT STARTED | [spec](../superpowers/specs/2026-04-13-sprint-5-alerts-paper-trading.md) | pending |

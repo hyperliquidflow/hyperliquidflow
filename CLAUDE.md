@@ -9,9 +9,12 @@ npm run dev          # Start dev server (localhost:3000)
 npm run build        # Production build
 npm run lint         # ESLint via Next.js
 npm run typecheck    # tsc --noEmit
+npm run test         # Vitest (single run, node env, no live services needed)
+npm run test:watch   # Vitest in watch mode
 
-# Run daily wallet scan locally (requires env vars)
-npx tsx scripts/daily-wallet-scan.ts
+# Scripts (require env vars)
+npx tsx scripts/daily-wallet-scan.ts        # Full 1200-wallet cohort scan (GitHub Actions runs this)
+npx tsx scripts/validate-scoring-weights.ts # Correlate wallet scores vs EV scores over 30 days
 ```
 
 ## Architecture
@@ -71,6 +74,21 @@ Old routes (`/scanner`, `/stalker`, `/contrarian`, `/imbalance`, `/recipes`) red
 - `market-ticker` — Live price/change data for the ticker strip
 - `wallet-profile`, `scanner-stats`, `recipe-performance`, `top-markets`, `deep-dive`
 
+### Server-Side Data Fetching
+
+`lib/server/kv-fetchers.ts` contains functions (`fetchCohortState`, `fetchMarketTicker`, etc.) that read from KV and Supabase. Async server components call these directly for first-paint data — no client-side skeleton states needed. API routes then handle subsequent polling via React Query (`@tanstack/react-query`).
+
+The `after()` Next.js API is used for fire-and-forget background work (e.g., triggering a stale refresh after serving a cached response). Do not await these.
+
+### Supabase Migrations (`supabase/migrations/`)
+
+| Migration | Content |
+|-----------|---------|
+| 001 | Initial schema |
+| 002 | Wallet metrics |
+| 003 | Equity tiers |
+| 004 | Backtest daily PnLs |
+
 ### Key Data Separation
 
 - **Historical PnL** → `user_pnl_backtest` Supabase table (realized trades, used for scoring)
@@ -91,7 +109,7 @@ The nav is defined in `components/nav.tsx` in the `NAV` array. Sections (Wallets
 
 ## UI Work
 
-**Before writing any JSX, TSX, or styled code, invoke the `ui-design-enforcer` skill.** This is mandatory, no exceptions, including "small" changes. The skill forces reading `lib/design-tokens.ts` live before any code is written and runs a self-audit checklist at the end.
+**Before writing any JSX, TSX, HTML, PDF, or any other visual output, invoke the `ui-design-enforcer` skill.** This includes whitepapers, print documents, prototypes, and mockups — not just .tsx files. Mandatory, no exceptions, no "small" changes exemption. The skill forces reading `lib/design-tokens.ts` live (which contains the brand identity rules) before any style value is written.
 
 ## Copy Rules
 
