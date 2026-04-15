@@ -1139,7 +1139,7 @@ export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalEvent
       if (inserted && inserted.length > 0) {
         const outcomeRows = buildOutcomeRows(inserted, allMids);
         if (outcomeRows.length > 0) {
-          supabase.from("signal_outcomes").insert(outcomeRows).then(({ error: oErr }) => {
+          void supabase.from("signal_outcomes").insert(outcomeRows).then(({ error: oErr }) => {
             if (oErr) console.error("[signal-lab] signal_outcomes insert error:", oErr.message);
           });
         }
