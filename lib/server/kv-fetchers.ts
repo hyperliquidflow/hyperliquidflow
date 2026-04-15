@@ -49,17 +49,42 @@ export interface RecipeStats {
 
 export async function fetchRecipePerformance(): Promise<RecipeStats[] | null> {
   try {
-    const { data, error } = await supabase
-      .from("recipe_performance")
-      .select("recipe_id, signal_count, true_positive, false_positive, avg_ev_score, win_rate, measured_at")
-      .order("measured_at", { ascending: false })
-      .limit(100);
+    const [{ data, error }, intradayRaw] = await Promise.all([
+      supabase
+        .from("recipe_performance")
+        .select("recipe_id, signal_count, true_positive, false_positive, avg_ev_score, win_rate, measured_at")
+        .order("measured_at", { ascending: false })
+        .limit(100),
+      kv.get<Record<string, { avg_ev: number; count: number }>>("recipe:intraday_perf"),
+    ]);
     if (error || !data) return null;
     const latest = new Map<string, RecipeStats>();
     for (const row of data) {
       if (!latest.has(row.recipe_id)) latest.set(row.recipe_id, row as RecipeStats);
     }
-    return [...latest.values()];
+    // Overlay intraday KV data on daily rows
+    const result: RecipeStats[] = [...latest.values()].map((row) => {
+      const intraday = intradayRaw?.[row.recipe_id];
+      if (!intraday) return row;
+      return { ...row, signal_count: intraday.count, avg_ev_score: intraday.avg_ev };
+    });
+    // Append KV-only recipes not yet in daily table
+    if (intradayRaw) {
+      for (const [recipe_id, { avg_ev, count }] of Object.entries(intradayRaw)) {
+        if (!latest.has(recipe_id)) {
+          result.push({
+            recipe_id,
+            signal_count: count,
+            avg_ev_score: avg_ev,
+            win_rate: null,
+            true_positive: 0,
+            false_positive: 0,
+            measured_at: new Date().toISOString(),
+          });
+        }
+      }
+    }
+    return result;
   } catch { return null; }
 }
 
