@@ -21,7 +21,10 @@ Last worked on: -
 | 2 | Bias Trend Chart | COMPLETE | [spec](../superpowers/specs/2026-04-13-sprint-2-bias-trend.md) | [plan](../superpowers/plans/2026-04-14-sprint-2-bias-trend.md) |
 | 3 | Global Position Heatmap | NOT STARTED | [spec](../superpowers/specs/2026-04-13-sprint-3-heatmap.md) | pending |
 | 4 | Market Radar | NOT STARTED | [spec](../superpowers/specs/2026-04-13-sprint-4-market-radar.md) | pending |
+| 7 | Allium Data Layer | NOT STARTED | [spec](../superpowers/specs/2026-04-15-sprint-7-allium-data-layer.md) | pending |
+| 8 | Wallet Detail Page | NOT STARTED | [spec](../superpowers/specs/2026-04-15-sprint-8-wallet-detail-page.md) | pending |
 | 5 | Wallet Alerts + Paper Copy Trading | NOT STARTED | [spec](../superpowers/specs/2026-04-13-sprint-5-alerts-paper-trading.md) | pending |
+| 9 | Leaderboard Upgrade + API Docs | NOT STARTED | [spec](../superpowers/specs/2026-04-15-sprint-9-leaderboard-upgrade-api-docs.md) | pending |
 | 6 | Auth System | PLANNED (future) | [spec](../superpowers/specs/2026-04-13-sprint-6-auth.md) | not yet |
 
 ---
