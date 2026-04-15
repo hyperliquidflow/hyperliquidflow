@@ -325,7 +325,7 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       })
     );
 
-    // Run background tasks after response: prune + enrichment
+    // Run background tasks after response: prune + enrichment + intraday recipe perf
     after(
       Promise.all([
         pruneUnderperformers().catch((err) =>
@@ -336,6 +336,9 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
         ),
         runTwapEnrichment(twapCandidates).catch((err) =>
           console.error("[refresh-cohort] twapEnrichment error:", err)
+        ),
+        updateIntradayRecipePerformance().catch((err) =>
+          console.error("[refresh-cohort] updateIntradayRecipePerformance error:", err)
         ),
       ])
     );
@@ -353,6 +356,65 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[refresh-cohort] cycle failed:", message);
     return NextResponse.json({ ok: false, error: message }, { status: 500 });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Intraday recipe performance
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function updateIntradayRecipePerformance(): Promise<void> {
+  const since = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+
+  const { data: rows, error } = await supabase
+    .from("signals_history")
+    .select("recipe_id, ev_score")
+    .gte("detected_at", since);
+
+  if (error || !rows || rows.length === 0) {
+    console.log("[recipe-perf] no intraday signal history to aggregate, skipping");
+    return;
+  }
+
+  // Group by recipe_id
+  const byRecipe = new Map<string, { evScores: number[]; withScore: number; total: number }>();
+  for (const row of rows) {
+    const id = row.recipe_id as string;
+    if (!byRecipe.has(id)) byRecipe.set(id, { evScores: [], withScore: 0, total: 0 });
+    const entry = byRecipe.get(id)!;
+    entry.total++;
+    if (row.ev_score != null) {
+      entry.evScores.push(row.ev_score as number);
+      if ((row.ev_score as number) > 0) entry.withScore++;
+    }
+  }
+
+  const insertRows = [...byRecipe.entries()].map(([recipe_id, { evScores, withScore, total }]) => {
+    const avg_ev_score = evScores.length > 0
+      ? evScores.reduce((a, b) => a + b, 0) / evScores.length
+      : null;
+    const true_positive  = withScore;
+    const false_positive = total - withScore;
+    const win_rate       = total > 0 ? withScore / total : 0;
+    return {
+      recipe_id,
+      signal_count:  total,
+      true_positive,
+      false_positive,
+      avg_ev_score,
+      win_rate,
+      measured_at: new Date().toISOString(),
+    };
+  });
+
+  const { error: insertError } = await supabase
+    .from("recipe_performance")
+    .insert(insertRows);
+
+  if (insertError) {
+    console.error("[recipe-perf] intraday insert error:", insertError.message);
+  } else {
+    console.log(`[recipe-perf] intraday wrote ${insertRows.length} recipe performance rows`);
   }
 }
 
