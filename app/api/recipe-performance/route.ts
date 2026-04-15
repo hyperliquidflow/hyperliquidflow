@@ -4,17 +4,9 @@ import { createClient } from "@supabase/supabase-js";
 import { kv } from "@vercel/kv";
 import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from "@/lib/env";
 import type { RecipeStats } from "@/lib/server/kv-fetchers";
+import { OUTCOME_DEFAULTS } from "@/lib/server/kv-fetchers";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-
-const OUTCOME_DEFAULTS = {
-  resolved_7d: 0, resolved_30d: 0,
-  accuracy_1h_7d: null, accuracy_4h_7d: null, accuracy_24h_7d: null,
-  avg_move_1h_7d: null, avg_move_4h_7d: null, avg_move_24h_7d: null,
-  accuracy_1h_30d: null, accuracy_4h_30d: null, accuracy_24h_30d: null,
-  avg_move_1h_30d: null, avg_move_4h_30d: null, avg_move_24h_30d: null,
-  top_coins_7d: [] as string[], top_coins_30d: [] as string[],
-};
 
 export async function GET(): Promise<NextResponse> {
   const [{ data: perfData, error: perfErr }, intradayRaw, { data: outcomeData }, { data: coinData }] =

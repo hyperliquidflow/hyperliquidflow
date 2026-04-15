@@ -66,7 +66,7 @@ export interface RecipeStats {
   top_coins_30d:    string[];
 }
 
-const OUTCOME_DEFAULTS = {
+export const OUTCOME_DEFAULTS = {
   resolved_7d: 0, resolved_30d: 0,
   accuracy_1h_7d: null, accuracy_4h_7d: null, accuracy_24h_7d: null,
   avg_move_1h_7d: null, avg_move_4h_7d: null, avg_move_24h_7d: null,
