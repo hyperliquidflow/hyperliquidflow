@@ -633,7 +633,7 @@ async function resolveWalletOutcomes(): Promise<void> {
 
   const { data: openOutcomes, error } = await supabase
     .from("signal_outcomes")
-    .select("signal_id, signal_events!inner(wallet_ids, coin, direction)")
+    .select("signal_id, price_win, signal_events!inner(wallet_ids, coin, direction)")
     .eq("wallet_outcome", "OPEN")
     .limit(500);
 
@@ -681,6 +681,7 @@ async function resolveWalletOutcomes(): Promise<void> {
       .update({
         wallet_return_avg: walletReturnAvg,
         wallet_outcome:    walletOutcome,
+        is_win:            walletOutcome === "WIN" && row.price_win === true,
       })
       .eq("signal_id", row.signal_id);
 
