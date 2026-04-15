@@ -35,7 +35,7 @@ const NAV: NavEntry[] = [
     children: [
       { href: "/signals/feed",        label: "Feed"        },
       { href: "/signals/divergence",  label: "Divergence"  },
-      { href: "/edge",                label: "Edge"        },
+      { href: "/signals/performance",  label: "Performance" },
     ],
   },
 ];
@@ -120,7 +120,7 @@ export function Nav() {
               return (
                 <Link key={entry.href} href={entry.href} className="glow-btn" draggable={false} style={{
                   display: "flex", alignItems: "center",
-                  padding: "10px 20px", fontSize: "16px", fontWeight: 500,
+                  padding: "10px 20px", fontSize: "13px", fontWeight: 500,
                   color: active ? color.text : "rgba(255,255,255,0.44)",
                   textDecoration: "none",
                   borderLeft: active ? `2px solid ${color.navActive}` : "2px solid transparent",
@@ -154,7 +154,7 @@ export function Nav() {
                     <Link key={child.href} href={child.href} className="glow-btn" draggable={false} style={{
                       display: "flex", alignItems: "center",
                       padding: "7px 20px 7px 28px",
-                      fontSize: "16px", fontWeight: 500,
+                      fontSize: "13px", fontWeight: 500,
                       color: childActive ? color.text : "rgba(255,255,255,0.44)",
                       textDecoration: "none",
                       borderLeft: childActive ? `2px solid ${color.navActive}` : "2px solid transparent",

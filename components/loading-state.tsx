@@ -313,9 +313,9 @@ function TableLoadingState() {
 export function LeaderboardLoadingState() { return <TableLoadingState />; }
 export function InPositionLoadingState()  { return <TableLoadingState />; }
 
-// EDGE (app/edge/page.tsx)
+// PERFORMANCE (app/performance/page.tsx)
 
-export function EdgeLoadingState() {
+export function PerformanceLoadingState() {
   return (
     <>
       <GhostPageHeader />

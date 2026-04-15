@@ -1,6 +1,6 @@
-// app/recipes/page.tsx — permanent redirect to /edge
+// app/recipes/page.tsx — permanent redirect to /performance
 import { redirect } from "next/navigation";
 
 export default function RecipesRedirect() {
-  redirect("/edge");
+  redirect("/performance");
 }

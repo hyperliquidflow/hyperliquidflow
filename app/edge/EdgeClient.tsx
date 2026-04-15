@@ -38,7 +38,7 @@ export function EdgeClient({ initialData }: { initialData: RecipeStats[] | null 
 
   return (
     <div className="page-enter">
-      <PageHeader title="Edge" subtitle="Signal recipe performance" />
+      <PageHeader title="Performance" subtitle="Signal recipe performance" />
       <div style={{ ...S.page, paddingTop: "20px" }}>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", marginBottom: "24px" }}>
           {allRecipes.map(({ id, label, desc, perf }) => {
