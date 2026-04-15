@@ -1,0 +1,40 @@
+# .github/workflows/signal-learning.yml
+name: Signal Learning
+
+on:
+  schedule:
+    - cron: '0 1 * * *'   # 01:00 UTC daily -- runs after daily-wallet-scan at 00:00
+  workflow_dispatch:        # manual trigger for testing
+
+jobs:
+  learn:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run signal learning
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          HYPERLIQUID_API_URL: ${{ secrets.HYPERLIQUID_API_URL }}
+        run: npx tsx scripts/signal-learning.ts
+
+      - name: Upload learning summary artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: learning-summary-${{ github.run_id }}
+          path: learning-summary.json
+          retention-days: 14
