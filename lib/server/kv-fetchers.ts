@@ -38,14 +38,42 @@ export async function fetchContrarianState(): Promise<unknown> {
 }
 
 export interface RecipeStats {
-  recipe_id: string;
-  signal_count: number;
-  true_positive: number;
+  // Legacy EV-based fields — kept for fallback display
+  recipe_id:      string;
+  signal_count:   number;
+  true_positive:  number;
   false_positive: number;
-  avg_ev_score: number | null;
-  win_rate: number | null;
-  measured_at: string;
+  avg_ev_score:   number | null;
+  win_rate:       number | null;
+  measured_at:    string;
+
+  // Outcome-based fields — null until signal_outcomes has data
+  resolved_7d:      number;
+  resolved_30d:     number;
+  accuracy_1h_7d:   number | null;
+  accuracy_4h_7d:   number | null;
+  accuracy_24h_7d:  number | null;
+  avg_move_1h_7d:   number | null;
+  avg_move_4h_7d:   number | null;
+  avg_move_24h_7d:  number | null;
+  accuracy_1h_30d:  number | null;
+  accuracy_4h_30d:  number | null;
+  accuracy_24h_30d: number | null;
+  avg_move_1h_30d:  number | null;
+  avg_move_4h_30d:  number | null;
+  avg_move_24h_30d: number | null;
+  top_coins_7d:     string[];
+  top_coins_30d:    string[];
 }
+
+const OUTCOME_DEFAULTS = {
+  resolved_7d: 0, resolved_30d: 0,
+  accuracy_1h_7d: null, accuracy_4h_7d: null, accuracy_24h_7d: null,
+  avg_move_1h_7d: null, avg_move_4h_7d: null, avg_move_24h_7d: null,
+  accuracy_1h_30d: null, accuracy_4h_30d: null, accuracy_24h_30d: null,
+  avg_move_1h_30d: null, avg_move_4h_30d: null, avg_move_24h_30d: null,
+  top_coins_7d: [] as string[], top_coins_30d: [] as string[],
+} as const satisfies Omit<RecipeStats, "recipe_id"|"signal_count"|"true_positive"|"false_positive"|"avg_ev_score"|"win_rate"|"measured_at">;
 
 export async function fetchRecipePerformance(): Promise<RecipeStats[] | null> {
   try {
@@ -60,7 +88,7 @@ export async function fetchRecipePerformance(): Promise<RecipeStats[] | null> {
     if (error || !data) return null;
     const latest = new Map<string, RecipeStats>();
     for (const row of data) {
-      if (!latest.has(row.recipe_id)) latest.set(row.recipe_id, row as RecipeStats);
+      if (!latest.has(row.recipe_id)) latest.set(row.recipe_id, { ...row, ...OUTCOME_DEFAULTS });
     }
     // Overlay intraday KV data on daily rows
     const result: RecipeStats[] = [...latest.values()].map((row) => {
@@ -80,6 +108,7 @@ export async function fetchRecipePerformance(): Promise<RecipeStats[] | null> {
             true_positive: 0,
             false_positive: 0,
             measured_at: new Date().toISOString(),
+            ...OUTCOME_DEFAULTS,
           });
         }
       }
