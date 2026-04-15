@@ -30,3 +30,12 @@ npm-debug.log*
 
 # git worktrees
 .worktrees/
+
+# superpowers brainstorm artifacts
+.superpowers/
+
+# local dev databases
+local.db
+
+# claude settings (local only)
+.claude/settings.json
