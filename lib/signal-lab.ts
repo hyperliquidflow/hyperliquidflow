@@ -10,6 +10,7 @@ import { kv } from "@vercel/kv";
 import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from "@/lib/env";
 import { computeEv, estimateTradeCost } from "@/lib/risk-engine";
 import type { HlL2Book, HlCandle, HlAssetCtx } from "@/lib/hyperliquid-api-client";
+import { getRecipeConfig } from "@/lib/recipe-config";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -91,10 +92,12 @@ function sign(szi: string): "LONG" | "SHORT" | "FLAT" {
 // exceeds $500K within the snapshot window. Previously used a per-wallet
 // $500K threshold which was unreachable for most cohort account sizes.
 
-function recipe1(pairs: SnapshotPair[]): SignalEvent[] {
-  const WALLET_THRESHOLD    = 3;
-  const COMBINED_NOTIONAL   = 500_000;
-  const WINDOW_MS           = 5 * 60 * 1000;
+async function recipe1(pairs: SnapshotPair[]): Promise<SignalEvent[]> {
+  const cfg = await getRecipeConfig("momentum_stack");
+  const MIN_WALLETS         = cfg["MIN_WALLETS"] ?? 3;
+  const WALLET_THRESHOLD    = MIN_WALLETS;
+  const COMBINED_NOTIONAL   = cfg["COMBINED_NOTIONAL"] ?? 500_000;
+  const WINDOW_MS           = cfg["WINDOW_MS"] ?? 300_000;
 
   // Coin → direction → { walletIds, totalDelta }
   const buckets = new Map<string, { LONG: { ids: string[]; delta: number }; SHORT: { ids: string[]; delta: number } }>();
@@ -162,12 +165,13 @@ async function recipe2(
   pairs: SnapshotPair[],
   candles5m: Map<string, HlCandle[]>   // coin -> recent 5m candles
 ): Promise<SignalEvent[]> {
-  const LIQ_BUFFER_THRESHOLD = 0.08;   // truly thin margin only
-  const PRICE_FLAT_PCT       = 0.005;  // <0.5% move in last 30 min
-  const MIN_NOTIONAL_DELTA   = 75_000; // per wallet; $75K each to qualify
-  const MIN_WALLET_SCORE     = 0.65;   // high-conviction wallets only
+  const cfg = await getRecipeConfig("divergence_squeeze");
+  const LIQ_BUFFER_THRESHOLD = cfg["LIQ_BUFFER_THRESHOLD"] ?? 0.08;   // truly thin margin only
+  const PRICE_FLAT_PCT       = cfg["PRICE_FLAT_PCT"] ?? 0.005;  // <0.5% move in last 30 min
+  const MIN_NOTIONAL_DELTA   = cfg["MIN_NOTIONAL_DELTA"] ?? 75_000; // per wallet; $75K each to qualify
+  const MIN_WALLET_SCORE     = cfg["MIN_WALLET_SCORE"] ?? 0.65;   // high-conviction wallets only
   const PRICE_FLAT_CANDLES   = 6;      // 6 x 5m = 30 min
-  const MIN_WALLETS          = 3;      // require 3 coordinating wallets
+  const MIN_WALLETS          = cfg["MIN_WALLETS"] ?? 3;      // require 3 coordinating wallets
 
   // Pass 1: collect wallets qualifying per coin
   type QualifiedWallet = {
@@ -268,14 +272,15 @@ async function recipe2(
 // BTC/ETH: threshold lands ~6%; volatile alts: up to 15%. Prevents the flat
 // 8% bar from being noise on alts while missing signals on low-vol majors.
 
-function recipe3(
+async function recipe3(
   pairs: SnapshotPair[],
   candles4h: Map<string, HlCandle[]>  // coin -> last 4h candles (e.g. 48 x 5m)
-): SignalEvent[] {
-  const HIGH_SCORE = 0.65;
-  const DRAWDOWN_MULTIPLIER  = 2.0;  // threshold = 2x the coin's typical 4h range
-  const DRAWDOWN_MIN         = 0.06; // floor: even stable coins need a real dip
-  const DRAWDOWN_MAX         = 0.15; // ceiling: above this is capitulation, not dip-buy
+): Promise<SignalEvent[]> {
+  const cfg = await getRecipeConfig("accumulation_reentry");
+  const HIGH_SCORE           = cfg["HIGH_SCORE"] ?? 0.65;
+  const DRAWDOWN_MULTIPLIER  = cfg["DRAWDOWN_MULTIPLIER"] ?? 2.0;  // threshold = 2x the coin's typical 4h range
+  const DRAWDOWN_MIN         = cfg["DRAWDOWN_MIN"] ?? 0.06; // floor: even stable coins need a real dip
+  const DRAWDOWN_MAX         = cfg["DRAWDOWN_MAX"] ?? 0.15; // ceiling: above this is capitulation, not dip-buy
   const DRAWDOWN_FALLBACK    = 0.09; // for coins without candle data (outside top-10)
   const events: SignalEvent[] = [];
 
@@ -348,14 +353,15 @@ function recipe3(
 // ─────────────────────────────────────────────────────────────────────────────
 // Rotation into positive-funding perps with >60% historical follow-through.
 
-function recipe4(
+async function recipe4(
   pairs: SnapshotPair[],
   assetCtxMap: Map<string, HlAssetCtx>,
   recipeWinRates: Map<string, number>,
   recipeSignalCounts: Map<string, number>
-): SignalEvent[] {
-  const MIN_FUNDING = 0.0003;           // 0.03%/hr minimum positive funding
-  const MIN_HISTORICAL_WINRATE = 0.60;
+): Promise<SignalEvent[]> {
+  const cfg = await getRecipeConfig("rotation_carry");
+  const MIN_FUNDING = cfg["MIN_FUNDING"] ?? 0.0003;           // 0.03%/hr minimum positive funding
+  const MIN_HISTORICAL_WINRATE = cfg["MIN_HISTORICAL_WINRATE"] ?? 0.60;
   const events: SignalEvent[] = [];
 
   for (const { walletId, curr, prev } of pairs) {
@@ -412,14 +418,15 @@ function recipe4(
 // (orderbook + liquidation stream). This approximation uses cohort position
 // shrinkage + fill volume spike as a proxy. Tagged Phase 3 for WS upgrade.
 
-function recipe5(
+async function recipe5(
   pairs: SnapshotPair[],
   allMids: Record<string, string>,
   priorAllMids: Record<string, string> | null
-): SignalEvent[] {
-  const POSITION_SHRINK_PCT      = 0.05;   // cohort net notional drops >5%
-  const PRICE_SPIKE_PCT_MAJOR    = 0.015;  // BTC/ETH: cascade-level only (was 0.02 flat)
-  const PRICE_SPIKE_PCT_ALT      = 0.035;  // alts: filter routine volatility
+): Promise<SignalEvent[]> {
+  const cfg = await getRecipeConfig("liq_rebound");
+  const POSITION_SHRINK_PCT      = cfg["POSITION_SHRINK_PCT"] ?? 0.05;   // cohort net notional drops >5%
+  const PRICE_SPIKE_PCT_MAJOR    = cfg["PRICE_SPIKE_PCT_MAJOR"] ?? 0.015;  // BTC/ETH: cascade-level only (was 0.02 flat)
+  const PRICE_SPIKE_PCT_ALT      = cfg["PRICE_SPIKE_PCT_ALT"] ?? 0.035;  // alts: filter routine volatility
   const MAJOR_COINS              = new Set(["BTC", "ETH"]);
   const events: SignalEvent[] = [];
 
@@ -492,12 +499,13 @@ function recipe5(
 // ─────────────────────────────────────────────────────────────────────────────
 // Wallet on 5+ win streak with Sharpe proxy > 1.8 (normalised > 0.6).
 
-function recipe6(
+async function recipe6(
   pairs: SnapshotPair[],
   backtestMap: Map<string, { win_streak: number; sharpe_ratio: number }>
-): SignalEvent[] {
-  const MIN_STREAK  = 5;
-  const MIN_SHARPE  = 0.60;   // normalised (maps to raw ~1.8)
+): Promise<SignalEvent[]> {
+  const cfg = await getRecipeConfig("streak_continuation");
+  const MIN_STREAK  = cfg["MIN_STREAK"] ?? 5;
+  const MIN_SHARPE  = cfg["MIN_SHARPE"] ?? 0.60;   // normalised (maps to raw ~1.8)
   const events: SignalEvent[] = [];
 
   for (const { walletId, curr } of pairs) {
@@ -535,11 +543,12 @@ function recipe6(
 // Smart-money bias opposite to retail OI proxy + funding > 0.05%.
 // Retail OI proxy = totalOI − cohort net notional (see risk-engine.ts).
 
-function recipe7(
+async function recipe7(
   pairs: SnapshotPair[],
   assetCtxMap: Map<string, HlAssetCtx>
-): SignalEvent[] {
-  const FUNDING_THRESHOLD = 0.0005;   // 0.05%/hr
+): Promise<SignalEvent[]> {
+  const cfg = await getRecipeConfig("funding_divergence");
+  const FUNDING_THRESHOLD = cfg["FUNDING_THRESHOLD"] ?? 0.0005;   // 0.05%/hr
   const events: SignalEvent[] = [];
 
   // Aggregate cohort net notional per coin
@@ -596,12 +605,15 @@ function recipe7(
 // ─────────────────────────────────────────────────────────────────────────────
 // Signal confirmed by ≥3 core cohort wallets (score ≥ 0.75) within 60s.
 
-function recipe8(
+async function recipe8(
   pairs: SnapshotPair[],
   pendingSignals: SignalEvent[]   // signals from other recipes in this cycle
-): SignalEvent[] {
-  const MIN_WHALE_COUNT = 3;
-  const WHALE_SCORE     = 0.75;
+): Promise<SignalEvent[]> {
+  const cfg = await getRecipeConfig("whale_validated");
+  const MIN_WALLETS     = cfg["MIN_WALLETS"] ?? 3;
+  const MIN_SCORE       = cfg["MIN_SCORE"] ?? 0.75;
+  const MIN_WHALE_COUNT = MIN_WALLETS;
+  const WHALE_SCORE     = MIN_SCORE;
   const events: SignalEvent[] = [];
 
   // Build map of coin+direction → whale wallets with FRESH activity.
@@ -659,17 +671,20 @@ function recipe8(
 // ─────────────────────────────────────────────────────────────────────────────
 // Rapid exposure reduction + negative regime score → defensive flat/short signal.
 
-function recipe9(
+async function recipe9(
   pairs: SnapshotPair[],
   regime: "BULL" | "BEAR" | "RANGING"
-): SignalEvent[] {
-  const REDUCTION_THRESHOLD = 0.20;   // ≥20% notional reduction
+): Promise<SignalEvent[]> {
+  const cfg = await getRecipeConfig("anti_whale_trap");
+  const HIGH_SCORE          = cfg["HIGH_SCORE"] ?? 0.70;
+  const REDUCTION_PCT       = cfg["REDUCTION_PCT"] ?? 0.30;
+  const REDUCTION_THRESHOLD = REDUCTION_PCT;
   const LOW_REGIME_FIT      = 0.35;   // regime_fit below this = danger
   const events: SignalEvent[] = [];
 
   for (const { walletId, curr, prev, overallScore } of pairs) {
     if (!prev) continue;
-    if (overallScore < 0.65) continue; // only watch high-score wallets
+    if (overallScore < HIGH_SCORE) continue; // only watch high-score wallets
 
     const reduction = prev.total_notional > 0
       ? (prev.total_notional - curr.total_notional) / prev.total_notional
@@ -1020,25 +1035,26 @@ export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalEvent
     backtestMap, l2Books, recipeWinRates, recipeSignalCounts, regime,
   } = inputs;
 
-  // Run each recipe
-  const r1 = recipe1(pairs);
-  const r3 = recipe3(pairs, candles4h);
-  const r4 = recipe4(pairs, assetCtxMap, recipeWinRates, recipeSignalCounts);
-  const r5 = recipe5(pairs, allMids, priorAllMids);
-  const r6 = recipe6(pairs, backtestMap);
-  const r7 = recipe7(pairs, assetCtxMap);
-  // R2, R10, R13 are async (KV reads/writes); run in parallel to minimise latency
-  const [r2, r10, r13] = await Promise.all([
+  // Run recipes 1-7, 10-13 in parallel (all async now); R8 depends on their output
+  const [r1, r2, r3, r4, r5, r6, r7, r10, r11, r12, r13] = await Promise.all([
+    recipe1(pairs),
     recipe2(pairs, candles5m),
+    recipe3(pairs, candles4h),
+    recipe4(pairs, assetCtxMap, recipeWinRates, recipeSignalCounts),
+    recipe5(pairs, allMids, priorAllMids),
+    recipe6(pairs, backtestMap),
+    recipe7(pairs, assetCtxMap),
     recipe10(pairs),
+    recipe11(pairs),
+    recipe12(pairs),
     recipe13(assetCtxMap),
   ]);
-  const r11 = recipe11(pairs);
-  const r12 = recipe12(pairs);
-  // Recipe 8 validates signals from other recipes
+  // Recipe 8 validates signals from other recipes; Recipe 9 is independent
   const preValidation = [...r1, ...r2, ...r3, ...r4, ...r5, ...r6, ...r7, ...r10, ...r11, ...r12, ...r13];
-  const r8 = recipe8(pairs, preValidation);
-  const r9 = recipe9(pairs, regime);
+  const [r8, r9] = await Promise.all([
+    recipe8(pairs, preValidation),
+    recipe9(pairs, regime),
+  ]);
 
   // Exclude original signals that were re-emitted as whale_validated to avoid duplicate
   // feed entries. The whale_validated event preserves original_recipe in its metadata.
