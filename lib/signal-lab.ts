@@ -11,6 +11,7 @@ import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from "@/lib/env";
 import { computeEv, estimateTradeCost } from "@/lib/risk-engine";
 import type { HlL2Book, HlCandle, HlAssetCtx } from "@/lib/hyperliquid-api-client";
 import { getRecipeConfig } from "@/lib/recipe-config";
+import { buildOutcomeRows } from "@/lib/outcome-helpers";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -1126,11 +1127,23 @@ export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalEvent
 
   const rows = [...toInsert, ...cohortEvents];
   if (rows.length > 0) {
-    const { error } = await supabase.from("signals_history").insert(rows);
+    const { data: inserted, error } = await supabase
+      .from("signals_history")
+      .insert(rows)
+      .select("id, recipe_id, coin, direction");
     if (error) {
       console.error("[signal-lab] insert error:", error.message);
     } else {
-      console.log(`[signal-lab] inserted ${rows.length} signal events`);
+      console.log(`[signal-lab] inserted ${inserted?.length ?? 0} signal events`);
+      // Capture price at signal fire time for outcome tracking
+      if (inserted && inserted.length > 0) {
+        const outcomeRows = buildOutcomeRows(inserted, allMids);
+        if (outcomeRows.length > 0) {
+          supabase.from("signal_outcomes").insert(outcomeRows).then(({ error: oErr }) => {
+            if (oErr) console.error("[signal-lab] signal_outcomes insert error:", oErr.message);
+          });
+        }
+      }
     }
   }
 
