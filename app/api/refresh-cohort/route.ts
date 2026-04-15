@@ -36,6 +36,8 @@ import {
   runBridgeInflowEnrichment,
   runTwapEnrichment,
 } from "@/lib/hypurrscan-enrichment";
+import { persistSignalEvents } from "@/lib/signal-persistence";
+import { snapshotAllConfigs } from "@/lib/recipe-config";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -253,6 +255,14 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       ])
     );
 
+    // Snapshot active recipe configs for signal attribution
+    const recipeIds = [
+      "momentum_stack", "divergence_squeeze", "accumulation_reentry",
+      "rotation_carry", "liq_rebound", "streak_continuation",
+      "funding_divergence", "whale_validated", "anti_whale_trap", "global",
+    ];
+    const activeConfigs = await snapshotAllConfigs(recipeIds);
+
     const signalEvents = await runSignalLab({
       pairs,
       candles5m,
@@ -342,6 +352,16 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
         ),
         updateIntradayRecipePerformance().catch((err) =>
           console.error("[refresh-cohort] updateIntradayRecipePerformance error:", err)
+        ),
+        persistSignalEvents(signalEvents, {
+          snapshotTime: new Date().toISOString(),
+          regime: regimeResult.regime,
+          btcPrice: currentBtcMid,
+          allMids,
+          assetCtxMap,
+          activeConfigs,
+        }).catch((err) =>
+          console.error("[refresh-cohort] persistSignalEvents error:", err)
         ),
       ])
     );
