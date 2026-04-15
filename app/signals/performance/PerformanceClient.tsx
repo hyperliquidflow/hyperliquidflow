@@ -21,6 +21,7 @@ const S = {
   stMetaValue: { ...T.statSub, color: color.text, marginTop: "3px" },
 };
 
+// Interpolate white → color.green (#6aaa7a) based on win rate 0→1
 function winRateColor(rate: number): string {
   const r = Math.round(255 + (106 - 255) * rate);
   const g = Math.round(255 + (170 - 255) * rate);

@@ -29,5 +29,8 @@
       "Read(//Users/ahimsa/**)",
       "Read(//Users/ahimsa/.config/claude/**)"
     ]
-  }
+  },
+  "disabledMcpjsonServers": [
+    "aidesigner"
+  ]
 }
