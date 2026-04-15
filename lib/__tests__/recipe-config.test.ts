@@ -8,7 +8,10 @@ vi.mock("@vercel/kv", () => ({
   },
 }));
 
-let mockSupabaseReturn = {
+let mockSupabaseReturn: {
+  data: { param_name: string; param_value: number }[] | null;
+  error: { message: string } | null;
+} = {
   data: [
     { param_name: "MIN_WALLETS", param_value: 3 },
     { param_name: "COMBINED_NOTIONAL", param_value: 500000 },
