@@ -325,7 +325,7 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       })
     );
 
-    // Run background tasks after response: prune + enrichment signals
+    // Run background tasks after response: prune + enrichment
     after(
       Promise.all([
         pruneUnderperformers().catch((err) =>
