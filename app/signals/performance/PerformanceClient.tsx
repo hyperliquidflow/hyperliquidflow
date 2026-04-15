@@ -76,7 +76,10 @@ export function PerformanceClient({ initialData }: { initialData: RecipeStats[] 
                   <div style={{ ...S.stWinRate, color: winColor }}>
                     {winRate != null ? formatPct(winRate) : "n/a"}
                   </div>
-                  <div style={S.stWinLabel}>Win Rate</div>
+                  <div style={S.stWinLabel}>Positive EV Rate</div>
+                  <div style={{ ...S.stDesc, color: color.textMuted, marginTop: "4px", marginBottom: "8px" }}>
+                    Signals where the model assigned positive expected value. Not realized profit.
+                  </div>
                   <div style={S.stDesc}>{desc}</div>
                   <div style={{
                     width: "100%", height: "3px",
