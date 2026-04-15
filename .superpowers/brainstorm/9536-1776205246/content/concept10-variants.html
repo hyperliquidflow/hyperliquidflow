@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Concept 10 — 5 Variants</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #060606;
+  color: #f0f0f0;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  padding: 28px 32px 80px;
+}
+
+h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+.page-sub { font-size: 13px; color: rgba(255,255,255,0.38); margin-bottom: 32px; }
+
+.concept {
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 12px;
+  margin-bottom: 28px;
+  overflow: hidden;
+  background: rgba(10,10,10,0.8);
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+.concept:hover { border-color: rgba(255,255,255,0.16); }
+.concept.selected { border-color: #50d2c1; box-shadow: 0 0 0 1px rgba(80,210,193,0.3); }
+
+.concept-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 14px 20px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.num { font-size: 11px; font-weight: 700; letter-spacing: .1em; color: rgba(255,255,255,0.22); }
+.name { font-size: 15px; font-weight: 700; }
+.desc { font-size: 12px; color: rgba(255,255,255,0.35); margin-left: auto; text-align: right; max-width: 380px; line-height: 1.5; }
+
+.mockup { padding: 16px 20px; }
+
+/* ── micro tokens ── */
+:root {
+  --g: #6aaa7a; --r: #c92435; --a: #c4925a; --ac: #50d2c1;
+  --t: #f0f0f0; --m: rgba(255,255,255,0.32); --d: rgba(255,255,255,0.22);
+  --bd: rgba(255,255,255,0.06); --bd2: rgba(255,255,255,0.1);
+  --card: rgba(14,14,14,0.95); --inp: rgba(255,255,255,0.06);
+}
+
+/* panels */
+.panel { background: var(--card); border: 1px solid var(--bd); border-radius: 8px; overflow: hidden; }
+.ph { padding: 8px 12px; border-bottom: 1px solid var(--bd); display: flex; align-items: center; gap: 8px; }
+.ph-label { font-size: 9px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--d); }
+
+/* recipe list items */
+.ri {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: background 0.12s;
+}
+.ri:last-child { border-bottom: none; }
+.ri.active { border-left-color: var(--ac); background: rgba(80,210,193,0.04); }
+.ri.active .rn { color: var(--t); font-weight: 700; }
+.rn { font-size: 9px; font-weight: 500; color: rgba(255,255,255,0.5); flex: 1; }
+.rbadge {
+  font-size: 8px; font-weight: 700;
+  padding: 1px 5px; border-radius: 9px;
+  flex-shrink: 0;
+}
+.rbadge.live { background: rgba(80,210,193,0.14); color: var(--ac); border: 1px solid rgba(80,210,193,0.25); }
+.rbadge.dead { color: rgba(255,255,255,0.18); }
+.rbadge.hot  { background: rgba(201,36,53,0.14); color: var(--r); border: 1px solid rgba(201,36,53,0.22); }
+
+/* signal rows */
+.sr { display: flex; align-items: center; gap: 7px; padding: 9px 14px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+.sr:last-child { border-bottom: none; }
+.sb { font-size: 8px; font-weight: 700; letter-spacing: .05em; padding: 2px 5px; border-radius: 3px; flex-shrink: 0; }
+.sb.en { background: rgba(106,170,122,0.13); color: var(--g); border: 1px solid rgba(106,170,122,0.25); }
+.sb.ex { background: rgba(201,36,53,0.13); color: var(--r); border: 1px solid rgba(201,36,53,0.25); }
+.sb.al { background: rgba(196,146,90,0.13); color: var(--a); border: 1px solid rgba(196,146,90,0.25); }
+.sd { font-size: 8px; font-weight: 700; padding: 2px 5px; border-radius: 3px; }
+.sd.lo { background: rgba(106,170,122,0.09); color: var(--g); border: 1px solid rgba(106,170,122,0.18); }
+.sd.sh { background: rgba(201,36,53,0.09); color: var(--r); border: 1px solid rgba(201,36,53,0.18); }
+.sc { font-size: 8px; font-weight: 700; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.65); }
+.sn { font-size: 10px; color: rgba(255,255,255,0.6); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.addr { font-family: 'Geist Mono', monospace; font-size: 9px; color: rgba(156,163,175,0.75); white-space: nowrap; }
+.st { font-size: 8px; color: rgba(255,255,255,0.2); flex-shrink: 0; }
+.ev { font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.ev.hi { color: var(--g); }
+.ev.md { color: var(--a); }
+
+.dsep { padding: 5px 14px 3px; font-size: 8px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: rgba(255,255,255,0.18); display: flex; align-items: center; gap: 8px; }
+.dsep::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.04); }
+
+/* misc */
+.chip { display: inline-flex; align-items: center; font-size: 9px; font-weight: 600; padding: 3px 8px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.09); background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.45); }
+.chip.on { border-color: rgba(255,255,255,0.22); background: rgba(255,255,255,0.08); color: #f0f0f0; }
+.chip.sm { font-size: 8px; padding: 2px 6px; }
+.inp { font-size: 9px; padding: 4px 10px 4px 22px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.09); background: var(--inp); color: rgba(255,255,255,0.55); position: relative; display: inline-flex; align-items: center; }
+.inp::before { content: '⌕'; position: absolute; left: 7px; font-size: 9px; color: rgba(255,255,255,0.3); }
+
+/* selection */
+#sel { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(8,8,8,0.97); border: 1px solid rgba(80,210,193,0.5); border-radius: 8px; padding: 10px 24px; font-size: 13px; color: #50d2c1; display: none; z-index: 999; backdrop-filter: blur(14px); white-space: nowrap; }
+#sel.vis { display: block; }
+</style>
+</head>
+<body>
+
+<h1>Concept 10 — Master-Detail Variants</h1>
+<p class="page-sub">Five takes on the recipe-panel + signal-feed split. Click to select.</p>
+
+
+<!-- ═══════════════════════════════════════════════════════ V1 ═══ -->
+<div class="concept" onclick="pick(this,'V1 — Classic Tight List')">
+<div class="concept-header">
+  <span class="num">V1</span>
+  <span class="name">Classic Tight List</span>
+  <span class="desc">Narrow recipe rail (160px), signal count badge only. Feed panel shows date-grouped rows with full address and dynamic context — not the static recipe description.</span>
+</div>
+<div class="mockup">
+<div style="display:flex;gap:12px;align-items:flex-start;">
+
+  <!-- LEFT: recipe list -->
+  <div class="panel" style="width:162px;flex-shrink:0;">
+    <div class="ph"><span class="ph-label">Recipes</span><span style="font-size:8px;color:rgba(255,255,255,0.2);margin-left:auto;">multi-select</span></div>
+    <div class="ri active"><span class="rn">Whale Convergence</span><span class="rbadge live">3</span></div>
+    <div class="ri"><span class="rn">Dip Conviction</span><span class="rbadge dead">0</span></div>
+    <div class="ri"><span class="rn">Funded Edge</span><span class="rbadge live">1</span></div>
+    <div class="ri"><span class="rn">Liquidation Flush</span><span class="rbadge dead">0</span></div>
+    <div class="ri"><span class="rn">Hot Streak</span><span class="rbadge live">2</span></div>
+    <div class="ri"><span class="rn">SM vs Retail</span><span class="rbadge dead">0</span></div>
+    <div class="ri"><span class="rn">Alpha Confirmation</span><span class="rbadge live">4</span></div>
+    <div class="ri"><span class="rn">Smart Exit Signal</span><span class="rbadge dead">0</span></div>
+    <div class="ri"><span class="rn">Patience Trap</span><span class="rbadge dead">0</span></div>
+    <div class="ri"><span class="rn">Crowded Coin</span><span class="rbadge live">1</span></div>
+    <div class="ri"><span class="rn">Coordinated Exit</span><span class="rbadge dead">0</span></div>
+    <div class="ri"><span class="rn">Funding Surge</span><span class="rbadge live">5</span></div>
+    <div class="ri"><span class="rn">Silent Loading</span><span class="rbadge hot">12</span></div>
+  </div>
+
+  <!-- RIGHT: feed -->
+  <div class="panel" style="flex:1;">
+    <div class="ph">
+      <span style="font-size:11px;font-weight:700;">Whale Convergence</span>
+      <span style="font-size:9px;color:rgba(255,255,255,0.25);">7d · 3 signals</span>
+      <div style="margin-left:auto;display:flex;gap:5px;">
+        <div class="chip sm on">LONG</div>
+        <div class="chip sm">SHORT</div>
+        <div class="inp">BTC, ETH</div>
+      </div>
+    </div>
+    <div class="dsep">Today · 14 Apr</div>
+    <div class="sr">
+      <div class="sb en">ENTRY</div><div class="sc">BTC</div><div class="sd lo">LONG</div>
+      <div class="sn">9 wallets added $1.2M LONG on BTC within 4 min</div>
+      <div class="addr">0x1f4a8c3d2e9b7f6a0c4d5e8f3b2a1c9d4e7f8b0a</div>
+      <div class="st">2m</div><div class="ev hi">87</div>
+    </div>
+    <div class="dsep" style="opacity:.6;">2 days ago · 12 Apr</div>
+    <div class="sr" style="opacity:.65;">
+      <div class="sb en">ENTRY</div><div class="sc">ETH</div><div class="sd sh">SHORT</div>
+      <div class="sn">11 wallets added $890K SHORT on ETH within 3 min</div>
+      <div class="addr">0x8e21f4a0c3d2b1e9f4a0c3d2b1e90c4d5e8f3b2</div>
+      <div class="st">2d</div><div class="ev md">61</div>
+    </div>
+    <div class="dsep" style="opacity:.4;">5 days ago · 9 Apr</div>
+    <div class="sr" style="opacity:.45;">
+      <div class="sb en">ENTRY</div><div class="sc">SOL</div><div class="sd lo">LONG</div>
+      <div class="sn">8 wallets added $740K LONG on SOL within 5 min</div>
+      <div class="addr">0x3c72b1d8f4a0e2c91b3d5f8a4c72b1d8f4a0e2c9</div>
+      <div class="st">5d</div><div class="ev hi">79</div>
+    </div>
+  </div>
+
+</div>
+</div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════ V2 ═══ -->
+<div class="concept" onclick="pick(this,'V2 — Recipe Panel with 7-Day Spark')">
+<div class="concept-header">
+  <span class="num">V2</span>
+  <span class="name">Recipe Panel with 7-Day Spark</span>
+  <span class="desc">Each recipe shows a 7-bar mini chart (signal frequency by day). High-activity days glow. Instantly see which recipes are firing and when without opening them.</span>
+</div>
+<div class="mockup">
+<div style="display:flex;gap:12px;align-items:flex-start;">
+
+  <!-- LEFT: recipe list with sparks -->
+  <div class="panel" style="width:210px;flex-shrink:0;">
+    <div class="ph"><span class="ph-label">Recipes · 7-day activity</span></div>
+
+    <!-- recipe with spark -->
+    <div class="ri active" style="flex-direction:column;align-items:flex-start;gap:5px;padding:8px 12px;">
+      <div style="display:flex;align-items:center;width:100%;">
+        <span class="rn" style="font-size:9.5px;">Whale Convergence</span>
+        <span class="rbadge live">3 today</span>
+      </div>
+      <div style="display:flex;gap:2px;align-items:flex-end;height:14px;">
+        <div style="width:9px;border-radius:2px;background:rgba(80,210,193,0.2);height:4px;"></div>
+        <div style="width:9px;border-radius:2px;background:rgba(80,210,193,0.2);height:2px;"></div>
+        <div style="width:9px;border-radius:2px;background:rgba(80,210,193,0.35);height:7px;"></div>
+        <div style="width:9px;border-radius:2px;background:rgba(80,210,193,0.2);height:3px;"></div>
+        <div style="width:9px;border-radius:2px;background:rgba(80,210,193,0.2);height:2px;"></div>
+        <div style="width:9px;border-radius:2px;background:rgba(80,210,193,0.55);height:10px;"></div>
+        <div style="width:9px;border-radius:2px;background:rgba(80,210,193,0.85);height:14px;border:1px solid rgba(80,210,193,0.4);"></div>
+      </div>
+    </div>
+
+    <div class="ri" style="flex-direction:column;align-items:flex-start;gap:5px;padding:8px 12px;">
+      <div style="display:flex;align-items:center;width:100%;">
+        <span class="rn" style="font-size:9.5px;">Funding Surge</span>
+        <span class="rbadge live">5 today</span>
+      </div>
+      <div style="display:flex;gap:2px;align-items:flex-end;height:14px;">
+        <div style="width:9px;border-radius:2px;background:rgba(80,210,193,0.18);height:3px;"></div>
+        <div style="width:9px;border-radius:2px;background:rgba(80,210,193,0.28);height:6px;"></div>
+        <div style="width:9px;border-radius:2px;background:rgba(80,210,193,0.2);height:4px;"></div>
+        <div style="width:9px;border-radius:2px;background:rgba(80,210,193,0.35);height:8px;"></div>
+        <div style="width:9px;border-radius:2px;background:rgba(80,210,193,0.28);height:6px;"></div>
+        <div style="width:9px;border-radius:2px;background:rgba(80,210,193,0.45);height:10px;"></div>
+        <div style="width:9px;border-radius:2px;background:rgba(80,210,193,0.85);height:14px;border:1px solid rgba(80,210,193,0.4);"></div>
+      </div>
+    </div>
+
+    <div class="ri" style="flex-direction:column;align-items:flex-start;gap:5px;padding:8px 12px;opacity:.55;">
+      <div style="display:flex;align-items:center;width:100%;">
+        <span class="rn" style="font-size:9.5px;">Hot Streak</span>
+        <span class="rbadge live">2 today</span>
+      </div>
+      <div style="display:flex;gap:2px;align-items:flex-end;height:14px;">
+        <div style="width:9px;border-radius:2px;background:rgba(80,210,193,0.12);height:2px;"></div>
+        <div style="width:9px;border-radius:2px;background:rgba(80,210,193,0.12);height:2px;"></div>
+        <div style="width:9px;border-radius:2px;background:rgba(80,210,193,0.12);height:2px;"></div>
+        <div style="width:9px;border-radius:2px;background:rgba(80,210,193,0.12);height:2px;"></div>
+        <div style="width:9px;border-radius:2px;background:rgba(80,210,193,0.2);height:4px;"></div>
+        <div style="width:9px;border-radius:2px;background:rgba(80,210,193,0.3);height:7px;"></div>
+        <div style="width:9px;border-radius:2px;background:rgba(80,210,193,0.55);height:11px;"></div>
+      </div>
+    </div>
+
+    <!-- quiet recipes compact -->
+    <div class="ri" style="opacity:.35;padding:5px 12px;"><span class="rn">Alpha Confirmation</span><span class="rbadge dead">0</span></div>
+    <div class="ri" style="opacity:.35;padding:5px 12px;"><span class="rn">Dip Conviction</span><span class="rbadge dead">0</span></div>
+    <div class="ri" style="opacity:.35;padding:5px 12px;"><span class="rn">Funded Edge</span><span class="rbadge live">1</span></div>
+    <div class="ri" style="opacity:.35;padding:5px 12px;"><span class="rn">Liq. Flush</span><span class="rbadge dead">0</span></div>
+    <div class="ri" style="opacity:.35;padding:5px 12px;"><span class="rn">SM vs Retail</span><span class="rbadge dead">0</span></div>
+    <div class="ri" style="opacity:.35;padding:5px 12px;"><span class="rn">Smart Exit Signal</span><span class="rbadge dead">0</span></div>
+    <div class="ri" style="opacity:.35;padding:5px 12px;"><span class="rn">Patience Trap</span><span class="rbadge dead">0</span></div>
+    <div class="ri" style="opacity:.35;padding:5px 12px;"><span class="rn">Crowded Coin</span><span class="rbadge live">1</span></div>
+    <div class="ri" style="opacity:.35;padding:5px 12px;"><span class="rn">Coordinated Exit</span><span class="rbadge dead">0</span></div>
+    <div class="ri" style="opacity:.35;padding:5px 12px;"><span class="rn">Silent Loading</span><span class="rbadge hot">12</span></div>
+  </div>
+
+  <!-- RIGHT: feed -->
+  <div class="panel" style="flex:1;">
+    <div class="ph">
+      <span style="font-size:11px;font-weight:700;">Whale Convergence</span>
+      <span style="font-size:9px;color:rgba(255,255,255,0.25);">last 7 days</span>
+      <div style="margin-left:auto;display:flex;gap:5px;">
+        <div class="chip sm on">LONG</div><div class="chip sm">SHORT</div>
+        <div class="inp">coin</div>
+      </div>
+    </div>
+    <div class="dsep">Today</div>
+    <div class="sr">
+      <div class="sb en">ENTRY</div><div class="sc">BTC</div><div class="sd lo">LONG</div>
+      <div class="sn">9 wallets added $1.2M LONG in 4 min</div>
+      <div class="addr">0x1f4a8c3d2e9b7f6a0c4d5e8f3b2a1c9d4e7f8b0a</div>
+      <div class="st">2m</div><div class="ev hi">87</div>
+    </div>
+    <div class="dsep" style="opacity:.6">2 days ago</div>
+    <div class="sr" style="opacity:.65;">
+      <div class="sb en">ENTRY</div><div class="sc">ETH</div><div class="sd sh">SHORT</div>
+      <div class="sn">11 wallets added $890K SHORT in 3 min</div>
+      <div class="addr">0x8e21f4a0c3d2b1e9f4a0c3d2b1e90c4d5e8f3b2</div>
+      <div class="st">2d</div><div class="ev md">61</div>
+    </div>
+    <div class="dsep" style="opacity:.4">5 days ago</div>
+    <div class="sr" style="opacity:.45;">
+      <div class="sb en">ENTRY</div><div class="sc">SOL</div><div class="sd lo">LONG</div>
+      <div class="sn">8 wallets added $740K LONG in 5 min</div>
+      <div class="addr">0x3c72b1d8f4a0e2c91b3d5f8a4c72b1d8f4a0e2c9</div>
+      <div class="st">5d</div><div class="ev hi">79</div>
+    </div>
+  </div>
+
+</div>
+</div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════ V3 ═══ -->
+<div class="concept" onclick="pick(this,'V3 — Recipe Panel with Stats Row')">
+<div class="concept-header">
+  <span class="num">V3</span>
+  <span class="name">Recipe Panel with Stats Row</span>
+  <span class="desc">Each recipe item shows avg EV score and top coin alongside the count badge. The detail header shows a summary bar (total signals, avg EV, most active day) before the feed.</span>
+</div>
+<div class="mockup">
+<div style="display:flex;gap:12px;align-items:flex-start;">
+
+  <!-- LEFT -->
+  <div class="panel" style="width:220px;flex-shrink:0;">
+    <div class="ph"><span class="ph-label">Recipes</span></div>
+
+    <div class="ri active" style="flex-direction:column;align-items:flex-start;padding:8px 12px;gap:4px;">
+      <div style="display:flex;align-items:center;width:100%;">
+        <span class="rn" style="font-size:9.5px;font-weight:700;color:#f0f0f0;">Whale Convergence</span>
+        <span class="rbadge live">3</span>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <span style="font-size:8px;color:rgba(255,255,255,0.3);">avg EV <span style="color:#6aaa7a;font-weight:600;">76</span></span>
+        <span style="font-size:8px;color:rgba(255,255,255,0.3);">top <span style="color:rgba(255,255,255,0.55);font-weight:600;">BTC</span></span>
+      </div>
+    </div>
+
+    <div class="ri" style="flex-direction:column;align-items:flex-start;padding:8px 12px;gap:4px;">
+      <div style="display:flex;align-items:center;width:100%;">
+        <span class="rn" style="font-size:9.5px;">Funding Surge</span>
+        <span class="rbadge live">5</span>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <span style="font-size:8px;color:rgba(255,255,255,0.2);">avg EV <span style="color:rgba(255,255,255,0.35);">—</span></span>
+        <span style="font-size:8px;color:rgba(255,255,255,0.2);">top <span style="color:rgba(255,255,255,0.35);">ETH</span></span>
+      </div>
+    </div>
+
+    <div class="ri" style="flex-direction:column;align-items:flex-start;padding:8px 12px;gap:4px;">
+      <div style="display:flex;align-items:center;width:100%;">
+        <span class="rn" style="font-size:9.5px;">Alpha Confirmation</span>
+        <span class="rbadge live">4</span>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <span style="font-size:8px;color:rgba(255,255,255,0.2);">avg EV <span style="color:#c4925a;font-weight:600;">58</span></span>
+        <span style="font-size:8px;color:rgba(255,255,255,0.2);">top <span style="color:rgba(255,255,255,0.35);">HYPE</span></span>
+      </div>
+    </div>
+
+    <div class="ri" style="padding:6px 12px;opacity:.4;"><span class="rn">Dip Conviction</span><span class="rbadge dead">0</span></div>
+    <div class="ri" style="padding:6px 12px;opacity:.4;"><span class="rn">Funded Edge</span><span class="rbadge live">1</span></div>
+    <div class="ri" style="padding:6px 12px;opacity:.4;"><span class="rn">Liq. Flush</span><span class="rbadge dead">0</span></div>
+    <div class="ri" style="padding:6px 12px;opacity:.4;"><span class="rn">Hot Streak</span><span class="rbadge live">2</span></div>
+    <div class="ri" style="padding:6px 12px;opacity:.4;"><span class="rn">SM vs Retail</span><span class="rbadge dead">0</span></div>
+    <div class="ri" style="padding:6px 12px;opacity:.4;"><span class="rn">Smart Exit Signal</span><span class="rbadge dead">0</span></div>
+    <div class="ri" style="padding:6px 12px;opacity:.4;"><span class="rn">Patience Trap</span><span class="rbadge dead">0</span></div>
+    <div class="ri" style="padding:6px 12px;opacity:.4;"><span class="rn">Crowded Coin</span><span class="rbadge live">1</span></div>
+    <div class="ri" style="padding:6px 12px;opacity:.4;"><span class="rn">Coordinated Exit</span><span class="rbadge dead">0</span></div>
+    <div class="ri" style="padding:6px 12px;opacity:.4;"><span class="rn">Silent Loading</span><span class="rbadge hot">12</span></div>
+  </div>
+
+  <!-- RIGHT -->
+  <div style="flex:1;display:flex;flex-direction:column;gap:8px;">
+    <!-- summary bar -->
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+      <div style="background:rgba(14,14,14,0.95);border:1px solid rgba(255,255,255,0.06);border-radius:7px;padding:10px 12px;">
+        <div style="font-size:8px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,0.25);margin-bottom:4px;">7d Signals</div>
+        <div style="font-size:20px;font-weight:700;">3</div>
+      </div>
+      <div style="background:rgba(14,14,14,0.95);border:1px solid rgba(255,255,255,0.06);border-radius:7px;padding:10px 12px;">
+        <div style="font-size:8px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,0.25);margin-bottom:4px;">Avg EV</div>
+        <div style="font-size:20px;font-weight:700;color:#6aaa7a;">76</div>
+      </div>
+      <div style="background:rgba(14,14,14,0.95);border:1px solid rgba(255,255,255,0.06);border-radius:7px;padding:10px 12px;">
+        <div style="font-size:8px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,0.25);margin-bottom:4px;">Top Coin</div>
+        <div style="font-size:20px;font-weight:700;">BTC</div>
+      </div>
+      <div style="background:rgba(14,14,14,0.95);border:1px solid rgba(255,255,255,0.06);border-radius:7px;padding:10px 12px;">
+        <div style="font-size:8px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,0.25);margin-bottom:4px;">Win Rate</div>
+        <div style="font-size:20px;font-weight:700;color:#6aaa7a;">71%</div>
+      </div>
+    </div>
+    <!-- feed -->
+    <div class="panel">
+      <div class="ph">
+        <span style="font-size:11px;font-weight:700;">Whale Convergence</span>
+        <div style="margin-left:auto;display:flex;gap:5px;">
+          <div class="chip sm on">LONG</div><div class="chip sm">SHORT</div><div class="inp">coin</div>
+        </div>
+      </div>
+      <div class="dsep">Today</div>
+      <div class="sr">
+        <div class="sb en">ENTRY</div><div class="sc">BTC</div><div class="sd lo">LONG</div>
+        <div class="sn">9 wallets added $1.2M LONG in 4 min</div>
+        <div class="addr">0x1f4a8c3d2e9b7f6a0c4d5e8f3b2a1c9d4e7f8b0a</div>
+        <div class="st">2m</div><div class="ev hi">87</div>
+      </div>
+      <div class="dsep" style="opacity:.6">2 days ago</div>
+      <div class="sr" style="opacity:.65;">
+        <div class="sb en">ENTRY</div><div class="sc">ETH</div><div class="sd sh">SHORT</div>
+        <div class="sn">11 wallets, $890K SHORT in 3 min</div>
+        <div class="addr">0x8e21f4a0c3d2b1e9f4a0c3d2b1e90c4d5e8f3b2</div>
+        <div class="st">2d</div><div class="ev md">61</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════ V4 ═══ -->
+<div class="concept" onclick="pick(this,'V4 — Recipe Grid (2-col) + Feed')">
+<div class="concept-header">
+  <span class="num">V4</span>
+  <span class="name">Recipe Grid (2-col) + Feed</span>
+  <span class="desc">Recipes as a 2-column card grid in the left panel — all 13 visible at once. Active dot and today's count on each card. Wider than a list, taller to show all without scroll.</span>
+</div>
+<div class="mockup">
+<div style="display:flex;gap:12px;align-items:flex-start;">
+
+  <!-- LEFT: 2-col grid -->
+  <div class="panel" style="width:218px;flex-shrink:0;">
+    <div class="ph"><span class="ph-label">Select recipes</span></div>
+    <div style="padding:8px;display:grid;grid-template-columns:1fr 1fr;gap:5px;">
+
+      <div style="padding:8px 9px;border-radius:6px;border:1px solid rgba(80,210,193,0.3);background:rgba(80,210,193,0.05);cursor:pointer;">
+        <div style="font-size:8.5px;font-weight:700;color:#f0f0f0;line-height:1.3;margin-bottom:4px;">Whale<br>Convergence</div>
+        <div style="font-size:8px;font-weight:700;color:#50d2c1;">3 today</div>
+      </div>
+
+      <div style="padding:8px 9px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);cursor:pointer;opacity:.55;">
+        <div style="font-size:8.5px;font-weight:600;color:rgba(255,255,255,0.55);line-height:1.3;margin-bottom:4px;">Dip<br>Conviction</div>
+        <div style="font-size:8px;color:rgba(255,255,255,0.2);">0 today</div>
+      </div>
+
+      <div style="padding:8px 9px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);cursor:pointer;opacity:.6;">
+        <div style="font-size:8.5px;font-weight:600;color:rgba(255,255,255,0.55);line-height:1.3;margin-bottom:4px;">Funded<br>Edge</div>
+        <div style="font-size:8px;color:rgba(80,210,193,0.7);">1 today</div>
+      </div>
+
+      <div style="padding:8px 9px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);cursor:pointer;opacity:.4;">
+        <div style="font-size:8.5px;font-weight:600;color:rgba(255,255,255,0.4);line-height:1.3;margin-bottom:4px;">Liq.<br>Flush</div>
+        <div style="font-size:8px;color:rgba(255,255,255,0.18);">0 today</div>
+      </div>
+
+      <div style="padding:8px 9px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);cursor:pointer;opacity:.6;">
+        <div style="font-size:8.5px;font-weight:600;color:rgba(255,255,255,0.55);line-height:1.3;margin-bottom:4px;">Hot<br>Streak</div>
+        <div style="font-size:8px;color:rgba(80,210,193,0.7);">2 today</div>
+      </div>
+
+      <div style="padding:8px 9px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);cursor:pointer;opacity:.4;">
+        <div style="font-size:8.5px;font-weight:600;color:rgba(255,255,255,0.4);line-height:1.3;margin-bottom:4px;">SM vs<br>Retail</div>
+        <div style="font-size:8px;color:rgba(255,255,255,0.18);">0 today</div>
+      </div>
+
+      <div style="padding:8px 9px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);cursor:pointer;opacity:.6;">
+        <div style="font-size:8.5px;font-weight:600;color:rgba(255,255,255,0.55);line-height:1.3;margin-bottom:4px;">Alpha<br>Confirm.</div>
+        <div style="font-size:8px;color:rgba(80,210,193,0.7);">4 today</div>
+      </div>
+
+      <div style="padding:8px 9px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);cursor:pointer;opacity:.35;">
+        <div style="font-size:8.5px;font-weight:600;color:rgba(255,255,255,0.35);line-height:1.3;margin-bottom:4px;">Smart<br>Exit</div>
+        <div style="font-size:8px;color:rgba(255,255,255,0.15);">0 today</div>
+      </div>
+
+      <div style="padding:8px 9px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);cursor:pointer;opacity:.35;">
+        <div style="font-size:8.5px;font-weight:600;color:rgba(255,255,255,0.35);line-height:1.3;margin-bottom:4px;">Patience<br>Trap</div>
+        <div style="font-size:8px;color:rgba(255,255,255,0.15);">0 today</div>
+      </div>
+
+      <div style="padding:8px 9px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);cursor:pointer;opacity:.5;">
+        <div style="font-size:8.5px;font-weight:600;color:rgba(255,255,255,0.45);line-height:1.3;margin-bottom:4px;">Crowded<br>Coin</div>
+        <div style="font-size:8px;color:rgba(80,210,193,0.6);">1 today</div>
+      </div>
+
+      <div style="padding:8px 9px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);cursor:pointer;opacity:.35;">
+        <div style="font-size:8.5px;font-weight:600;color:rgba(255,255,255,0.35);line-height:1.3;margin-bottom:4px;">Coord.<br>Exit</div>
+        <div style="font-size:8px;color:rgba(255,255,255,0.15);">0 today</div>
+      </div>
+
+      <div style="padding:8px 9px;border-radius:6px;border:1px solid rgba(255,255,255,0.06);background:rgba(255,255,255,0.02);cursor:pointer;opacity:.6;">
+        <div style="font-size:8.5px;font-weight:600;color:rgba(255,255,255,0.55);line-height:1.3;margin-bottom:4px;">Funding<br>Surge</div>
+        <div style="font-size:8px;color:rgba(80,210,193,0.7);">5 today</div>
+      </div>
+
+      <div style="padding:8px 9px;border-radius:6px;border:1px solid rgba(201,36,53,0.25);background:rgba(201,36,53,0.05);cursor:pointer;grid-column:span 2;">
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div style="font-size:8.5px;font-weight:600;color:rgba(255,255,255,0.55);line-height:1.3;">Silent Loading</div>
+          <div style="font-size:8px;font-weight:700;color:var(--r);">12 today — high volume</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- RIGHT: feed -->
+  <div class="panel" style="flex:1;">
+    <div class="ph">
+      <span style="font-size:11px;font-weight:700;">Whale Convergence</span>
+      <span style="font-size:9px;color:rgba(255,255,255,0.25);">7d · 3 signals</span>
+      <div style="margin-left:auto;display:flex;gap:5px;">
+        <div class="chip sm on">LONG</div><div class="chip sm">SHORT</div><div class="inp">coin</div>
+      </div>
+    </div>
+    <div class="dsep">Today</div>
+    <div class="sr">
+      <div class="sb en">ENTRY</div><div class="sc">BTC</div><div class="sd lo">LONG</div>
+      <div class="sn">9 wallets added $1.2M LONG in 4 min</div>
+      <div class="addr">0x1f4a8c3d2e9b7f6a0c4d5e8f3b2a1c9d4e7f8b0a</div>
+      <div class="st">2m</div><div class="ev hi">87</div>
+    </div>
+    <div class="dsep" style="opacity:.6">2 days ago</div>
+    <div class="sr" style="opacity:.65;">
+      <div class="sb en">ENTRY</div><div class="sc">ETH</div><div class="sd sh">SHORT</div>
+      <div class="sn">11 wallets, $890K SHORT in 3 min</div>
+      <div class="addr">0x8e21f4a0c3d2b1e9f4a0c3d2b1e90c4d5e8f3b2</div>
+      <div class="st">2d</div><div class="ev md">61</div>
+    </div>
+    <div class="dsep" style="opacity:.4">5 days ago</div>
+    <div class="sr" style="opacity:.45;">
+      <div class="sb en">ENTRY</div><div class="sc">SOL</div><div class="sd lo">LONG</div>
+      <div class="sn">8 wallets, $740K LONG in 5 min</div>
+      <div class="addr">0x3c72b1d8f4a0e2c91b3d5f8a4c72b1d8f4a0e2c9</div>
+      <div class="st">5d</div><div class="ev hi">79</div>
+    </div>
+  </div>
+
+</div>
+</div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════ V5 ═══ -->
+<div class="concept" onclick="pick(this,'V5 — Grouped by Category + Detail Feed')">
+<div class="concept-header">
+  <span class="num">V5</span>
+  <span class="name">Grouped by Category + Detail Feed</span>
+  <span class="desc">Recipes organized into logical groups — Momentum, Risk, Smart Money, Carry — in the left panel. Makes 13 recipes feel navigable and purposeful rather than an undifferentiated list.</span>
+</div>
+<div class="mockup">
+<div style="display:flex;gap:12px;align-items:flex-start;">
+
+  <!-- LEFT: grouped -->
+  <div class="panel" style="width:184px;flex-shrink:0;">
+    <div class="ph"><span class="ph-label">Recipe Groups</span></div>
+
+    <!-- Momentum -->
+    <div style="padding:6px 12px 3px;font-size:8px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,0.22);">Momentum</div>
+    <div class="ri active"><span class="rn">Whale Convergence</span><span class="rbadge live">3</span></div>
+    <div class="ri"><span class="rn">Hot Streak</span><span class="rbadge live">2</span></div>
+    <div class="ri"><span class="rn">Dip Conviction</span><span class="rbadge dead">0</span></div>
+
+    <!-- Risk -->
+    <div style="padding:8px 12px 3px;font-size:8px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,0.22);">Risk</div>
+    <div class="ri"><span class="rn">Liquidation Flush</span><span class="rbadge dead">0</span></div>
+    <div class="ri"><span class="rn">Patience Trap</span><span class="rbadge dead">0</span></div>
+    <div class="ri"><span class="rn">Crowded Coin</span><span class="rbadge live">1</span></div>
+    <div class="ri"><span class="rn">Silent Loading</span><span class="rbadge hot">12</span></div>
+
+    <!-- Smart Money -->
+    <div style="padding:8px 12px 3px;font-size:8px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,0.22);">Smart Money</div>
+    <div class="ri"><span class="rn">Alpha Confirmation</span><span class="rbadge live">4</span></div>
+    <div class="ri"><span class="rn">Smart Exit Signal</span><span class="rbadge dead">0</span></div>
+    <div class="ri"><span class="rn">Coordinated Exit</span><span class="rbadge dead">0</span></div>
+    <div class="ri"><span class="rn">SM vs Retail</span><span class="rbadge dead">0</span></div>
+
+    <!-- Carry / Funding -->
+    <div style="padding:8px 12px 3px;font-size:8px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,0.22);">Carry / Funding</div>
+    <div class="ri"><span class="rn">Funded Edge</span><span class="rbadge live">1</span></div>
+    <div class="ri"><span class="rn">Funding Surge</span><span class="rbadge live">5</span></div>
+  </div>
+
+  <!-- RIGHT: feed -->
+  <div class="panel" style="flex:1;">
+    <div class="ph">
+      <span style="font-size:9px;color:rgba(255,255,255,0.3);">Momentum ›</span>
+      <span style="font-size:11px;font-weight:700;margin-left:4px;">Whale Convergence</span>
+      <span style="font-size:9px;color:rgba(255,255,255,0.25);">7d · 3 signals</span>
+      <div style="margin-left:auto;display:flex;gap:5px;">
+        <div class="chip sm on">LONG</div><div class="chip sm">SHORT</div><div class="inp">coin</div>
+      </div>
+    </div>
+    <div class="dsep">Today</div>
+    <div class="sr">
+      <div class="sb en">ENTRY</div><div class="sc">BTC</div><div class="sd lo">LONG</div>
+      <div class="sn">9 wallets added $1.2M LONG in 4 min</div>
+      <div class="addr">0x1f4a8c3d2e9b7f6a0c4d5e8f3b2a1c9d4e7f8b0a</div>
+      <div class="st">2m</div><div class="ev hi">87</div>
+    </div>
+    <div class="dsep" style="opacity:.6">2 days ago</div>
+    <div class="sr" style="opacity:.65;">
+      <div class="sb en">ENTRY</div><div class="sc">ETH</div><div class="sd sh">SHORT</div>
+      <div class="sn">11 wallets added $890K SHORT in 3 min</div>
+      <div class="addr">0x8e21f4a0c3d2b1e9f4a0c3d2b1e90c4d5e8f3b2</div>
+      <div class="st">2d</div><div class="ev md">61</div>
+    </div>
+    <div class="dsep" style="opacity:.4">5 days ago</div>
+    <div class="sr" style="opacity:.45;">
+      <div class="sb en">ENTRY</div><div class="sc">SOL</div><div class="sd lo">LONG</div>
+      <div class="sn">8 wallets added $740K LONG in 5 min</div>
+      <div class="addr">0x3c72b1d8f4a0e2c91b3d5f8a4c72b1d8f4a0e2c9</div>
+      <div class="st">5d</div><div class="ev hi">79</div>
+    </div>
+  </div>
+
+</div>
+</div>
+</div>
+
+
+<div id="sel"></div>
+
+<script>
+function pick(el, name) {
+  document.querySelectorAll('.concept').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  const s = document.getElementById('sel');
+  s.textContent = '✓ ' + name;
+  s.classList.add('vis');
+  if (window.__sp_recordEvent) window.__sp_recordEvent('click', name, name);
+}
+</script>
+</body>
+</html>

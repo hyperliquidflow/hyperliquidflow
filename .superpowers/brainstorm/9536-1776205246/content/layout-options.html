@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Signals Feed — Layout Concepts</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #060606;
+    color: #f0f0f0;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    padding: 32px;
+  }
+  h1 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+  .subtitle { font-size: 13px; color: rgba(255,255,255,0.38); margin-bottom: 32px; }
+
+  .options-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+
+  .option-card {
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px;
+    overflow: hidden;
+    background: rgba(12,12,12,0.7);
+    backdrop-filter: blur(16px);
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .option-card:hover {
+    border-color: rgba(255,255,255,0.18);
+  }
+  .option-card.selected {
+    border-color: #50d2c1;
+    box-shadow: 0 0 0 1px #50d2c180;
+  }
+
+  .option-header {
+    padding: 16px 18px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .option-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.4);
+    margin-bottom: 4px;
+  }
+  .option-title {
+    font-size: 16px;
+    font-weight: 600;
+  }
+  .option-desc {
+    font-size: 12px;
+    color: rgba(255,255,255,0.38);
+    margin-top: 4px;
+    line-height: 1.5;
+  }
+
+  .mockup-area {
+    padding: 14px;
+  }
+
+  /* ── Shared mockup elements ── */
+  .m-card {
+    background: rgba(18,18,18,0.8);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  .m-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 11px;
+  }
+  .m-row:last-child { border-bottom: none; }
+  .m-badge {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 2px 5px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .m-badge.entry  { background: rgba(106,170,122,0.14); color: #6aaa7a; border: 1px solid rgba(106,170,122,0.3); }
+  .m-badge.exit   { background: rgba(201,36,53,0.14); color: #c92435; border: 1px solid rgba(201,36,53,0.3); }
+  .m-badge.alert  { background: rgba(196,146,90,0.14); color: #c4925a; border: 1px solid rgba(196,146,90,0.3); }
+  .m-pill {
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+  .m-pill.long  { background: rgba(106,170,122,0.1); color: #6aaa7a; border: 1px solid rgba(106,170,122,0.2); }
+  .m-pill.short { background: rgba(201,36,53,0.1); color: #c92435; border: 1px solid rgba(201,36,53,0.2); }
+  .m-text { font-size: 10px; color: rgba(255,255,255,0.7); font-weight: 500; flex: 1; min-width: 0; }
+  .m-muted { font-size: 9px; color: rgba(255,255,255,0.28); }
+  .m-ev { font-size: 11px; font-weight: 700; color: #6aaa7a; flex-shrink: 0; }
+  .m-coin { font-size: 9px; font-weight: 700; padding: 1px 5px; border-radius: 4px; background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.7); }
+  .m-date-sep {
+    padding: 6px 12px 4px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.22);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .m-date-sep::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(255,255,255,0.05);
+  }
+  .m-filter-bar {
+    display: flex;
+    gap: 6px;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    flex-wrap: wrap;
+  }
+  .m-filter-chip {
+    font-size: 9px;
+    font-weight: 600;
+    padding: 3px 8px;
+    border-radius: 5px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.04);
+    color: rgba(255,255,255,0.5);
+  }
+  .m-filter-chip.active {
+    border-color: rgba(255,255,255,0.22);
+    color: rgba(255,255,255,0.9);
+    background: rgba(255,255,255,0.07);
+  }
+  .m-select {
+    font-size: 9px;
+    padding: 3px 8px;
+    border-radius: 5px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.6);
+  }
+  .m-search {
+    font-size: 9px;
+    padding: 3px 8px 3px 20px;
+    border-radius: 5px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.6);
+    position: relative;
+  }
+  .m-recipe-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 5px;
+    padding: 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .m-recipe-btn {
+    padding: 5px 7px;
+    border-radius: 5px;
+    border: 1px solid rgba(255,255,255,0.07);
+    background: #0f0f0f;
+    font-size: 8px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.5);
+    text-align: left;
+    line-height: 1.3;
+  }
+  .m-recipe-btn.active {
+    border-color: rgba(255,255,255,0.22);
+    color: #f0f0f0;
+    background: rgba(80,80,80,0.15);
+  }
+  .m-recipe-btn small { display: block; font-weight: 400; color: rgba(255,255,255,0.28); margin-top: 2px; font-size: 7px; }
+
+  /* Sidebar layout */
+  .m-sidebar-layout {
+    display: flex;
+    gap: 8px;
+    min-height: 220px;
+  }
+  .m-sidebar {
+    width: 80px;
+    flex-shrink: 0;
+    background: rgba(14,14,14,0.9);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .m-sidebar-label {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.25);
+    margin-bottom: 4px;
+    margin-top: 6px;
+  }
+  .m-sidebar-label:first-child { margin-top: 0; }
+  .m-sidebar-item {
+    font-size: 8px;
+    font-weight: 500;
+    padding: 3px 6px;
+    border-radius: 4px;
+    color: rgba(255,255,255,0.45);
+    cursor: pointer;
+  }
+  .m-sidebar-item.active {
+    background: rgba(255,255,255,0.07);
+    color: #f0f0f0;
+    font-weight: 600;
+  }
+  .m-sidebar-item.active::before {
+    content: '• ';
+    color: #50d2c1;
+  }
+  .m-feed { flex: 1; }
+  .m-feed .m-card { height: 100%; }
+
+  /* Address styling */
+  .m-addr {
+    font-family: 'Geist Mono', monospace;
+    font-size: 9px;
+    color: rgba(156,163,175,0.8);
+  }
+
+  /* Selection overlay */
+  .selection-bar {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(20,20,20,0.95);
+    border: 1px solid rgba(80,210,193,0.4);
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-size: 13px;
+    color: #50d2c1;
+    display: none;
+    align-items: center;
+    gap: 10px;
+    backdrop-filter: blur(12px);
+  }
+  .selection-bar.visible { display: flex; }
+</style>
+<script>
+  let selected = null;
+  function pick(el, choice) {
+    document.querySelectorAll('.option-card').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    selected = choice;
+    const bar = document.getElementById('sel-bar');
+    bar.textContent = 'Selected: ' + choice;
+    bar.classList.add('visible');
+    if (window.__sp_recordEvent) window.__sp_recordEvent('click', choice, choice);
+  }
+</script>
+</head>
+<body>
+
+<h1>Signals Feed — Layout Concepts</h1>
+<p class="subtitle">Three approaches to the redesigned page. Click a card to select your preference.</p>
+
+<div class="options-grid">
+
+  <!-- ── Option A: Timeline + Compact Filter Bar ── -->
+  <div class="option-card" onclick="pick(this, 'A — Timeline + Compact Filters')">
+    <div class="option-header">
+      <div class="option-label">Option A</div>
+      <div class="option-title">Timeline Feed</div>
+      <div class="option-desc">Date-grouped list with a single compact filter bar. Recipe selector stays at top as chips — click to multi-select. Signals scroll infinitely.</div>
+    </div>
+    <div class="mockup-area">
+      <div class="m-card">
+        <!-- Filter bar -->
+        <div class="m-filter-bar">
+          <div class="m-filter-chip active">Whale Conv.</div>
+          <div class="m-filter-chip active">Hot Streak</div>
+          <div class="m-filter-chip">Dip Conv.</div>
+          <div class="m-filter-chip">All recipes</div>
+          <div style="margin-left:auto;display:flex;gap:5px;">
+            <div class="m-filter-chip active">LONG</div>
+            <div class="m-filter-chip">SHORT</div>
+            <div class="m-filter-chip" style="padding-left:18px;position:relative;">
+              <span style="position:absolute;left:6px;top:50%;transform:translateY(-50%);font-size:8px;color:rgba(255,255,255,0.3)">⌕</span>
+              BTC
+            </div>
+          </div>
+        </div>
+        <!-- Today group -->
+        <div class="m-date-sep">Today · 14 Apr</div>
+        <div class="m-row">
+          <div class="m-badge entry">ENTRY</div>
+          <div class="m-coin">BTC</div>
+          <div class="m-pill long">LONG</div>
+          <div class="m-text">Whale Convergence</div>
+          <div class="m-addr">0x1f4a...3b9c</div>
+          <div class="m-ev">87</div>
+        </div>
+        <div class="m-row">
+          <div class="m-badge alert">ALERT</div>
+          <div class="m-coin">ETH</div>
+          <div class="m-pill short">SHORT</div>
+          <div class="m-text">Hot Streak</div>
+          <div class="m-addr">0x8e21...a04f</div>
+          <div class="m-muted">3m</div>
+        </div>
+        <div class="m-row">
+          <div class="m-badge exit">EXIT</div>
+          <div class="m-coin">SOL</div>
+          <div class="m-pill long">LONG</div>
+          <div class="m-text">Funded Edge</div>
+          <div class="m-addr">0x3c72...d81a</div>
+          <div class="m-ev" style="color:#c4925a">52</div>
+        </div>
+        <!-- Yesterday group -->
+        <div class="m-date-sep">Yesterday · 13 Apr</div>
+        <div class="m-row">
+          <div class="m-badge entry">ENTRY</div>
+          <div class="m-coin">BTC</div>
+          <div class="m-pill long">LONG</div>
+          <div class="m-text">Alpha Confirmation</div>
+          <div class="m-addr">0x9a3f...2c1e</div>
+          <div class="m-ev">71</div>
+        </div>
+        <div class="m-row" style="opacity:0.5">
+          <div class="m-badge alert">ALERT</div>
+          <div class="m-coin">HYPE</div>
+          <div class="m-pill short">SHORT</div>
+          <div class="m-text">Crowded Coin</div>
+          <div class="m-addr">0x5d82...f93c</div>
+          <div class="m-muted">22h</div>
+        </div>
+        <div class="m-date-sep" style="opacity:0.4">12 Apr · 6 signals  ›</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Option B: Sidebar Filters + Dense Feed ── -->
+  <div class="option-card" onclick="pick(this, 'B — Sidebar Filters')">
+    <div class="option-header">
+      <div class="option-label">Option B</div>
+      <div class="option-title">Sidebar Filters</div>
+      <div class="option-desc">Persistent left panel for recipes + direction + coin search. Signal feed takes most of the width. More screen used for signals, less scrolling to filter.</div>
+    </div>
+    <div class="mockup-area">
+      <div class="m-sidebar-layout">
+        <!-- Sidebar -->
+        <div class="m-sidebar">
+          <div class="m-sidebar-label">Recipe</div>
+          <div class="m-sidebar-item active">Whale Conv.</div>
+          <div class="m-sidebar-item active">Hot Streak</div>
+          <div class="m-sidebar-item">Dip Conv.</div>
+          <div class="m-sidebar-item">Funded Edge</div>
+          <div class="m-sidebar-item">Liq. Flush</div>
+          <div class="m-sidebar-item" style="opacity:0.4;font-size:7px;">+ 8 more</div>
+
+          <div class="m-sidebar-label">Direction</div>
+          <div class="m-sidebar-item active">Long</div>
+          <div class="m-sidebar-item">Short</div>
+          <div class="m-sidebar-item">Flat</div>
+
+          <div class="m-sidebar-label">Coin</div>
+          <div class="m-filter-chip" style="font-size:8px;width:100%;text-align:center;margin-top:2px;padding:4px 6px;border-radius:4px;">⌕ Search...</div>
+          <div class="m-sidebar-item active">BTC</div>
+          <div class="m-sidebar-item">ETH</div>
+          <div class="m-sidebar-item">SOL</div>
+        </div>
+
+        <!-- Feed -->
+        <div class="m-feed">
+          <div class="m-card">
+            <div class="m-date-sep">Today</div>
+            <div class="m-row">
+              <div class="m-badge entry">ENTRY</div>
+              <div class="m-coin">BTC</div>
+              <div class="m-pill long">LONG</div>
+              <div class="m-text">Whale Conv.</div>
+              <div class="m-ev">87</div>
+            </div>
+            <div class="m-row">
+              <div class="m-badge alert">ALERT</div>
+              <div class="m-coin">ETH</div>
+              <div class="m-pill short">SHORT</div>
+              <div class="m-text">Hot Streak</div>
+              <div class="m-muted">3m</div>
+            </div>
+            <div class="m-row">
+              <div class="m-badge exit">EXIT</div>
+              <div class="m-coin">SOL</div>
+              <div class="m-pill long">LONG</div>
+              <div class="m-text">Funded Edge</div>
+              <div class="m-ev" style="color:#c4925a">52</div>
+            </div>
+            <div class="m-date-sep">Yesterday</div>
+            <div class="m-row">
+              <div class="m-badge entry">ENTRY</div>
+              <div class="m-coin">BTC</div>
+              <div class="m-pill long">LONG</div>
+              <div class="m-text">Alpha Conf.</div>
+              <div class="m-ev">71</div>
+            </div>
+            <div class="m-row" style="opacity:0.55">
+              <div class="m-badge alert">ALERT</div>
+              <div class="m-coin">HYPE</div>
+              <div class="m-pill short">SHORT</div>
+              <div class="m-text">Crowded Coin</div>
+              <div class="m-muted">22h</div>
+            </div>
+            <div class="m-row" style="opacity:0.45">
+              <div class="m-badge entry">ENTRY</div>
+              <div class="m-coin">ARB</div>
+              <div class="m-pill long">LONG</div>
+              <div class="m-text">Dip Conv.</div>
+              <div class="m-ev" style="color:#c4925a">44</div>
+            </div>
+            <div class="m-date-sep" style="opacity:0.4">12 Apr · 9 signals  ›</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Option C: Recipe Pills + Expandable Signal Rows ── -->
+  <div class="option-card" onclick="pick(this, 'C — Collapsible Recipe Grid + Expanded Rows')">
+    <div class="option-header">
+      <div class="option-label">Option C</div>
+      <div class="option-title">Recipe Toggle + Rich Rows</div>
+      <div class="option-desc">Recipe cards collapse to a small pill strip. Signal rows expand on click to reveal the specific context, full address, and EV explanation. Richer per-signal detail.</div>
+    </div>
+    <div class="mockup-area">
+      <div class="m-card">
+        <!-- Recipe pill strip (collapsed) -->
+        <div class="m-filter-bar" style="padding: 8px 10px;">
+          <div style="font-size:8px;color:rgba(255,255,255,0.25);align-self:center;margin-right:2px;">RECIPE</div>
+          <div class="m-filter-chip active">Whale Convergence ✕</div>
+          <div class="m-filter-chip active">Hot Streak ✕</div>
+          <div class="m-filter-chip" style="border-style:dashed;">+ Add filter</div>
+          <div style="margin-left:auto;display:flex;gap:5px;">
+            <div class="m-filter-chip active">LONG</div>
+            <div class="m-filter-chip" style="padding-left:16px;position:relative;">
+              <span style="position:absolute;left:5px;font-size:8px;color:rgba(255,255,255,0.3)">⌕</span>
+              BTC, ETH
+            </div>
+          </div>
+        </div>
+
+        <!-- Expanded signal row -->
+        <div style="background:rgba(255,255,255,0.025);border-bottom:1px solid rgba(255,255,255,0.06);">
+          <div class="m-row">
+            <div class="m-badge entry">ENTRY</div>
+            <div class="m-coin">BTC</div>
+            <div class="m-pill long">LONG</div>
+            <div class="m-text">Whale Convergence</div>
+            <div style="font-size:8px;color:rgba(255,255,255,0.25);margin-right:4px;">▲</div>
+            <div class="m-ev">87</div>
+          </div>
+          <!-- Expanded detail -->
+          <div style="padding:6px 12px 10px;display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+            <div>
+              <div style="font-size:8px;color:rgba(255,255,255,0.25);margin-bottom:3px;">WALLET</div>
+              <div class="m-addr" style="font-size:10px;color:rgba(156,163,175,0.9);">0x1f4a8c3d2e9b7f6a0c4d5e8f3b2a1c9d4e7f8b0a</div>
+            </div>
+            <div>
+              <div style="font-size:8px;color:rgba(255,255,255,0.25);margin-bottom:3px;">CONTEXT</div>
+              <div style="font-size:9px;color:rgba(255,255,255,0.55);">9 wallets added $1.2M LONG on BTC in 4 min</div>
+            </div>
+            <div>
+              <div style="font-size:8px;color:rgba(255,255,255,0.25);margin-bottom:3px;">EV SCORE</div>
+              <div style="font-size:9px;color:#6aaa7a;">87 — Strong edge, above 0.6 threshold</div>
+            </div>
+            <div>
+              <div style="font-size:8px;color:rgba(255,255,255,0.25);margin-bottom:3px;">DETECTED</div>
+              <div style="font-size:9px;color:rgba(255,255,255,0.38);">14 Apr · 09:42 UTC · 3m ago</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Normal rows -->
+        <div class="m-row">
+          <div class="m-badge alert">ALERT</div>
+          <div class="m-coin">ETH</div>
+          <div class="m-pill short">SHORT</div>
+          <div class="m-text">Hot Streak</div>
+          <div style="font-size:8px;color:rgba(255,255,255,0.15);margin-right:4px;">▼</div>
+          <div class="m-muted">3m</div>
+        </div>
+        <div class="m-row">
+          <div class="m-badge exit">EXIT</div>
+          <div class="m-coin">SOL</div>
+          <div class="m-pill long">LONG</div>
+          <div class="m-text">Funded Edge</div>
+          <div style="font-size:8px;color:rgba(255,255,255,0.15);margin-right:4px;">▼</div>
+          <div class="m-ev" style="color:#c4925a">52</div>
+        </div>
+        <div class="m-date-sep" style="margin-top:2px;">Yesterday · 13 Apr</div>
+        <div class="m-row" style="opacity:0.6">
+          <div class="m-badge entry">ENTRY</div>
+          <div class="m-coin">BTC</div>
+          <div class="m-pill long">LONG</div>
+          <div class="m-text">Alpha Confirmation</div>
+          <div style="font-size:8px;color:rgba(255,255,255,0.15);margin-right:4px;">▼</div>
+          <div class="m-ev">71</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div id="sel-bar" class="selection-bar"></div>
+
+<script>
+  // integrate with visual companion helper if present
+  document.querySelectorAll('.option-card').forEach(card => {
+    card.addEventListener('click', function() {
+      const choice = this.querySelector('.option-title').textContent;
+      if (window.__sp_recordEvent) window.__sp_recordEvent('click', choice, choice);
+    });
+  });
+</script>
+</body>
+</html>

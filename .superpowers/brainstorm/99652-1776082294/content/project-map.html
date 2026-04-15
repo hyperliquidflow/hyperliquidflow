@@ -1,0 +1,136 @@
+<h2>5 Features — Project Map</h2>
+<p class="subtitle">These are 5 independent subsystems. They have dependencies on each other, so order matters. Here's how I'd sequence them.</p>
+
+<style>
+.roadmap { display: flex; flex-direction: column; gap: 12px; margin: 24px 0; }
+.phase { border: 1px solid rgba(255,255,255,0.12); border-radius: 10px; padding: 16px 20px; }
+.phase-header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.phase-num { background: rgba(255,255,255,0.1); border-radius: 50%; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0; }
+.phase-title { font-size: 15px; font-weight: 600; }
+.phase-tag { font-size: 11px; padding: 2px 8px; border-radius: 4px; margin-left: auto; font-weight: 500; }
+.tag-foundation { background: rgba(96,165,250,0.18); color: #60a5fa; }
+.tag-analytics { background: rgba(106,170,122,0.18); color: #6aaa7a; }
+.tag-complex { background: rgba(245,158,11,0.18); color: #f59e0b; }
+.tag-product { background: rgba(176,104,104,0.18); color: #b06868; }
+.phase-body { font-size: 13px; color: rgba(255,255,255,0.6); line-height: 1.6; }
+.dep { display: inline-block; margin-top: 8px; font-size: 11px; color: rgba(255,255,255,0.35); }
+.dep span { color: #60a5fa; }
+.feature-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.chip { font-size: 11px; padding: 3px 10px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.7); }
+.why { margin-top: 6px; font-size: 12px; color: rgba(255,255,255,0.45); font-style: italic; }
+.arrow { text-align: center; font-size: 18px; color: rgba(255,255,255,0.2); margin: -4px 0; }
+</style>
+
+<div class="roadmap">
+
+  <div class="phase">
+    <div class="phase-header">
+      <div class="phase-num">1</div>
+      <div class="phase-title">Wallet Tier System</div>
+      <div class="phase-tag tag-foundation">Foundation</div>
+    </div>
+    <div class="phase-body">
+      Classify the top ~1200 tracked wallets into equity-based tiers. This becomes the grouping layer
+      that powers every other feature — heatmap columns, bias trend lines, leaderboard filters.
+      <div class="feature-chips">
+        <div class="chip">Tier schema in Supabase</div>
+        <div class="chip">Tier labels + thresholds</div>
+        <div class="chip">Leaderboard filter UI</div>
+        <div class="chip">Wallet profile badge</div>
+      </div>
+      <div class="dep">No dependencies — build first.</div>
+    </div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <div class="phase">
+    <div class="phase-header">
+      <div class="phase-num">2</div>
+      <div class="phase-title">Bias Trend Chart</div>
+      <div class="phase-tag tag-analytics">Analytics</div>
+    </div>
+    <div class="phase-body">
+      Time-series chart showing directional bias (long/short skew) per tier over the last 7–30 days.
+      Requires tier definitions from Step 1, and consumes existing cohort snapshot data already in Supabase.
+      <div class="feature-chips">
+        <div class="chip">Aggregate bias per tier per snapshot</div>
+        <div class="chip">Multi-line chart component</div>
+        <div class="chip">Lives on Signals or new Analytics page</div>
+      </div>
+      <div class="dep">Depends on: <span>Step 1 (tiers)</span> + existing cohort_snapshots table</div>
+    </div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <div class="phase">
+    <div class="phase-header">
+      <div class="phase-num">3</div>
+      <div class="phase-title">Global Position Heatmap</div>
+      <div class="phase-tag tag-analytics">Analytics</div>
+    </div>
+    <div class="phase-body">
+      Asset × Tier grid. Each cell = net long/short bias of that tier in that asset right now.
+      Color intensity = conviction strength. Aggregates live positions from cohort_snapshots.
+      <div class="feature-chips">
+        <div class="chip">Asset × tier aggregation query</div>
+        <div class="chip">Grid visualization component</div>
+        <div class="chip">New /analytics or /signals/heatmap route</div>
+      </div>
+      <div class="dep">Depends on: <span>Step 1 (tiers)</span>, live position data already tracked</div>
+    </div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <div class="phase">
+    <div class="phase-header">
+      <div class="phase-num">4</div>
+      <div class="phase-title">Market Radar</div>
+      <div class="phase-tag tag-complex">Complex</div>
+    </div>
+    <div class="phase-body">
+      Price-axis visualization showing where wallet positions cluster — avg entry prices, liquidation
+      zones, stop-loss levels — overlaid on a price chart for a selected asset. Needs position-level
+      data aggregated by price bucket.
+      <div class="feature-chips">
+        <div class="chip">Price-bucket aggregation API</div>
+        <div class="chip">Horizontal bar chart on price axis</div>
+        <div class="chip">Asset selector</div>
+        <div class="chip">Liquidation zone estimation</div>
+      </div>
+      <div class="dep">Depends on: <span>live position data</span>. Tiers optional but enhances it.</div>
+      <div class="why">Hardest visualization to build correctly. Defer until 1–3 are solid.</div>
+    </div>
+  </div>
+
+  <div class="arrow">↓</div>
+
+  <div class="phase">
+    <div class="phase-header">
+      <div class="phase-num">5</div>
+      <div class="phase-title">Wallet Alerts + Paper Copy Trading</div>
+      <div class="phase-tag tag-product">Full Product</div>
+    </div>
+    <div class="phase-body">
+      The biggest lift. Two parts: (a) per-wallet alert subscriptions — notify when a tracked wallet
+      opens/closes/changes a position; (b) paper copy trading — virtual portfolio that mirrors
+      selected wallets' trades at detection time. This is a proper product, not a feature.
+      <div class="feature-chips">
+        <div class="chip">Alert subscription model</div>
+        <div class="chip">Notification delivery (browser / Telegram / email)</div>
+        <div class="chip">Virtual portfolio engine</div>
+        <div class="chip">Copy trade execution log</div>
+        <div class="chip">Performance vs. wallet comparison</div>
+      </div>
+      <div class="dep">Depends on: <span>wallet tracking infrastructure</span>. Can start planning in parallel.</div>
+      <div class="why">Deserves its own dedicated spec + sprint. Plan separately once 1–3 are shipped.</div>
+    </div>
+  </div>
+
+</div>
+
+<p style="font-size: 13px; color: rgba(255,255,255,0.4); text-align: center; margin-top: 8px;">
+  Does this sequencing and framing look right? Reply in the terminal to confirm or adjust.
+</p>

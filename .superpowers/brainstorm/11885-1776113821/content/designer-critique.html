@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>UI Designer Critique — HyperliquidFLOW</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, "Inter", sans-serif;
+  background: #050505;
+  color: #e0e0e0;
+  padding: 32px 36px 60px;
+}
+h1 { font-size: 20px; font-weight: 800; color: #fff; margin-bottom: 6px; letter-spacing: -0.02em; }
+.sub { font-size: 12.5px; color: rgba(255,255,255,0.4); margin-bottom: 32px; line-height: 1.6; max-width: 700px; }
+
+.section { margin-bottom: 36px; }
+.section-title { font-size: 11px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.3); margin-bottom: 14px; }
+
+/* critique grid */
+.crit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 32px; }
+.crit-item {
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.crit-item.bad { border-color: rgba(176,104,104,0.25); background: rgba(176,104,104,0.04); }
+.crit-item.good { border-color: rgba(106,170,122,0.25); background: rgba(106,170,122,0.04); }
+.crit-label { font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 7px; }
+.crit-item.bad .crit-label { color: #b06868; }
+.crit-item.good .crit-label { color: #6aaa7a; }
+.crit-text { font-size: 12px; color: rgba(255,255,255,0.55); line-height: 1.55; }
+
+/* divider */
+.div { height: 1px; background: rgba(255,255,255,0.06); margin: 28px 0; }
+
+/* full mock label */
+.mock-label {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: rgba(255,255,255,0.35); margin-bottom: 12px;
+}
+.mock-label span {
+  background: #6aaa7a; color: #000; font-size: 9px; padding: 2px 7px; border-radius: 3px; font-weight: 800;
+}
+</style>
+</head>
+<body>
+
+<h1>UI Designer's Honest Critique</h1>
+<p class="sub">What was wrong with Options A-E, and why. Then: the redesign.</p>
+
+<div class="section">
+  <div class="section-title">What broke in the previous 5 layouts</div>
+  <div class="crit-grid">
+
+    <div class="crit-item bad">
+      <div class="crit-label">No hierarchy</div>
+      <div class="crit-text">Every card, chart, and table gets the same visual weight. Stat cards (secondary data) sit at the same prominence as the signal feed (primary data). The user's eye has nowhere to go first.</div>
+    </div>
+
+    <div class="crit-item bad">
+      <div class="crit-label">Redundant data channels</div>
+      <div class="crit-text">The ticker strip, smart money exposure bars, and stat cards all communicate coin prominence. Three different widgets saying the same thing — different format, same signal.</div>
+    </div>
+
+    <div class="crit-item bad">
+      <div class="crit-label">Option C bubbles are misleading</div>
+      <div class="crit-text">Y-axis has no meaning — bubbles are randomly positioned. EV score differences of 0.01–0.09 are imperceptible as bubble radii. Looks visual, communicates nothing. Financial charts need legible axes.</div>
+    </div>
+
+    <div class="crit-item bad">
+      <div class="crit-label">Option E rings are dead</div>
+      <div class="crit-text">Wallet scores range 0.00–0.07. Rings are nearly all empty. The visualization reveals nothing — it's visually interesting but informationally bankrupt for this specific data.</div>
+    </div>
+
+    <div class="crit-item bad">
+      <div class="crit-label">Stats as big cards = wrong priority</div>
+      <div class="crit-text">"200 wallets tracked" and "Avg Score 0.02" are context, not action items. Giving them full-height frosted cards is like bolding every word in a sentence — the emphasis is everywhere and therefore nowhere.</div>
+    </div>
+
+    <div class="crit-item bad">
+      <div class="crit-label">Vibes + Exposure always orphaned</div>
+      <div class="crit-text">Market Vibes (7-day dots) and Smart Money Exposure are tertiary. Every layout puts them in a bottom row with equal weight to signals and wallets. They should be compressed, not featured.</div>
+    </div>
+
+    <div class="crit-item good">
+      <div class="crit-label">What was right: the heatmap</div>
+      <div class="crit-text">Coin × hour matrix in Option A is the strongest idea. It's genuinely novel, scannable, and reveals patterns invisible in the bar chart. Needs more space and cleaner execution.</div>
+    </div>
+
+    <div class="crit-item good">
+      <div class="crit-label">What was right: regime timeline bar</div>
+      <div class="crit-text">Option D's 7-day regime as a full-width colored bar row is excellent — compact, beautiful, informative. Replace the dots widget entirely with this.</div>
+    </div>
+
+  </div>
+</div>
+
+<div class="div"></div>
+
+<div class="mock-label"><span>NEW</span> Redesign — Rendered at 1440×900</div>
+
+</body>
+</html>

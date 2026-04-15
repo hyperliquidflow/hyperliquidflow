@@ -1,0 +1,244 @@
+<h2>Full Build Plan — 5 Sprints</h2>
+<p class="subtitle">Based on real wallet equity data: 67 wallets tracked, $12k–$40.8M range, median $295k. Your tier thresholds are validated.</p>
+
+<style>
+.tier-bar { display: flex; gap: 6px; margin: 16px 0 24px; align-items: flex-end; }
+.tier-col { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; }
+.tier-bar-block { width: 100%; border-radius: 4px 4px 0 0; background: rgba(96,165,250,0.3); border: 1px solid rgba(96,165,250,0.4); min-height: 8px; }
+.tier-label { font-size: 10px; color: rgba(255,255,255,0.4); text-align: center; }
+.tier-count { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.7); }
+
+.sprints { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.sprint { border-radius: 10px; overflow: hidden; }
+.sprint-header { display: flex; align-items: center; gap: 12px; padding: 12px 16px; }
+.sprint-num { font-size: 11px; font-weight: 700; opacity: 0.7; min-width: 64px; }
+.sprint-title { font-size: 14px; font-weight: 600; flex: 1; }
+.sprint-size { font-size: 11px; padding: 2px 10px; border-radius: 4px; font-weight: 500; }
+.sprint-body { padding: 0 16px 14px; display: flex; gap: 20px; }
+.sprint-deliverables { flex: 1; }
+.sprint-deliverables ul { margin: 0; padding-left: 16px; }
+.sprint-deliverables li { font-size: 12px; color: rgba(255,255,255,0.55); margin-bottom: 3px; line-height: 1.5; }
+.sprint-tech { min-width: 160px; }
+.sprint-tech-label { font-size: 10px; color: rgba(255,255,255,0.3); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; }
+.tech-chip { display: inline-block; font-size: 10px; padding: 2px 7px; border-radius: 3px; border: 1px solid rgba(255,255,255,0.12); color: rgba(255,255,255,0.5); margin: 2px 2px 2px 0; }
+
+/* Sprint colors */
+.s1 .sprint-header { background: rgba(96,165,250,0.12); }
+.s1 .sprint-size { background: rgba(96,165,250,0.18); color: #60a5fa; }
+.s2 .sprint-header { background: rgba(106,170,122,0.12); }
+.s2 .sprint-size { background: rgba(106,170,122,0.18); color: #6aaa7a; }
+.s3 .sprint-header { background: rgba(106,170,122,0.12); }
+.s3 .sprint-size { background: rgba(106,170,122,0.18); color: #6aaa7a; }
+.s4 .sprint-header { background: rgba(245,158,11,0.12); }
+.s4 .sprint-size { background: rgba(245,158,11,0.18); color: #f59e0b; }
+.s5 .sprint-header { background: rgba(176,104,104,0.12); }
+.s5 .sprint-size { background: rgba(176,104,104,0.18); color: #b06868; }
+
+.continuity-box { border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 14px 16px; margin-top: 20px; background: rgba(255,255,255,0.03); }
+.continuity-box h3 { font-size: 13px; margin: 0 0 8px; color: rgba(255,255,255,0.8); }
+.continuity-box p { font-size: 12px; color: rgba(255,255,255,0.45); margin: 0 0 6px; line-height: 1.6; }
+</style>
+
+<!-- Tier distribution from real data -->
+<div class="section">
+  <div class="label">Wallet Tier Distribution (67 wallets with equity data)</div>
+  <div class="tier-bar">
+    <div class="tier-col">
+      <div class="tier-count">15</div>
+      <div class="tier-bar-block" style="height:60px;opacity:0.5"></div>
+      <div class="tier-label">Under $10k</div>
+    </div>
+    <div class="tier-col">
+      <div class="tier-count">11</div>
+      <div class="tier-bar-block" style="height:44px;opacity:0.65"></div>
+      <div class="tier-label">$10k–50k</div>
+    </div>
+    <div class="tier-col">
+      <div class="tier-count">5</div>
+      <div class="tier-bar-block" style="height:20px;opacity:0.7"></div>
+      <div class="tier-label">$50k–100k</div>
+    </div>
+    <div class="tier-col">
+      <div class="tier-count">2</div>
+      <div class="tier-bar-block" style="height:8px;opacity:0.75"></div>
+      <div class="tier-label">$100k–250k</div>
+    </div>
+    <div class="tier-col">
+      <div class="tier-count">5</div>
+      <div class="tier-bar-block" style="height:20px;opacity:0.8"></div>
+      <div class="tier-label">$250k–500k</div>
+    </div>
+    <div class="tier-col">
+      <div class="tier-count">7</div>
+      <div class="tier-bar-block" style="height:28px;opacity:0.85"></div>
+      <div class="tier-label">$500k–1M</div>
+    </div>
+    <div class="tier-col">
+      <div class="tier-count">14</div>
+      <div class="tier-bar-block" style="height:56px;opacity:0.9"></div>
+      <div class="tier-label">$1M–5M</div>
+    </div>
+    <div class="tier-col">
+      <div class="tier-count">8</div>
+      <div class="tier-bar-block" style="height:32px;background:rgba(96,165,250,0.6);border-color:#60a5fa"></div>
+      <div class="tier-label">$5M+</div>
+    </div>
+  </div>
+  <p style="font-size:11px;color:rgba(255,255,255,0.3);margin:0">Max wallet: $40.8M &nbsp;·&nbsp; Median: $295k &nbsp;·&nbsp; Your 7 thresholds match the distribution well.</p>
+</div>
+
+<!-- Sprint plan -->
+<div class="sprints">
+
+  <div class="sprint s1">
+    <div class="sprint-header">
+      <div class="sprint-num">SPRINT 1</div>
+      <div class="sprint-title">Wallet Tier System</div>
+      <div class="sprint-size">Foundation</div>
+    </div>
+    <div class="sprint-body">
+      <div class="sprint-deliverables">
+        <ul>
+          <li>Add <code>equity_tier</code> column to <code>cohort_snapshots</code>, computed from <code>account_value</code></li>
+          <li>7 tiers: Elite ($5M+), Major ($1M–5M), Large ($500k–1M), Mid ($250k–500k), Standard ($100k–250k), Small ($50k–100k), Micro ($10k–50k), Nano (&lt;$10k)</li>
+          <li>Tier badge on wallet profile and leaderboard rows</li>
+          <li>Tier filter on /wallets/leaderboard</li>
+          <li>Tier counts on /wallets/discovery stats</li>
+          <li>Cron scoring job assigns tier on each snapshot write</li>
+        </ul>
+      </div>
+      <div class="sprint-tech">
+        <div class="sprint-tech-label">Touches</div>
+        <div class="tech-chip">Supabase migration</div>
+        <div class="tech-chip">cohort-engine.ts</div>
+        <div class="tech-chip">refresh-cohort</div>
+        <div class="tech-chip">leaderboard page</div>
+        <div class="tech-chip">wallet-profile API</div>
+        <div class="tech-chip">discovery page</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sprint s2">
+    <div class="sprint-header">
+      <div class="sprint-num">SPRINT 2</div>
+      <div class="sprint-title">Bias Trend Chart</div>
+      <div class="sprint-size">Analytics</div>
+    </div>
+    <div class="sprint-body">
+      <div class="sprint-deliverables">
+        <ul>
+          <li>New API route: <code>/api/bias-trend</code> — returns net long/short bias per tier per snapshot, last 30 snapshots</li>
+          <li>Multi-line chart: one line per selected tier, X = time, Y = bias score (-1 to +1)</li>
+          <li>Tier toggle checkboxes to show/hide lines</li>
+          <li>Lives at new <code>/signals/bias</code> route or tab on existing Signals page</li>
+          <li>KV-cached with 5-min TTL matching the cron cycle</li>
+        </ul>
+      </div>
+      <div class="sprint-tech">
+        <div class="sprint-tech-label">Touches</div>
+        <div class="tech-chip">New API route</div>
+        <div class="tech-chip">cohort_snapshots query</div>
+        <div class="tech-chip">Chart component</div>
+        <div class="tech-chip">Signals nav</div>
+        <div class="tech-chip">KV cache</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sprint s3">
+    <div class="sprint-header">
+      <div class="sprint-num">SPRINT 3</div>
+      <div class="sprint-title">Global Position Heatmap</div>
+      <div class="sprint-size">Analytics</div>
+    </div>
+    <div class="sprint-body">
+      <div class="sprint-deliverables">
+        <ul>
+          <li>New API route: <code>/api/position-heatmap</code> — returns asset × tier matrix of net bias + OI</li>
+          <li>Grid component: assets as rows, tiers as columns, cells color-coded by net long/short bias</li>
+          <li>Cell color intensity = conviction strength (% of tier wallets with position in asset)</li>
+          <li>Position age filter (24h / 7d / all)</li>
+          <li>OI dollar figure per asset on rightmost column</li>
+          <li>New <code>/signals/heatmap</code> route</li>
+        </ul>
+      </div>
+      <div class="sprint-tech">
+        <div class="sprint-tech-label">Touches</div>
+        <div class="tech-chip">New API route</div>
+        <div class="tech-chip">positions JSONB query</div>
+        <div class="tech-chip">Grid component</div>
+        <div class="tech-chip">Nav update</div>
+        <div class="tech-chip">KV cache</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sprint s4">
+    <div class="sprint-header">
+      <div class="sprint-num">SPRINT 4</div>
+      <div class="sprint-title">Market Radar</div>
+      <div class="sprint-size">Complex</div>
+    </div>
+    <div class="sprint-body">
+      <div class="sprint-deliverables">
+        <ul>
+          <li>New API route: <code>/api/market-radar</code> — for a selected asset, bucket all open positions by avg entry price, return count + OI per bucket</li>
+          <li>Price-axis chart: horizontal bars at price levels showing position density</li>
+          <li>Liquidation zone overlay: estimated liq price from <code>liq_buffer_pct</code> data</li>
+          <li>Asset selector (top 10 assets by open interest)</li>
+          <li>Tier filter to isolate specific wallet tiers</li>
+          <li>New <code>/signals/radar</code> route</li>
+        </ul>
+      </div>
+      <div class="sprint-tech">
+        <div class="sprint-tech-label">Touches</div>
+        <div class="tech-chip">New API route</div>
+        <div class="tech-chip">positions JSONB parse</div>
+        <div class="tech-chip">Price bucket logic</div>
+        <div class="tech-chip">Custom chart</div>
+        <div class="tech-chip">Hyperliquid price API</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sprint s5">
+    <div class="sprint-header">
+      <div class="sprint-num">SPRINT 5</div>
+      <div class="sprint-title">Wallet Alerts + Paper Copy Trading</div>
+      <div class="sprint-size">Full Product</div>
+    </div>
+    <div class="sprint-body">
+      <div class="sprint-deliverables">
+        <ul>
+          <li><strong>Alerts:</strong> subscribe to wallet address, detect position open/close/size change between snapshots, store alert events, surface in UI</li>
+          <li><strong>Paper copy trading:</strong> virtual portfolio that records what a wallet opens — at the snapshot detection price — and tracks virtual P&amp;L in real time</li>
+          <li>Wallet following page: manage subscribed wallets, see their recent moves</li>
+          <li>Paper portfolio dashboard: open virtual positions, realized/unrealized PnL vs. actual wallet</li>
+          <li>Notification delivery: in-app first, Telegram optional phase 2</li>
+          <li>New tables: <code>wallet_follows</code>, <code>alert_events</code>, <code>paper_positions</code></li>
+        </ul>
+      </div>
+      <div class="sprint-tech">
+        <div class="sprint-tech-label">Touches</div>
+        <div class="tech-chip">3 new DB tables</div>
+        <div class="tech-chip">Position diff engine</div>
+        <div class="tech-chip">Alert dispatch</div>
+        <div class="tech-chip">Virtual P&amp;L engine</div>
+        <div class="tech-chip">New pages</div>
+        <div class="tech-chip">Auth (user accounts)</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="continuity-box">
+  <h3>Cross-Session Continuity Plan</h3>
+  <p>Each sprint gets: a spec doc in <code>docs/superpowers/specs/</code>, an implementation plan in <code>docs/superpowers/plans/</code>, and a memory entry tracking its status. At the start of each new session, the memory index shows which sprint is active and where we left off.</p>
+  <p>Sprint status will be tracked in <code>docs/sprints/status.md</code> — one line per sprint: Not Started / In Progress / Complete. The implementation plan for the active sprint is always the source of truth for what to do next.</p>
+</div>
+
+<p style="font-size: 13px; color: rgba(255,255,255,0.4); text-align: center; margin-top: 16px;">
+  Does this plan look right? Any sprint you want to adjust before we write the specs? Reply in terminal.
+</p>

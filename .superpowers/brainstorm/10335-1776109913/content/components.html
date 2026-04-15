@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Components</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Geist+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background: #060606;
+    color: #f0f0f0;
+    padding: 40px 48px 100px;
+    min-height: 100vh;
+    position: relative;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at 100% 100%, oklch(32% 0.06 170) 0%, oklch(3.5% 0 0) 100%);
+    z-index: 0; pointer-events: none;
+  }
+  .page { position: relative; z-index: 1; max-width: 1100px; margin: 0 auto; }
+
+  h1 { font-size: 24px; font-weight: 700; color: #f0f0f0; margin-bottom: 6px; }
+  .subtitle { font-size: 14px; color: rgba(255,255,255,0.42); margin-bottom: 40px; line-height: 1.5; max-width: 600px; }
+
+  .section-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+    color: rgba(255,255,255,0.25); margin-bottom: 16px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .section-label::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.06); }
+
+  .section { margin-bottom: 48px; }
+
+  /* Selectable card wrapper */
+  .option-set { display: grid; gap: 16px; }
+  .option-set.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .option-set.cols-2 { grid-template-columns: repeat(2, 1fr); }
+
+  .selectable {
+    border: 2px solid transparent;
+    border-radius: 14px;
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.15s;
+    overflow: hidden;
+    position: relative;
+  }
+  .selectable:hover { border-color: rgba(255,255,255,0.12); transform: translateY(-1px); }
+  .selectable.selected { border-color: #50d2c1; box-shadow: 0 0 0 1px rgba(80,210,193,0.15); }
+
+  .option-label {
+    position: absolute; top: 10px; left: 10px;
+    font-size: 9px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+    color: rgba(255,255,255,0.3); background: rgba(0,0,0,0.5);
+    padding: 3px 8px; border-radius: 4px;
+    transition: color 0.2s;
+  }
+  .selected .option-label { color: #50d2c1; }
+
+  .option-desc {
+    padding: 14px 16px 16px;
+    background: rgba(8,8,8,0.8);
+    border-top: 1px solid rgba(255,255,255,0.05);
+  }
+  .option-name { font-size: 14px; font-weight: 600; color: #f0f0f0; margin-bottom: 4px; }
+  .option-text { font-size: 12px; color: rgba(255,255,255,0.38); line-height: 1.5; }
+
+
+  /* ─── CARD STYLES ─── */
+
+  /* A: Current (subtle glass) */
+  .card-a {
+    background: rgba(12,12,12,0.7);
+    border: 1px solid rgba(255,255,255,0.07);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 2px 20px rgba(0,0,0,0.4);
+  }
+
+  /* B: Defined glass (stronger blur, clearer border) */
+  .card-b {
+    background: rgba(14,14,14,0.8);
+    border: 1px solid rgba(255,255,255,0.11);
+    backdrop-filter: blur(24px) saturate(1.4);
+    box-shadow: 0 4px 32px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.05);
+  }
+
+  /* C: Flat minimal */
+  .card-c {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    backdrop-filter: none;
+    box-shadow: none;
+  }
+
+  .card-hdr {
+    padding: 13px 18px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    display: flex; align-items: center;
+  }
+  .card-ttl { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.4); }
+  .card-lnk { margin-left: auto; font-size: 12px; color: rgba(255,255,255,0.25); }
+  .card-bd { padding: 16px 18px; }
+
+  .mini-stat-lbl { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.35); }
+  .mini-stat-val { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; margin-top: 8px; }
+  .mini-stat-sub { font-size: 12px; color: rgba(255,255,255,0.3); margin-top: 4px; }
+
+  .mini-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .mini-row:last-child { border-bottom: none; }
+  .mini-name { font-size: 14px; font-weight: 600; color: #f0f0f0; flex: 1; }
+  .mini-pill { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 3px; letter-spacing: 0.04em; }
+
+
+  /* ─── ROW HOVER ─── */
+
+  .hover-demo {
+    border-radius: 10px; overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.07);
+    background: rgba(12,12,12,0.7);
+    backdrop-filter: blur(16px);
+  }
+
+  .hover-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 18px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    cursor: pointer;
+  }
+  .hover-row:last-child { border-bottom: none; }
+  .hover-row .rname { font-size: 14px; font-weight: 600; color: #f0f0f0; flex: 1; }
+  .hover-row .rsub { font-size: 12px; color: rgba(255,255,255,0.35); margin-top: 1px; }
+  .hover-row .rpill { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 3px; }
+
+  /* Hover style A: barely visible (current) */
+  .hover-a .hover-row { transition: background 0.12s; }
+  .hover-a .hover-row:hover { background: rgba(255,255,255,0.02); }
+
+  /* Hover style B: left accent bar */
+  .hover-b .hover-row { transition: background 0.12s, border-left 0.12s; border-left: 2px solid transparent; }
+  .hover-b .hover-row:hover { background: rgba(255,255,255,0.03); border-left-color: #50d2c1; }
+
+  /* Hover style C: full glow lift */
+  .hover-c .hover-row { transition: background 0.15s, box-shadow 0.15s; border-radius: 6px; margin: 0 6px; padding: 12px 12px; }
+  .hover-c .hover-row:hover { background: rgba(255,255,255,0.04); box-shadow: 0 0 0 1px rgba(255,255,255,0.07); }
+
+
+  /* ─── BUTTONS ─── */
+
+  .btn-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+
+  /* Option A: ghost (outline only) */
+  .btn-ghost {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px; font-weight: 600; letter-spacing: 0.02em;
+    padding: 8px 18px; border-radius: 8px;
+    background: transparent;
+    border: 1px solid rgba(255,255,255,0.15);
+    color: rgba(255,255,255,0.7);
+    cursor: pointer; transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+  .btn-ghost:hover { border-color: rgba(255,255,255,0.3); color: #f0f0f0; background: rgba(255,255,255,0.04); }
+
+  /* Option B: accent fill */
+  .btn-accent {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px; font-weight: 600; letter-spacing: 0.02em;
+    padding: 8px 18px; border-radius: 8px;
+    background: rgba(80,210,193,0.12);
+    border: 1px solid rgba(80,210,193,0.3);
+    color: #50d2c1;
+    cursor: pointer; transition: background 0.15s, border-color 0.15s;
+  }
+  .btn-accent:hover { background: rgba(80,210,193,0.18); border-color: rgba(80,210,193,0.5); }
+
+  /* Option C: solid accent */
+  .btn-solid {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px; font-weight: 700; letter-spacing: 0.02em;
+    padding: 8px 18px; border-radius: 8px;
+    background: #50d2c1;
+    border: none;
+    color: #060606;
+    cursor: pointer; transition: opacity 0.15s, transform 0.1s;
+  }
+  .btn-solid:hover { opacity: 0.88; transform: translateY(-1px); }
+
+  /* Option D: danger (red) */
+  .btn-danger {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px; font-weight: 600; letter-spacing: 0.02em;
+    padding: 8px 18px; border-radius: 8px;
+    background: rgba(201,36,53,0.1);
+    border: 1px solid rgba(201,36,53,0.25);
+    color: #c92435;
+    cursor: pointer; transition: background 0.15s, border-color 0.15s;
+  }
+  .btn-danger:hover { background: rgba(201,36,53,0.18); border-color: rgba(201,36,53,0.4); }
+
+  /* Small variants */
+  .btn-sm { font-size: 11px; padding: 5px 12px; }
+
+  .btn-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;
+  }
+  .btn-variant {
+    padding: 20px; background: rgba(12,12,12,0.7);
+    border: 2px solid transparent; border-radius: 12px;
+    backdrop-filter: blur(16px); cursor: pointer;
+    transition: border-color 0.2s;
+  }
+  .btn-variant:hover { border-color: rgba(255,255,255,0.1); }
+  .btn-variant.selected { border-color: #50d2c1; }
+  .btn-variant-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.25); margin-bottom: 14px; }
+  .btn-variant-desc { font-size: 12px; color: rgba(255,255,255,0.38); margin-top: 12px; line-height: 1.5; }
+
+  .sel-bar {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: rgba(8,8,8,0.96); border-top: 1px solid rgba(255,255,255,0.07);
+    padding: 14px 48px; display: flex; align-items: center; justify-content: space-between;
+    backdrop-filter: blur(20px); z-index: 100;
+    font-size: 13px; color: rgba(255,255,255,0.5);
+    transform: translateY(100%); opacity: 0; transition: all 0.2s;
+  }
+  .sel-bar.vis { transform: translateY(0); opacity: 1; }
+  .sel-summary { color: #50d2c1; font-weight: 600; font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>Cards, rows, buttons</h1>
+  <p class="subtitle">Click your preferred option in each section. All three are independent choices — pick the card style you want, then the hover style, then the button style.</p>
+
+
+  <!-- CARDS -->
+  <div class="section">
+    <div class="section-label">Card Style</div>
+    <div class="option-set cols-3">
+
+      <div class="selectable" id="card-a" onclick="pick('card','a','Subtle glass (current)')">
+        <div class="option-label">A — Current</div>
+        <div style="padding: 20px 16px 12px;">
+          <div class="card-a" style="border-radius:10px;overflow:hidden;">
+            <div class="card-hdr"><span class="card-ttl">Signals</span><span class="card-lnk">View all</span></div>
+            <div class="card-bd">
+              <div class="mini-stat-lbl">In Profit</div>
+              <div class="mini-stat-val" style="color:#6aaa7a;">68%</div>
+              <div class="mini-stat-sub">last 30 days</div>
+              <div style="margin-top:14px;">
+                <div class="mini-row"><span class="mini-name">BTC Divergence</span><span class="mini-pill" style="background:rgba(106,170,122,0.1);border:1px solid rgba(106,170,122,0.2);color:#6aaa7a;">LONG</span></div>
+                <div class="mini-row"><span class="mini-name">Regime Warning</span><span class="mini-pill" style="background:rgba(196,146,90,0.12);border:1px solid rgba(196,146,90,0.25);color:#c4925a;">CAUTION</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="option-desc">
+          <div class="option-name">Subtle Glass</div>
+          <div class="option-text">blur(16px), border 7% white. Very quiet — cards nearly disappear into the background.</div>
+        </div>
+      </div>
+
+      <div class="selectable" id="card-b" onclick="pick('card','b','Defined glass')">
+        <div class="option-label">B</div>
+        <div style="padding: 20px 16px 12px;">
+          <div class="card-b" style="border-radius:10px;overflow:hidden;">
+            <div class="card-hdr" style="border-bottom:1px solid rgba(255,255,255,0.07);"><span class="card-ttl">Signals</span><span class="card-lnk">View all</span></div>
+            <div class="card-bd">
+              <div class="mini-stat-lbl">In Profit</div>
+              <div class="mini-stat-val" style="color:#6aaa7a;">68%</div>
+              <div class="mini-stat-sub">last 30 days</div>
+              <div style="margin-top:14px;">
+                <div class="mini-row"><span class="mini-name">BTC Divergence</span><span class="mini-pill" style="background:rgba(106,170,122,0.1);border:1px solid rgba(106,170,122,0.2);color:#6aaa7a;">LONG</span></div>
+                <div class="mini-row"><span class="mini-name">Regime Warning</span><span class="mini-pill" style="background:rgba(196,146,90,0.12);border:1px solid rgba(196,146,90,0.25);color:#c4925a;">CAUTION</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="option-desc">
+          <div class="option-name">Defined Glass</div>
+          <div class="option-text">blur(24px) + saturate, border 11% white, inner top highlight. Cards feel solid and layered.</div>
+        </div>
+      </div>
+
+      <div class="selectable" id="card-c" onclick="pick('card','c','Flat minimal')">
+        <div class="option-label">C</div>
+        <div style="padding: 20px 16px 12px;">
+          <div class="card-c" style="border-radius:10px;overflow:hidden;">
+            <div class="card-hdr"><span class="card-ttl">Signals</span><span class="card-lnk">View all</span></div>
+            <div class="card-bd">
+              <div class="mini-stat-lbl">In Profit</div>
+              <div class="mini-stat-val" style="color:#6aaa7a;">68%</div>
+              <div class="mini-stat-sub">last 30 days</div>
+              <div style="margin-top:14px;">
+                <div class="mini-row"><span class="mini-name">BTC Divergence</span><span class="mini-pill" style="background:rgba(106,170,122,0.1);border:1px solid rgba(106,170,122,0.2);color:#6aaa7a;">LONG</span></div>
+                <div class="mini-row"><span class="mini-name">Regime Warning</span><span class="mini-pill" style="background:rgba(196,146,90,0.12);border:1px solid rgba(196,146,90,0.25);color:#c4925a;">CAUTION</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="option-desc">
+          <div class="option-name">Flat Minimal</div>
+          <div class="option-text">No blur, no shadow, 3% white fill. Max content focus — the data is the UI.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- ROW HOVER -->
+  <div class="section">
+    <div class="section-label">Row Hover State</div>
+    <div class="option-set cols-3">
+
+      <div class="selectable" id="hover-a" onclick="pick('hover','a','Subtle background shift (current)')">
+        <div class="option-label">A — Current</div>
+        <div style="padding: 20px 16px 12px;">
+          <div class="hover-demo hover-a">
+            <div class="hover-row"><div><div class="rname">BTC Divergence</div><div class="rsub">3 wallets vs market</div></div><span class="rpill" style="background:rgba(106,170,122,0.1);border:1px solid rgba(106,170,122,0.2);color:#6aaa7a;">LONG</span></div>
+            <div class="hover-row" style="background:rgba(255,255,255,0.02);"><div><div class="rname">Regime Warning</div><div class="rsub">BTC at resistance</div></div><span class="rpill" style="background:rgba(196,146,90,0.12);border:1px solid rgba(196,146,90,0.25);color:#c4925a;">CAUTION</span></div>
+            <div class="hover-row"><div><div class="rname">ETH Momentum</div><div class="rsub">7 wallets exiting</div></div><span class="rpill" style="background:rgba(201,36,53,0.1);border:1px solid rgba(201,36,53,0.2);color:#c92435;">SHORT</span></div>
+          </div>
+        </div>
+        <div class="option-desc">
+          <div class="option-name">Ghost Lift</div>
+          <div class="option-text">Barely-there background shift. Very quiet. Second row shown as hovered.</div>
+        </div>
+      </div>
+
+      <div class="selectable" id="hover-b" onclick="pick('hover','b','Accent left bar')">
+        <div class="option-label">B</div>
+        <div style="padding: 20px 16px 12px;">
+          <div class="hover-demo hover-b" style="overflow:visible;">
+            <div class="hover-row"><div><div class="rname">BTC Divergence</div><div class="rsub">3 wallets vs market</div></div><span class="rpill" style="background:rgba(106,170,122,0.1);border:1px solid rgba(106,170,122,0.2);color:#6aaa7a;">LONG</span></div>
+            <div class="hover-row" style="background:rgba(255,255,255,0.03);border-left:2px solid #50d2c1;"><div><div class="rname">Regime Warning</div><div class="rsub">BTC at resistance</div></div><span class="rpill" style="background:rgba(196,146,90,0.12);border:1px solid rgba(196,146,90,0.25);color:#c4925a;">CAUTION</span></div>
+            <div class="hover-row"><div><div class="rname">ETH Momentum</div><div class="rsub">7 wallets exiting</div></div><span class="rpill" style="background:rgba(201,36,53,0.1);border:1px solid rgba(201,36,53,0.2);color:#c92435;">SHORT</span></div>
+          </div>
+        </div>
+        <div class="option-desc">
+          <div class="option-name">Accent Bar</div>
+          <div class="option-text">Teal left border appears on hover. Matches the nav active state. Makes selection feel intentional.</div>
+        </div>
+      </div>
+
+      <div class="selectable" id="hover-c" onclick="pick('hover','c','Inset glow lift')">
+        <div class="option-label">C</div>
+        <div style="padding: 20px 16px 12px;">
+          <div class="hover-demo hover-c" style="padding: 4px 0;">
+            <div class="hover-row"><div><div class="rname">BTC Divergence</div><div class="rsub">3 wallets vs market</div></div><span class="rpill" style="background:rgba(106,170,122,0.1);border:1px solid rgba(106,170,122,0.2);color:#6aaa7a;">LONG</span></div>
+            <div class="hover-row" style="background:rgba(255,255,255,0.04);box-shadow:0 0 0 1px rgba(255,255,255,0.07);border-radius:6px;"><div><div class="rname">Regime Warning</div><div class="rsub">BTC at resistance</div></div><span class="rpill" style="background:rgba(196,146,90,0.12);border:1px solid rgba(196,146,90,0.25);color:#c4925a;">CAUTION</span></div>
+            <div class="hover-row"><div><div class="rname">ETH Momentum</div><div class="rsub">7 wallets exiting</div></div><span class="rpill" style="background:rgba(201,36,53,0.1);border:1px solid rgba(201,36,53,0.2);color:#c92435;">SHORT</span></div>
+          </div>
+        </div>
+        <div class="option-desc">
+          <div class="option-name">Inset Lift</div>
+          <div class="option-text">Row gets a subtle border outline and slight background lift — like a floating card within the list.</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+
+  <!-- BUTTONS -->
+  <div class="section">
+    <div class="section-label">Button Style</div>
+
+    <div class="btn-grid">
+
+      <div class="btn-variant selectable" id="btn-a" onclick="pick('btn','a','Ghost outline buttons')">
+        <div class="option-label" style="position:relative;top:0;left:0;margin-bottom:14px;">A</div>
+        <div class="btn-variant-label">Ghost outline</div>
+        <div class="btn-row">
+          <button class="btn-ghost">View signals</button>
+          <button class="btn-ghost">Export</button>
+          <button class="btn-ghost btn-sm">Filter</button>
+        </div>
+        <div class="btn-row" style="margin-top:8px;">
+          <button class="btn-accent">Connect wallet</button>
+          <button class="btn-danger">Remove</button>
+        </div>
+        <div class="btn-variant-desc">Neutral borders for most actions. Accent teal for primary CTA. Red for destructive. Very restrained — keeps focus on data.</div>
+      </div>
+
+      <div class="btn-variant selectable" id="btn-b" onclick="pick('btn','b','Solid accent primary')">
+        <div class="option-label" style="position:relative;top:0;left:0;margin-bottom:14px;">B</div>
+        <div class="btn-variant-label">Solid primary</div>
+        <div class="btn-row">
+          <button class="btn-solid">Connect wallet</button>
+          <button class="btn-ghost">Export</button>
+          <button class="btn-ghost btn-sm">Filter</button>
+        </div>
+        <div class="btn-row" style="margin-top:8px;">
+          <button class="btn-ghost">View signals</button>
+          <button class="btn-danger">Remove</button>
+        </div>
+        <div class="btn-variant-desc">Solid #50d2c1 fill for the primary action. Dark text on teal. High contrast — unmissable. Ghost for secondary.</div>
+      </div>
+
+    </div>
+  </div>
+
+
+</div>
+
+<div class="sel-bar" id="sel-bar">
+  <div>
+    <div class="sel-summary" id="sel-summary">Make your selections above</div>
+    <div style="font-size:12px;color:rgba(255,255,255,0.3);margin-top:2px;" id="sel-detail">Cards, rows, and buttons are independent — pick one each</div>
+  </div>
+</div>
+
+<script>
+const picks = { card: null, hover: null, btn: null };
+const labels = { card: null, hover: null, btn: null };
+
+function pick(group, id, label) {
+  // Deselect old
+  if (picks[group]) {
+    const old = document.getElementById(group + '-' + picks[group]);
+    if (old) old.classList.remove('selected');
+  }
+  picks[group] = id;
+  labels[group] = label;
+  document.getElementById(group + '-' + id).classList.add('selected');
+
+  // Update bar
+  const parts = [];
+  if (labels.card) parts.push('Cards: ' + labels.card);
+  if (labels.hover) parts.push('Rows: ' + labels.hover);
+  if (labels.btn) parts.push('Buttons: ' + labels.btn);
+
+  document.getElementById('sel-summary').textContent = parts.join('  ·  ');
+  document.getElementById('sel-detail').textContent = 'Tell me in the terminal when you\'re done — or keep exploring';
+  document.getElementById('sel-bar').classList.add('vis');
+}
+</script>
+</body>
+</html>

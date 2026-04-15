@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Coin Filter Variants</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: #060606; color: #f0f0f0; font-family: 'DM Sans', system-ui, sans-serif; padding: 28px 32px 80px; }
+h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+.page-sub { font-size: 13px; color: rgba(255,255,255,0.38); margin-bottom: 28px; }
+
+.concept { border: 1px solid rgba(255,255,255,0.07); border-radius: 12px; margin-bottom: 28px; background: rgba(10,10,10,0.8); cursor: pointer; transition: border-color 0.2s; overflow: hidden; }
+.concept:hover { border-color: rgba(255,255,255,0.15); }
+.concept.selected { border-color: #50d2c1; box-shadow: 0 0 0 1px rgba(80,210,193,0.3); }
+.ch { display: flex; align-items: baseline; gap: 12px; padding: 14px 20px 12px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+.num { font-size: 11px; font-weight: 700; letter-spacing: .1em; color: rgba(255,255,255,0.22); }
+.cname { font-size: 15px; font-weight: 700; }
+.cdesc { font-size: 12px; color: rgba(255,255,255,0.35); margin-left: auto; text-align: right; max-width: 400px; line-height: 1.5; }
+.mockup { padding: 16px 20px; }
+
+:root {
+  --g: #6aaa7a; --r: #c92435; --a: #c4925a; --ac: #50d2c1;
+  --t: #f0f0f0; --bd: rgba(255,255,255,0.06); --card: rgba(14,14,14,0.97);
+}
+
+/* panels */
+.panel { background: var(--card); border: 1px solid var(--bd); border-radius: 8px; overflow: hidden; }
+.cat { padding: 8px 12px 3px; font-size: 8px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: rgba(255,255,255,0.2); }
+
+/* recipe items */
+.ri { display: flex; align-items: center; gap: 7px; padding: 6px 12px; border-bottom: 1px solid rgba(255,255,255,0.025); cursor: pointer; border-left: 2px solid transparent; }
+.ri:last-child { border-bottom: none; }
+.ri.on { border-left-color: var(--ac); background: rgba(80,210,193,0.04); }
+.ri.on .rn { color: var(--t); font-weight: 700; }
+.rn { font-size: 9px; font-weight: 500; color: rgba(255,255,255,0.5); flex: 1; }
+.dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; background: rgba(255,255,255,0.1); }
+.dot.new { background: var(--a); box-shadow: 0 0 4px rgba(196,146,90,0.45); }
+
+/* tooltip — drops below */
+.tip { position: absolute; top: calc(100% + 4px); left: 12px; width: 218px; background: rgba(18,18,18,0.99); border: 1px solid rgba(255,255,255,0.12); border-radius: 9px; padding: 12px 14px; z-index: 200; box-shadow: 0 12px 32px rgba(0,0,0,0.8); pointer-events: none; }
+.tip::before { content: ''; position: absolute; bottom: 100%; left: 14px; border: 5px solid transparent; border-bottom-color: rgba(255,255,255,0.12); }
+.tip-name { font-size: 10px; font-weight: 700; color: var(--t); margin-bottom: 5px; }
+.tip-desc { font-size: 9px; color: rgba(255,255,255,0.42); line-height: 1.55; margin-bottom: 9px; }
+.tip-spark { display: flex; gap: 3px; align-items: flex-end; height: 16px; margin-bottom: 4px; }
+.tip-spark div { flex: 1; border-radius: 2px; }
+.tip-meta { font-size: 8px; color: rgba(255,255,255,0.22); display: flex; gap: 10px; }
+.tip-meta .ac { color: var(--ac); font-weight: 700; } .tip-meta .hi { color: var(--g); font-weight: 700; }
+
+/* signal rows */
+.sr { display: flex; align-items: center; gap: 7px; padding: 9px 14px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+.sr:last-child { border-bottom: none; }
+.sb { font-size: 8px; font-weight: 700; letter-spacing: .05em; padding: 2px 5px; border-radius: 3px; flex-shrink: 0; }
+.sb.en { background: rgba(106,170,122,0.12); color: var(--g); border: 1px solid rgba(106,170,122,0.22); }
+.sb.al { background: rgba(196,146,90,0.12); color: var(--a); border: 1px solid rgba(196,146,90,0.22); }
+.sd { font-size: 8px; font-weight: 700; padding: 2px 5px; border-radius: 3px; }
+.sd.lo { background: rgba(106,170,122,0.09); color: var(--g); border: 1px solid rgba(106,170,122,0.16); }
+.sd.sh { background: rgba(201,36,53,0.09); color: var(--r); border: 1px solid rgba(201,36,53,0.16); }
+.sc { font-size: 8px; font-weight: 700; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.65); }
+.sn { font-size: 10px; color: rgba(255,255,255,0.6); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.addr { font-family: 'Geist Mono', monospace; font-size: 9px; color: rgba(156,163,175,0.75); white-space: nowrap; }
+.st { font-size: 8px; color: rgba(255,255,255,0.2); flex-shrink: 0; }
+.ev { font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.ev.hi { color: var(--g); } .ev.md { color: var(--a); }
+.dsep { padding: 5px 14px 3px; font-size: 8px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: rgba(255,255,255,0.18); display: flex; align-items: center; gap: 8px; }
+.dsep::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.04); }
+
+/* hero */
+.hero { font-size: 26px; font-weight: 700; line-height: 1; }
+.hero-sub { font-size: 10px; color: rgba(255,255,255,0.28); }
+
+/* F2 direction segmented (shared across all 5) */
+.seg { display: flex; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; overflow: hidden; flex-shrink: 0; }
+.seg-i { font-size: 9px; font-weight: 600; padding: 5px 12px; color: rgba(255,255,255,0.32); cursor: pointer; border-right: 1px solid rgba(255,255,255,0.07); white-space: nowrap; }
+.seg-i:last-child { border-right: none; }
+.seg-i.on { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.85); }
+.seg-i.lo { background: rgba(106,170,122,0.1); color: var(--g); }
+
+.divider { width: 1px; height: 20px; background: rgba(255,255,255,0.08); flex-shrink: 0; }
+
+/* coin chip (shared base) */
+.cc { font-size: 8.5px; font-weight: 700; padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.4); cursor: pointer; white-space: nowrap; }
+.cc.on { border-color: rgba(255,255,255,0.22); background: rgba(255,255,255,0.09); color: rgba(255,255,255,0.9); }
+.cc.sig { border-color: rgba(80,210,193,0.22); background: rgba(80,210,193,0.06); color: rgba(80,210,193,0.8); }  /* in-signal coins */
+
+/* styled select */
+.sel-wrap { position: relative; display: inline-flex; align-items: center; }
+.sel-wrap::after { content: '▾'; position: absolute; right: 8px; font-size: 8px; color: rgba(255,255,255,0.28); pointer-events: none; }
+.styled-sel { appearance: none; -webkit-appearance: none; font-size: 9px; font-weight: 600; padding: 5px 22px 5px 10px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.6); font-family: inherit; outline: none; cursor: pointer; }
+
+/* sidebar shared */
+.sidebar { width: 175px; flex-shrink: 0; background: var(--card); border: 1px solid var(--bd); border-radius: 8px; overflow: visible; }
+.si { overflow: hidden; border-radius: 7px; }
+.lph { padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 8px; font-weight: 700; letter-spacing: .09em; color: rgba(255,255,255,0.22); display: flex; align-items: center; gap: 5px; }
+.new-badge { font-size: 7.5px; font-weight: 700; padding: 1px 5px; border-radius: 3px; background: rgba(196,146,90,0.15); color: var(--a); border: 1px solid rgba(196,146,90,0.3); letter-spacing: 0; text-transform: none; }
+
+/* selection */
+#sel { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(8,8,8,0.97); border: 1px solid rgba(80,210,193,0.5); border-radius: 8px; padding: 10px 24px; font-size: 13px; color: #50d2c1; display: none; z-index: 9999; backdrop-filter: blur(14px); white-space: nowrap; }
+#sel.vis { display: block; }
+</style>
+</head>
+<body>
+
+<h1>Coin Filter — 5 Variants</h1>
+<p class="page-sub">Direction is F2 (segmented control) in all. Only the coin filter changes. Sidebar dots: orange = NEW, dim = nothing today.</p>
+
+
+<!-- shared sidebar snippet as a JS template to avoid repetition -->
+<!-- each concept manually includes it for clarity -->
+
+
+<!-- ══════════════════════════════════ C1 ══ -->
+<div class="concept" onclick="pick(this,'C1 — Chips row: top volume + search')">
+<div class="ch">
+  <span class="num">C1</span>
+  <span class="cname">Top-volume chips + search field</span>
+  <span class="cdesc">Fixed row of the 6 highest-volume coins as one-tap chips. A search input sits at the end for any other Hyperliquid ticker. Simple, always visible, no interaction to reveal options.</span>
+</div>
+<div class="mockup"><div style="display:flex;gap:12px;align-items:flex-start;">
+
+<div class="sidebar"><div class="si">
+  <div class="lph">RECIPES <span class="dot new" style="margin-left:auto;"></span><span class="new-badge">NEW</span></div>
+  <div class="cat">Momentum</div>
+  <div class="ri on" style="position:relative;"><div class="dot new"></div><span class="rn">Whale Convergence</span>
+    <div class="tip"><div class="tip-name">Whale Convergence</div><div class="tip-desc">8+ high-score wallets add $500K+ same direction within 5 min.</div><div class="tip-spark"><div style="background:rgba(196,146,90,0.18);height:3px;"></div><div style="background:rgba(196,146,90,0.28);height:6px;"></div><div style="background:rgba(196,146,90,0.18);height:2px;"></div><div style="background:rgba(196,146,90,0.18);height:3px;"></div><div style="background:rgba(196,146,90,0.45);height:11px;"></div><div style="background:rgba(196,146,90,0.85);height:16px;border:1px solid rgba(196,146,90,0.5);"></div><div style="background:rgba(196,146,90,0.85);height:16px;border:1px solid rgba(196,146,90,0.5);"></div></div><div class="tip-meta">7d signals <span class="ac">3</span> · avg EV <span class="hi">76</span></div></div>
+  </div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Hot Streak</span></div>
+  <div class="ri"><div class="dot"></div><span class="rn">Dip Conviction</span></div>
+  <div class="cat">Risk</div>
+  <div class="ri"><div class="dot"></div><span class="rn">Liq. Flush</span></div>
+  <div class="ri"><div class="dot"></div><span class="rn">Patience Trap</span></div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Crowded Coin</span></div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Silent Loading</span></div>
+  <div class="cat">Smart Money</div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Alpha Confirmation</span></div>
+  <div class="ri"><div class="dot"></div><span class="rn">Smart Exit Signal</span></div>
+  <div class="ri"><div class="dot"></div><span class="rn">Coordinated Exit</span></div>
+  <div class="ri"><div class="dot"></div><span class="rn">SM vs Retail</span></div>
+  <div class="cat">Carry / Funding</div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Funded Edge</span></div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Funding Surge</span></div>
+</div></div>
+
+<div class="panel" style="flex:1;">
+  <div style="padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.05);">
+    <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px;">
+      <span class="hero">3</span><span class="hero-sub" style="margin-left:6px;">signals · Whale Convergence · last 7 days</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <div class="seg"><div class="seg-i on">All</div><div class="seg-i lo">Long</div><div class="seg-i">Short</div><div class="seg-i">Flat</div></div>
+      <div class="divider"></div>
+      <!-- C1: flat chip row + search -->
+      <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+        <div class="cc on">BTC</div>
+        <div class="cc on">ETH</div>
+        <div class="cc">SOL</div>
+        <div class="cc">HYPE</div>
+        <div class="cc">ARB</div>
+        <div class="cc">SUI</div>
+        <div style="font-size:9px;padding:3px 8px 3px 20px;border-radius:4px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);color:rgba(255,255,255,0.28);position:relative;display:inline-flex;align-items:center;width:100px;"><span style="position:absolute;left:7px;opacity:.4;font-size:9px;">⌕</span>search ticker</div>
+      </div>
+    </div>
+  </div>
+  <div class="dsep">Today</div>
+  <div class="sr"><div class="sb en">ENTRY</div><div class="sc">BTC</div><div class="sd lo">LONG</div><div class="sn">9 wallets added $1.2M LONG in 4 min</div><div class="addr">0x1f4a8c3d2e9b7f6a0c4d5e8f3b2a1c9d4e7f8b0a</div><div class="st">2m</div><div class="ev hi">87</div></div>
+  <div class="dsep" style="opacity:.6">2 days ago</div>
+  <div class="sr" style="opacity:.65;"><div class="sb en">ENTRY</div><div class="sc">ETH</div><div class="sd sh">SHORT</div><div class="sn">11 wallets added $890K SHORT in 3 min</div><div class="addr">0x8e21f4a0c3d2b1e9f4a0c3d2b1e90c4d5e8f3b2</div><div class="st">2d</div><div class="ev hi">61</div></div>
+</div>
+
+</div></div>
+</div>
+
+
+<!-- ══════════════════════════════════ C2 ══ -->
+<div class="concept" onclick="pick(this,'C2 — Volume-ranked dropdown with bars')">
+<div class="ch">
+  <span class="num">C2</span>
+  <span class="cname">Volume-ranked dropdown with mini bars</span>
+  <span class="cdesc">A styled select dropdown. Each option shows the coin name and a tiny volume indicator. Top coins sorted by 24h volume descending. Last option opens a freeform search for any ticker.</span>
+</div>
+<div class="mockup"><div style="display:flex;gap:12px;align-items:flex-start;">
+
+<div class="sidebar"><div class="si">
+  <div class="lph">RECIPES <span class="dot new" style="margin-left:auto;"></span><span class="new-badge">NEW</span></div>
+  <div class="cat">Momentum</div>
+  <div class="ri on" style="position:relative;"><div class="dot new"></div><span class="rn">Whale Convergence</span>
+    <div class="tip"><div class="tip-name">Whale Convergence</div><div class="tip-desc">8+ high-score wallets add $500K+ same direction within 5 min.</div><div class="tip-spark"><div style="background:rgba(196,146,90,0.18);height:3px;"></div><div style="background:rgba(196,146,90,0.28);height:6px;"></div><div style="background:rgba(196,146,90,0.18);height:2px;"></div><div style="background:rgba(196,146,90,0.18);height:3px;"></div><div style="background:rgba(196,146,90,0.45);height:11px;"></div><div style="background:rgba(196,146,90,0.85);height:16px;border:1px solid rgba(196,146,90,0.5);"></div><div style="background:rgba(196,146,90,0.85);height:16px;border:1px solid rgba(196,146,90,0.5);"></div></div><div class="tip-meta">7d signals <span class="ac">3</span> · avg EV <span class="hi">76</span></div></div>
+  </div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Hot Streak</span></div>
+  <div class="ri"><div class="dot"></div><span class="rn">Dip Conviction</span></div>
+  <div class="cat">Risk</div>
+  <div class="ri"><div class="dot"></div><span class="rn">Liq. Flush</span></div>
+  <div class="ri"><div class="dot"></div><span class="rn">Patience Trap</span></div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Crowded Coin</span></div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Silent Loading</span></div>
+  <div class="cat">Smart Money</div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Alpha Confirmation</span></div>
+  <div class="ri"><div class="dot"></div><span class="rn">Smart Exit Signal</span></div>
+  <div class="ri"><div class="dot"></div><span class="rn">Coordinated Exit</span></div>
+  <div class="ri"><div class="dot"></div><span class="rn">SM vs Retail</span></div>
+  <div class="cat">Carry / Funding</div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Funded Edge</span></div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Funding Surge</span></div>
+</div></div>
+
+<div class="panel" style="flex:1;">
+  <div style="padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.05);">
+    <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px;">
+      <span class="hero">3</span><span class="hero-sub" style="margin-left:6px;">signals · Whale Convergence · last 7 days</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div class="seg"><div class="seg-i on">All</div><div class="seg-i lo">Long</div><div class="seg-i">Short</div><div class="seg-i">Flat</div></div>
+      <div class="divider"></div>
+      <!-- C2: styled select with volume labels -->
+      <div class="sel-wrap">
+        <select class="styled-sel" style="min-width:180px;">
+          <option>All coins</option>
+          <optgroup label="Top by 24h volume">
+            <option selected>BTC  ████████  $2.1B</option>
+            <option>ETH  ██████    $980M</option>
+            <option>SOL  ████      $640M</option>
+            <option>HYPE ███       $380M</option>
+            <option>ARB  ██        $210M</option>
+            <option>SUI  ██        $195M</option>
+            <option>DOGE █         $140M</option>
+          </optgroup>
+          <optgroup label="──────────────">
+            <option>⌕  Search any ticker...</option>
+          </optgroup>
+        </select>
+      </div>
+      <span style="font-size:8px;color:rgba(255,255,255,0.22);">multi-select via dropdown</span>
+    </div>
+  </div>
+  <div class="dsep">Today</div>
+  <div class="sr"><div class="sb en">ENTRY</div><div class="sc">BTC</div><div class="sd lo">LONG</div><div class="sn">9 wallets added $1.2M LONG in 4 min</div><div class="addr">0x1f4a8c3d2e9b7f6a0c4d5e8f3b2a1c9d4e7f8b0a</div><div class="st">2m</div><div class="ev hi">87</div></div>
+  <div class="dsep" style="opacity:.6">2 days ago</div>
+  <div class="sr" style="opacity:.65;"><div class="sb en">ENTRY</div><div class="sc">ETH</div><div class="sd sh">SHORT</div><div class="sn">11 wallets added $890K SHORT in 3 min</div><div class="addr">0x8e21f4a0c3d2b1e9f4a0c3d2b1e90c4d5e8f3b2</div><div class="st">2d</div><div class="ev hi">61</div></div>
+</div>
+
+</div></div>
+</div>
+
+
+<!-- ══════════════════════════════════ C3 ══ -->
+<div class="concept" onclick="pick(this,'C3 — Signal-aware: in-signal coins first, others below')">
+<div class="ch">
+  <span class="num">C3</span>
+  <span class="cname">Signal-aware coin filter</span>
+  <span class="cdesc">Two tiers: top row shows only coins that appear in the currently selected recipe's signals — teal tint, always relevant. Below that, top-volume coins for broader filtering. Search for anything else.</span>
+</div>
+<div class="mockup"><div style="display:flex;gap:12px;align-items:flex-start;">
+
+<div class="sidebar"><div class="si">
+  <div class="lph">RECIPES <span class="dot new" style="margin-left:auto;"></span><span class="new-badge">NEW</span></div>
+  <div class="cat">Momentum</div>
+  <div class="ri on" style="position:relative;"><div class="dot new"></div><span class="rn">Whale Convergence</span>
+    <div class="tip"><div class="tip-name">Whale Convergence</div><div class="tip-desc">8+ high-score wallets add $500K+ same direction within 5 min.</div><div class="tip-spark"><div style="background:rgba(196,146,90,0.18);height:3px;"></div><div style="background:rgba(196,146,90,0.28);height:6px;"></div><div style="background:rgba(196,146,90,0.18);height:2px;"></div><div style="background:rgba(196,146,90,0.18);height:3px;"></div><div style="background:rgba(196,146,90,0.45);height:11px;"></div><div style="background:rgba(196,146,90,0.85);height:16px;border:1px solid rgba(196,146,90,0.5);"></div><div style="background:rgba(196,146,90,0.85);height:16px;border:1px solid rgba(196,146,90,0.5);"></div></div><div class="tip-meta">7d signals <span class="ac">3</span> · avg EV <span class="hi">76</span></div></div>
+  </div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Hot Streak</span></div>
+  <div class="ri"><div class="dot"></div><span class="rn">Dip Conviction</span></div>
+  <div class="cat">Risk</div>
+  <div class="ri"><div class="dot"></div><span class="rn">Liq. Flush</span></div>
+  <div class="ri"><div class="dot"></div><span class="rn">Patience Trap</span></div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Crowded Coin</span></div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Silent Loading</span></div>
+  <div class="cat">Smart Money</div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Alpha Confirmation</span></div>
+  <div class="ri"><div class="dot"></div><span class="rn">Smart Exit Signal</span></div>
+  <div class="ri"><div class="dot"></div><span class="rn">Coordinated Exit</span></div>
+  <div class="ri"><div class="dot"></div><span class="rn">SM vs Retail</span></div>
+  <div class="cat">Carry / Funding</div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Funded Edge</span></div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Funding Surge</span></div>
+</div></div>
+
+<div class="panel" style="flex:1;">
+  <div style="padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.05);">
+    <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px;">
+      <span class="hero">3</span><span class="hero-sub" style="margin-left:6px;">signals · Whale Convergence · last 7 days</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div class="seg"><div class="seg-i on">All</div><div class="seg-i lo">Long</div><div class="seg-i">Short</div><div class="seg-i">Flat</div></div>
+      <div class="divider"></div>
+      <!-- C3: two-tier coin selector -->
+      <div style="display:flex;flex-direction:column;gap:5px;">
+        <div style="display:flex;align-items:center;gap:4px;">
+          <span style="font-size:7.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:rgba(80,210,193,0.5);white-space:nowrap;">In signals</span>
+          <div class="cc sig on">BTC</div>
+          <div class="cc sig on">ETH</div>
+          <div class="cc sig">SOL</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:4px;">
+          <span style="font-size:7.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:rgba(255,255,255,0.18);white-space:nowrap;">Top vol</span>
+          <div class="cc">HYPE</div>
+          <div class="cc">ARB</div>
+          <div class="cc">SUI</div>
+          <div class="cc">DOGE</div>
+          <div style="font-size:9px;padding:2px 8px 2px 18px;border-radius:4px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);color:rgba(255,255,255,0.25);position:relative;display:inline-flex;align-items:center;"><span style="position:absolute;left:5px;opacity:.4;font-size:9px;">⌕</span>other</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="dsep">Today</div>
+  <div class="sr"><div class="sb en">ENTRY</div><div class="sc">BTC</div><div class="sd lo">LONG</div><div class="sn">9 wallets added $1.2M LONG in 4 min</div><div class="addr">0x1f4a8c3d2e9b7f6a0c4d5e8f3b2a1c9d4e7f8b0a</div><div class="st">2m</div><div class="ev hi">87</div></div>
+  <div class="dsep" style="opacity:.6">2 days ago</div>
+  <div class="sr" style="opacity:.65;"><div class="sb en">ENTRY</div><div class="sc">ETH</div><div class="sd sh">SHORT</div><div class="sn">11 wallets added $890K SHORT in 3 min</div><div class="addr">0x8e21f4a0c3d2b1e9f4a0c3d2b1e90c4d5e8f3b2</div><div class="st">2d</div><div class="ev hi">61</div></div>
+</div>
+
+</div></div>
+</div>
+
+
+<!-- ══════════════════════════════════ C4 ══ -->
+<div class="concept" onclick="pick(this,'C4 — Tag-style input with type-ahead')">
+<div class="ch">
+  <span class="num">C4</span>
+  <span class="cname">Tag input with type-ahead</span>
+  <span class="cdesc">Selected coins appear as removable tags inside the input field. Typing opens a ranked list of matching tickers with their 24h volume. No pre-set chip row — the field is the single interaction point.</span>
+</div>
+<div class="mockup"><div style="display:flex;gap:12px;align-items:flex-start;">
+
+<div class="sidebar"><div class="si">
+  <div class="lph">RECIPES <span class="dot new" style="margin-left:auto;"></span><span class="new-badge">NEW</span></div>
+  <div class="cat">Momentum</div>
+  <div class="ri on" style="position:relative;"><div class="dot new"></div><span class="rn">Whale Convergence</span>
+    <div class="tip"><div class="tip-name">Whale Convergence</div><div class="tip-desc">8+ high-score wallets add $500K+ same direction within 5 min.</div><div class="tip-spark"><div style="background:rgba(196,146,90,0.18);height:3px;"></div><div style="background:rgba(196,146,90,0.28);height:6px;"></div><div style="background:rgba(196,146,90,0.18);height:2px;"></div><div style="background:rgba(196,146,90,0.18);height:3px;"></div><div style="background:rgba(196,146,90,0.45);height:11px;"></div><div style="background:rgba(196,146,90,0.85);height:16px;border:1px solid rgba(196,146,90,0.5);"></div><div style="background:rgba(196,146,90,0.85);height:16px;border:1px solid rgba(196,146,90,0.5);"></div></div><div class="tip-meta">7d signals <span class="ac">3</span> · avg EV <span class="hi">76</span></div></div>
+  </div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Hot Streak</span></div>
+  <div class="ri"><div class="dot"></div><span class="rn">Dip Conviction</span></div>
+  <div class="cat">Risk</div>
+  <div class="ri"><div class="dot"></div><span class="rn">Liq. Flush</span></div>
+  <div class="ri"><div class="dot"></div><span class="rn">Patience Trap</span></div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Crowded Coin</span></div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Silent Loading</span></div>
+  <div class="cat">Smart Money</div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Alpha Confirmation</span></div>
+  <div class="ri"><div class="dot"></div><span class="rn">Smart Exit Signal</span></div>
+  <div class="ri"><div class="dot"></div><span class="rn">Coordinated Exit</span></div>
+  <div class="ri"><div class="dot"></div><span class="rn">SM vs Retail</span></div>
+  <div class="cat">Carry / Funding</div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Funded Edge</span></div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Funding Surge</span></div>
+</div></div>
+
+<div class="panel" style="flex:1;">
+  <div style="padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.05);">
+    <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px;">
+      <span class="hero">3</span><span class="hero-sub" style="margin-left:6px;">signals · Whale Convergence · last 7 days</span>
+    </div>
+    <div style="display:flex;align-items:flex-start;gap:8px;">
+      <div class="seg" style="margin-top:1px;"><div class="seg-i on">All</div><div class="seg-i lo">Long</div><div class="seg-i">Short</div><div class="seg-i">Flat</div></div>
+      <div class="divider" style="margin-top:2px;"></div>
+      <!-- C4: tag input + type-ahead dropdown -->
+      <div style="position:relative;flex:1;max-width:320px;">
+        <!-- tag field -->
+        <div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;padding:4px 8px;border:1px solid rgba(255,255,255,0.12);border-radius:5px;background:rgba(255,255,255,0.04);min-height:30px;cursor:text;">
+          <span style="font-size:8.5px;font-weight:700;padding:2px 6px;border-radius:3px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.85);display:inline-flex;align-items:center;gap:4px;">BTC <span style="opacity:.4;cursor:pointer;font-size:9px;">✕</span></span>
+          <span style="font-size:8.5px;font-weight:700;padding:2px 6px;border-radius:3px;background:rgba(255,255,255,0.1);color:rgba(255,255,255,0.85);display:inline-flex;align-items:center;gap:4px;">ETH <span style="opacity:.4;cursor:pointer;font-size:9px;">✕</span></span>
+          <span style="font-size:9px;color:rgba(255,255,255,0.2);">S...</span>
+        </div>
+        <!-- type-ahead dropdown (shown open) -->
+        <div style="position:absolute;top:calc(100% + 4px);left:0;right:0;background:rgba(16,16,16,0.99);border:1px solid rgba(255,255,255,0.1);border-radius:7px;overflow:hidden;z-index:10;box-shadow:0 8px 24px rgba(0,0,0,0.7);">
+          <div style="padding:4px 8px;font-size:7.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:rgba(255,255,255,0.2);border-bottom:1px solid rgba(255,255,255,0.05);">Matching "S"</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;background:rgba(255,255,255,0.04);cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.04);">
+            <span style="font-size:9px;font-weight:700;color:rgba(255,255,255,0.85);">SOL</span>
+            <span style="font-size:8px;color:rgba(255,255,255,0.3);">$640M 24h vol</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.04);">
+            <span style="font-size:9px;font-weight:700;color:rgba(255,255,255,0.65);">SUI</span>
+            <span style="font-size:8px;color:rgba(255,255,255,0.25);">$195M 24h vol</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;cursor:pointer;">
+            <span style="font-size:9px;font-weight:700;color:rgba(255,255,255,0.55);">STX</span>
+            <span style="font-size:8px;color:rgba(255,255,255,0.2);">$28M 24h vol</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="dsep">Today</div>
+  <div class="sr"><div class="sb en">ENTRY</div><div class="sc">BTC</div><div class="sd lo">LONG</div><div class="sn">9 wallets added $1.2M LONG in 4 min</div><div class="addr">0x1f4a8c3d2e9b7f6a0c4d5e8f3b2a1c9d4e7f8b0a</div><div class="st">2m</div><div class="ev hi">87</div></div>
+  <div class="dsep" style="opacity:.6">2 days ago</div>
+  <div class="sr" style="opacity:.65;"><div class="sb en">ENTRY</div><div class="sc">ETH</div><div class="sd sh">SHORT</div><div class="sn">11 wallets added $890K SHORT in 3 min</div><div class="addr">0x8e21f4a0c3d2b1e9f4a0c3d2b1e90c4d5e8f3b2</div><div class="st">2d</div><div class="ev hi">61</div></div>
+</div>
+
+</div></div>
+</div>
+
+
+<!-- ══════════════════════════════════ C5 ══ -->
+<div class="concept" onclick="pick(this,'C5 — Chips + volume bar + search all in one compact block')">
+<div class="ch">
+  <span class="num">C5</span>
+  <span class="cname">Chip grid with volume bars + inline search</span>
+  <span class="cdesc">Top coins shown as chips in a 2-row grid. Each chip has a tiny volume bar underneath proportional to its 24h volume — makes the ranking scannable without text. Search at the end handles any other ticker.</span>
+</div>
+<div class="mockup"><div style="display:flex;gap:12px;align-items:flex-start;">
+
+<div class="sidebar"><div class="si">
+  <div class="lph">RECIPES <span class="dot new" style="margin-left:auto;"></span><span class="new-badge">NEW</span></div>
+  <div class="cat">Momentum</div>
+  <div class="ri on" style="position:relative;"><div class="dot new"></div><span class="rn">Whale Convergence</span>
+    <div class="tip"><div class="tip-name">Whale Convergence</div><div class="tip-desc">8+ high-score wallets add $500K+ same direction within 5 min.</div><div class="tip-spark"><div style="background:rgba(196,146,90,0.18);height:3px;"></div><div style="background:rgba(196,146,90,0.28);height:6px;"></div><div style="background:rgba(196,146,90,0.18);height:2px;"></div><div style="background:rgba(196,146,90,0.18);height:3px;"></div><div style="background:rgba(196,146,90,0.45);height:11px;"></div><div style="background:rgba(196,146,90,0.85);height:16px;border:1px solid rgba(196,146,90,0.5);"></div><div style="background:rgba(196,146,90,0.85);height:16px;border:1px solid rgba(196,146,90,0.5);"></div></div><div class="tip-meta">7d signals <span class="ac">3</span> · avg EV <span class="hi">76</span></div></div>
+  </div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Hot Streak</span></div>
+  <div class="ri"><div class="dot"></div><span class="rn">Dip Conviction</span></div>
+  <div class="cat">Risk</div>
+  <div class="ri"><div class="dot"></div><span class="rn">Liq. Flush</span></div>
+  <div class="ri"><div class="dot"></div><span class="rn">Patience Trap</span></div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Crowded Coin</span></div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Silent Loading</span></div>
+  <div class="cat">Smart Money</div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Alpha Confirmation</span></div>
+  <div class="ri"><div class="dot"></div><span class="rn">Smart Exit Signal</span></div>
+  <div class="ri"><div class="dot"></div><span class="rn">Coordinated Exit</span></div>
+  <div class="ri"><div class="dot"></div><span class="rn">SM vs Retail</span></div>
+  <div class="cat">Carry / Funding</div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Funded Edge</span></div>
+  <div class="ri"><div class="dot new"></div><span class="rn">Funding Surge</span></div>
+</div></div>
+
+<div class="panel" style="flex:1;">
+  <div style="padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.05);">
+    <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:10px;">
+      <span class="hero">3</span><span class="hero-sub" style="margin-left:6px;">signals · Whale Convergence · last 7 days</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      <div class="seg"><div class="seg-i on">All</div><div class="seg-i lo">Long</div><div class="seg-i">Short</div><div class="seg-i">Flat</div></div>
+      <div class="divider"></div>
+      <!-- C5: chips with volume bars -->
+      <div style="display:flex;gap:4px;align-items:flex-end;flex-wrap:wrap;">
+        <!-- each coin chip has a tiny vol bar below -->
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;">
+          <div class="cc on" style="padding:3px 9px;">BTC</div>
+          <div style="width:100%;height:2px;border-radius:1px;background:rgba(255,255,255,0.55);"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;">
+          <div class="cc on" style="padding:3px 9px;">ETH</div>
+          <div style="width:100%;height:2px;border-radius:1px;background:rgba(255,255,255,0.38);"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;">
+          <div class="cc" style="padding:3px 9px;">SOL</div>
+          <div style="width:100%;height:2px;border-radius:1px;background:rgba(255,255,255,0.22);"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;">
+          <div class="cc" style="padding:3px 9px;">HYPE</div>
+          <div style="width:100%;height:2px;border-radius:1px;background:rgba(255,255,255,0.15);"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;">
+          <div class="cc" style="padding:3px 9px;">ARB</div>
+          <div style="width:100%;height:2px;border-radius:1px;background:rgba(255,255,255,0.1);"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;">
+          <div class="cc" style="padding:3px 9px;">SUI</div>
+          <div style="width:100%;height:2px;border-radius:1px;background:rgba(255,255,255,0.09);"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;">
+          <div class="cc" style="padding:3px 9px;">DOGE</div>
+          <div style="width:100%;height:2px;border-radius:1px;background:rgba(255,255,255,0.08);"></div>
+        </div>
+        <div style="font-size:9px;padding:3px 8px 3px 18px;border-radius:4px;border:1px solid rgba(255,255,255,0.08);background:rgba(255,255,255,0.03);color:rgba(255,255,255,0.25);position:relative;display:inline-flex;align-items:center;align-self:flex-start;"><span style="position:absolute;left:5px;opacity:.4;font-size:9px;">⌕</span>more</div>
+      </div>
+    </div>
+  </div>
+  <div class="dsep">Today</div>
+  <div class="sr"><div class="sb en">ENTRY</div><div class="sc">BTC</div><div class="sd lo">LONG</div><div class="sn">9 wallets added $1.2M LONG in 4 min</div><div class="addr">0x1f4a8c3d2e9b7f6a0c4d5e8f3b2a1c9d4e7f8b0a</div><div class="st">2m</div><div class="ev hi">87</div></div>
+  <div class="dsep" style="opacity:.6">2 days ago</div>
+  <div class="sr" style="opacity:.65;"><div class="sb en">ENTRY</div><div class="sc">ETH</div><div class="sd sh">SHORT</div><div class="sn">11 wallets added $890K SHORT in 3 min</div><div class="addr">0x8e21f4a0c3d2b1e9f4a0c3d2b1e90c4d5e8f3b2</div><div class="st">2d</div><div class="ev hi">61</div></div>
+</div>
+
+</div></div>
+</div>
+
+
+<div id="sel"></div>
+<script>
+function pick(el, name) {
+  document.querySelectorAll('.concept').forEach(c => c.classList.remove('selected'));
+  el.classList.add('selected');
+  const s = document.getElementById('sel');
+  s.textContent = '✓ ' + name;
+  s.classList.add('vis');
+  if (window.__sp_recordEvent) window.__sp_recordEvent('click', name, name);
+}
+</script>
+</body>
+</html>

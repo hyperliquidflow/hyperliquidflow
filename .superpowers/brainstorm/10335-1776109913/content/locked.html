@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Design System Locked</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Geist+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    background: #060606;
+    color: #f0f0f0;
+    padding: 40px 48px 60px;
+    min-height: 100vh;
+    position: relative;
+  }
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse at 100% 100%, oklch(32% 0.06 170) 0%, oklch(3.5% 0 0) 100%);
+    z-index: 0; pointer-events: none;
+  }
+  .page { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; }
+
+  .top-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+    color: #50d2c1;
+    background: rgba(80,210,193,0.08); border: 1px solid rgba(80,210,193,0.2);
+    padding: 6px 14px; border-radius: 6px; margin-bottom: 20px;
+  }
+  .dot-live { width: 6px; height: 6px; border-radius: 50%; background: #50d2c1; animation: pulse 2s ease-in-out infinite; }
+  h1 { font-size: 28px; font-weight: 700; color: #f0f0f0; margin-bottom: 6px; }
+  .subtitle { font-size: 15px; color: rgba(255,255,255,0.42); margin-bottom: 40px; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .card {
+    background: rgba(12,12,12,0.7); border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px; overflow: hidden; backdrop-filter: blur(16px);
+  }
+  .card-header {
+    padding: 13px 20px; border-bottom: 1px solid rgba(255,255,255,0.05);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card-title { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.4); }
+  .card-body { padding: 20px; }
+
+  /* Colors */
+  .color-list { display: flex; flex-direction: column; gap: 10px; }
+  .color-item { display: flex; align-items: center; gap: 12px; }
+  .cdot { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; border: 1px solid rgba(255,255,255,0.06); }
+  .cinfo { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+  .cname { font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.8); }
+  .crole { font-size: 11px; color: rgba(255,255,255,0.32); }
+  .chex { font-family: 'Geist Mono', monospace; font-size: 11px; color: rgba(255,255,255,0.22); }
+  .cbadge {
+    font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    padding: 2px 7px; border-radius: 3px; flex-shrink: 0;
+  }
+  .badge-new { background: rgba(80,210,193,0.1); color: #50d2c1; border: 1px solid rgba(80,210,193,0.2); }
+  .badge-updated { background: rgba(196,146,90,0.1); color: #c4925a; border: 1px solid rgba(196,146,90,0.2); }
+  .badge-removed { background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.2); text-decoration: line-through; }
+
+  /* Type scale */
+  .type-list { display: flex; flex-direction: column; gap: 0; }
+  .type-item {
+    display: flex; align-items: baseline; gap: 14px;
+    padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .type-item:last-child { border-bottom: none; }
+  .tsize { font-family: 'Geist Mono', monospace; font-size: 10px; color: rgba(255,255,255,0.2); width: 36px; flex-shrink: 0; }
+  .tsample { color: rgba(255,255,255,0.75); flex: 1; }
+  .trole { font-size: 11px; color: rgba(255,255,255,0.2); text-align: right; }
+
+  /* Font */
+  .font-showcase { display: flex; flex-direction: column; gap: 14px; }
+  .font-pair {
+    display: flex; align-items: center; gap: 16px;
+    padding: 14px 16px; background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06); border-radius: 8px;
+  }
+  .font-role { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(255,255,255,0.22); width: 40px; flex-shrink: 0; }
+  .font-sample-dm { font-family: 'DM Sans', sans-serif; }
+  .font-sample-mono { font-family: 'Geist Mono', monospace; }
+
+  /* Preview */
+  .preview-card { grid-column: 1 / -1; }
+  .sig-row {
+    display: grid; grid-template-columns: 24px 1fr auto auto;
+    align-items: center; gap: 12px; padding: 11px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .sig-row:last-child { border-bottom: none; }
+  .pill { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 4px; letter-spacing: 0.04em; }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="top-badge"><span class="dot-live"></span>All decisions locked</div>
+  <h1>Design system v2</h1>
+  <p class="subtitle">Ready to implement. Everything below goes into design-tokens.ts.</p>
+
+  <div class="grid">
+
+    <!-- Colors -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">Palette</span></div>
+      <div class="card-body">
+        <div class="color-list">
+          <div class="color-item">
+            <div class="cdot" style="background:#6aaa7a;"></div>
+            <div class="cinfo">
+              <span class="cname">color.green</span>
+              <span class="crole">Bullish / profit</span>
+              <span class="chex">#6aaa7a</span>
+            </div>
+          </div>
+          <div class="color-item">
+            <div class="cdot" style="background:#c92435;"></div>
+            <div class="cinfo">
+              <span class="cname">color.red</span>
+              <span class="crole">Bearish / loss</span>
+              <span class="chex">#c92435</span>
+            </div>
+            <span class="cbadge badge-updated">Updated</span>
+          </div>
+          <div class="color-item">
+            <div class="cdot" style="background:#c4925a;"></div>
+            <div class="cinfo">
+              <span class="cname">color.amber</span>
+              <span class="crole">Warning / caution</span>
+              <span class="chex">#c4925a</span>
+            </div>
+            <span class="cbadge badge-updated">Updated</span>
+          </div>
+          <div class="color-item">
+            <div class="cdot" style="background:#50d2c1;"></div>
+            <div class="cinfo">
+              <span class="cname">color.accent</span>
+              <span class="crole">Active states / nav / live</span>
+              <span class="chex">#50d2c1</span>
+            </div>
+            <span class="cbadge badge-new">New</span>
+          </div>
+          <div class="color-item" style="opacity:0.35;">
+            <div class="cdot" style="background:#60a5fa;"></div>
+            <div class="cinfo">
+              <span class="cname" style="text-decoration:line-through;">color.blue</span>
+              <span class="crole">Removed</span>
+            </div>
+            <span class="cbadge badge-removed">Gone</span>
+          </div>
+          <div class="color-item" style="opacity:0.35;">
+            <div class="cdot" style="background:#c084fc;"></div>
+            <div class="cinfo">
+              <span class="cname" style="text-decoration:line-through;">color.purple</span>
+              <span class="crole">Removed</span>
+            </div>
+            <span class="cbadge badge-removed">Gone</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Type + Font -->
+    <div class="card">
+      <div class="card-header"><span class="card-title">Type Scale</span></div>
+      <div class="card-body">
+        <div class="type-list">
+          <div class="type-item">
+            <span class="tsize">11px</span>
+            <span class="tsample" style="font-size:11px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;">Micro</span>
+            <span class="trole">labels, ranks, times</span>
+          </div>
+          <div class="type-item">
+            <span class="tsize">13px</span>
+            <span class="tsample" style="font-size:13px;">Small — metadata, tags, secondary</span>
+            <span class="trole">sub text</span>
+          </div>
+          <div class="type-item">
+            <span class="tsize">16px</span>
+            <span class="tsample" style="font-size:16px;font-weight:500;">Body — signal names, nav</span>
+            <span class="trole">main content</span>
+          </div>
+          <div class="type-item">
+            <span class="tsize">26px</span>
+            <span class="tsample" style="font-size:26px;font-weight:700;">Overview</span>
+            <span class="trole">page title</span>
+          </div>
+          <div class="type-item">
+            <span class="tsize">32px</span>
+            <span class="tsample" style="font-size:32px;font-weight:700;font-variant-numeric:tabular-nums;color:#6aaa7a;">94.2</span>
+            <span class="trole">stat display</span>
+          </div>
+        </div>
+
+        <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,0.05);">
+          <div class="font-showcase">
+            <div class="font-pair">
+              <span class="font-role">Sans</span>
+              <div style="flex:1;">
+                <div class="font-sample-dm" style="font-size:16px;font-weight:600;color:#f0f0f0;">DM Sans</div>
+                <div class="font-sample-dm" style="font-size:12px;color:rgba(255,255,255,0.35);margin-top:2px;">Aa Bb Cc 0123 — updated</div>
+              </div>
+            </div>
+            <div class="font-pair">
+              <span class="font-role">Mono</span>
+              <div style="flex:1;">
+                <div class="font-sample-mono" style="font-size:14px;font-weight:500;color:#f0f0f0;">Geist Mono</div>
+                <div class="font-sample-mono" style="font-size:12px;color:rgba(255,255,255,0.35);margin-top:2px;">0x1a2b...3c4d — unchanged</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Full preview -->
+    <div class="card preview-card">
+      <div class="card-header"><span class="card-title">Live Preview</span></div>
+      <div>
+        <div class="sig-row" style="padding:11px 20px;">
+          <span style="font-size:11px;color:rgba(255,255,255,0.2);text-align:right;font-variant-numeric:tabular-nums;font-family:'Geist Mono',monospace;">1</span>
+          <div>
+            <div style="font-size:16px;font-weight:600;color:#f0f0f0;">Divergence Signal</div>
+            <div style="font-size:13px;color:rgba(255,255,255,0.36);margin-top:2px;">3 wallets vs market consensus</div>
+          </div>
+          <span style="font-size:13px;font-weight:700;padding:2px 8px;border-radius:5px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.7);">BTC</span>
+          <span class="pill" style="background:rgba(106,170,122,0.1);border:1px solid rgba(106,170,122,0.2);color:#6aaa7a;">LONG</span>
+        </div>
+        <div class="sig-row" style="padding:11px 20px;">
+          <span style="font-size:11px;color:rgba(255,255,255,0.2);text-align:right;font-variant-numeric:tabular-nums;font-family:'Geist Mono',monospace;">2</span>
+          <div>
+            <div style="font-size:16px;font-weight:600;color:#f0f0f0;">Regime Warning</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.36);margin-top:2px;font-family:'Geist Mono',monospace;">0x1a2b...3c4d</div>
+          </div>
+          <span style="font-size:13px;font-weight:700;padding:2px 8px;border-radius:5px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.7);">ETH</span>
+          <span class="pill" style="background:rgba(196,146,90,0.12);border:1px solid rgba(196,146,90,0.25);color:#c4925a;">CAUTION</span>
+        </div>
+        <div class="sig-row" style="padding:11px 20px;">
+          <span style="font-size:11px;color:rgba(255,255,255,0.2);text-align:right;font-variant-numeric:tabular-nums;font-family:'Geist Mono',monospace;">3</span>
+          <div>
+            <div style="font-size:16px;font-weight:600;color:#f0f0f0;">Momentum Reversal</div>
+            <div style="font-size:13px;color:rgba(255,255,255,0.36);margin-top:2px;">7 elite wallets exiting</div>
+          </div>
+          <span style="font-size:13px;font-weight:700;padding:2px 8px;border-radius:5px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.7);">SOL</span>
+          <span class="pill" style="background:rgba(201,36,53,0.1);border:1px solid rgba(201,36,53,0.2);color:#c92435;">SHORT</span>
+        </div>
+      </div>
+      <div style="padding:10px 20px;border-top:1px solid rgba(255,255,255,0.04);display:flex;align-items:center;gap:8px;">
+        <div style="width:7px;height:7px;border-radius:50%;background:#50d2c1;box-shadow:0 0 6px #50d2c1;animation:pulse 2s ease-in-out infinite;flex-shrink:0;"></div>
+        <span style="font-size:13px;color:rgba(255,255,255,0.5);">Live · updated 12s ago</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="margin-top:24px;padding:16px 20px;background:rgba(80,210,193,0.06);border:1px solid rgba(80,210,193,0.15);border-radius:10px;display:flex;align-items:center;gap:12px;">
+    <div style="font-size:13px;color:rgba(255,255,255,0.5);line-height:1.5;">
+      Next: updating <code style="font-family:'Geist Mono',monospace;font-size:11px;color:#50d2c1;">lib/design-tokens.ts</code> with all changes,
+      then building two linked HTML previews — v1 (original) and v2 (this) — so you can flip between them.
+    </div>
+  </div>
+
+</div>
+<style>@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}</style>
+</body>
+</html>

@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HyperliquidFLOW — 5 No-Scroll Layout Options</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
+    background: #0a0a0a;
+    color: #e0e0e0;
+    padding: 28px 32px 40px;
+    min-height: 100vh;
+  }
+
+  h1 {
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 6px;
+    letter-spacing: -0.02em;
+  }
+  .subtitle {
+    font-size: 13px;
+    color: rgba(255,255,255,0.38);
+    margin-bottom: 28px;
+  }
+  .subtitle em {
+    color: rgba(255,255,255,0.55);
+    font-style: normal;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+  }
+  .grid-3 {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  /* Option card */
+  .option-card {
+    background: rgba(255,255,255,0.03);
+    border: 2px solid rgba(255,255,255,0.07);
+    border-radius: 14px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.18s, box-shadow 0.18s, transform 0.12s;
+    user-select: none;
+  }
+  .option-card:hover {
+    border-color: rgba(255,255,255,0.18);
+    transform: translateY(-1px);
+  }
+  .option-card.selected {
+    border-color: #6aaa7a;
+    box-shadow: 0 0 0 1px #6aaa7a, 0 8px 32px rgba(106,170,122,0.15);
+  }
+
+  .option-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+  .option-num {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.07);
+    font-size: 11px;
+    font-weight: 800;
+    color: rgba(255,255,255,0.5);
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .option-card.selected .option-num {
+    background: #6aaa7a;
+    color: #000;
+  }
+  .option-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.85);
+    letter-spacing: -0.01em;
+  }
+  .option-tag {
+    margin-left: auto;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.3);
+    background: rgba(255,255,255,0.05);
+    padding: 3px 7px;
+    border-radius: 4px;
+  }
+  .option-card.selected .option-tag {
+    background: rgba(106,170,122,0.12);
+    color: #6aaa7a;
+  }
+
+  .option-desc {
+    font-size: 12px;
+    color: rgba(255,255,255,0.38);
+    padding: 10px 16px 12px;
+    line-height: 1.5;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+
+  /* ── Mockup area ── */
+  .mockup-wrap {
+    padding: 14px;
+    background: rgba(0,0,0,0.2);
+  }
+
+  /* Shared miniature chrome */
+  .mini-screen {
+    background: #111;
+    border-radius: 8px;
+    overflow: hidden;
+    aspect-ratio: 16/9;
+    position: relative;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+
+  /* ─── TOKENS ─── */
+  :root {
+    --nav: #161616;
+    --card: rgba(255,255,255,0.04);
+    --card-border: rgba(255,255,255,0.07);
+    --green: #6aaa7a;
+    --red: #b06868;
+    --blue: #60a5fa;
+    --muted: rgba(255,255,255,0.22);
+    --ticker: #0e0e0e;
+  }
+
+  /* ─── SHARED MINI ELEMENTS ─── */
+  .m-sidebar {
+    background: var(--nav);
+    border-right: 1px solid rgba(255,255,255,0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 4px;
+  }
+  .m-nav-item {
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 7px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .m-nav-item.active {
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.75);
+  }
+  .m-logo {
+    font-size: 7px;
+    font-weight: 800;
+    color: rgba(255,255,255,0.6);
+    padding: 6px 6px 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .m-card {
+    background: var(--card);
+    border: 1px solid var(--card-border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .m-card-hdr {
+    font-size: 6px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 4px 6px 3px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
+  .m-stat {
+    font-size: 11px;
+    font-weight: 800;
+    color: #f0f0f0;
+    padding: 2px 6px 4px;
+    line-height: 1;
+  }
+  .m-stat.green { color: var(--green); }
+  .m-stat.red   { color: var(--red); }
+  .m-sub {
+    font-size: 5px;
+    color: var(--muted);
+    padding: 0 6px 5px;
+  }
+  .m-ticker-strip {
+    background: var(--ticker);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    display: flex;
+    align-items: center;
+    gap: 0;
+    height: 14px;
+    overflow: hidden;
+  }
+  .m-tick {
+    flex: 1;
+    font-size: 5.5px;
+    font-weight: 700;
+    padding: 0 5px;
+    border-right: 1px solid rgba(255,255,255,0.05);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: rgba(255,255,255,0.6);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .m-tick span { color: var(--green); }
+  .m-tick span.dn { color: var(--red); }
+  .m-bar-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 1px;
+    padding: 4px 6px 2px;
+    height: 28px;
+  }
+  .m-bar {
+    flex: 1;
+    border-radius: 1px 1px 0 0;
+    background: rgba(255,255,255,0.09);
+    min-height: 2px;
+  }
+  .m-bar.g { background: rgba(106,170,122,0.5); }
+  .m-bar.r { background: rgba(176,104,104,0.4); }
+  .m-row {
+    font-size: 5.5px;
+    padding: 3px 6px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    color: rgba(255,255,255,0.55);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 4px;
+  }
+  .m-badge {
+    font-size: 5px;
+    padding: 1px 3px;
+    border-radius: 2px;
+    font-weight: 700;
+  }
+  .m-badge.long { background: rgba(106,170,122,0.15); color: var(--green); }
+  .m-badge.short { background: rgba(176,104,104,0.15); color: var(--red); }
+  .m-regime {
+    font-size: 6px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.06);
+    color: rgba(255,255,255,0.5);
+  }
+  .m-dots {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding: 6px;
+  }
+  .m-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.12);
+  }
+  .m-dot.g { background: var(--green); box-shadow: 0 0 4px rgba(106,170,122,0.5); }
+  .m-dot.r { background: var(--red); }
+  .m-progress {
+    height: 3px;
+    background: rgba(255,255,255,0.07);
+    border-radius: 2px;
+    margin: 2px 6px 4px;
+    overflow: hidden;
+  }
+  .m-progress-fill {
+    height: 100%;
+    background: var(--green);
+    border-radius: 2px;
+  }
+  .m-page-title {
+    font-size: 9px;
+    font-weight: 800;
+    color: rgba(255,255,255,0.85);
+    padding: 6px 8px 0;
+    letter-spacing: -0.02em;
+  }
+
+  /* Selection state */
+  .selected-indicator {
+    display: none;
+    position: fixed;
+    bottom: 20px;
+    right: 24px;
+    background: #6aaa7a;
+    color: #000;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 10px 18px;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(106,170,122,0.3);
+    z-index: 100;
+  }
+  .selected-indicator.show { display: block; }
+
+  .full-width {
+    grid-column: 1 / -1;
+  }
+</style>
+</head>
+<body>
+
+<h1>HyperliquidFLOW — Overview Page, 5 No-Scroll Layouts</h1>
+<p class="subtitle">Click a layout to select it. All fit a <em>1440x900</em> viewport with zero scrolling. Current page scrolls ~2x past the fold.</p>
+
+<div class="grid">
+
+  <!-- ── OPTION 1 ── -->
+  <div class="option-card" onclick="select(this, '1')">
+    <div class="option-label">
+      <div class="option-num">1</div>
+      <div class="option-name">Command Center Grid</div>
+      <div class="option-tag">Recommended</div>
+    </div>
+    <div class="option-desc">
+      Keep sidebar. Compress the chart to 48px. Stack stats 2x2 instead of 1x4. Merge Market Vibes + Exposure into the bottom of the signals column. Everything in a 12-row CSS grid pinned to viewport height.
+    </div>
+    <div class="mockup-wrap">
+      <div class="mini-screen">
+        <!-- Layout: sidebar | ticker + grid -->
+        <div style="display:grid;grid-template-columns:52px 1fr;height:100%">
+          <!-- Sidebar -->
+          <div class="m-sidebar">
+            <div class="m-logo">HLF</div>
+            <div class="m-nav-item active">Overview</div>
+            <div class="m-nav-item">Brief</div>
+            <div class="m-nav-item">Wallets</div>
+            <div class="m-nav-item">Signals</div>
+            <div class="m-nav-item">Edge</div>
+          </div>
+          <!-- Main -->
+          <div style="display:grid;grid-template-rows:auto auto 1fr;height:100%;overflow:hidden">
+            <!-- Header -->
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.06)">
+              <div class="m-page-title" style="padding:0;font-size:8px">Overview</div>
+              <div class="m-regime">RANGING</div>
+            </div>
+            <!-- Ticker -->
+            <div class="m-ticker-strip">
+              <div class="m-tick">BTC <span>$70k</span></div>
+              <div class="m-tick">ETH <span class="dn">$2.1k</span></div>
+              <div class="m-tick">SOL <span class="dn">$81</span></div>
+              <div class="m-tick">HYPE <span>$41</span></div>
+              <div class="m-tick">XMR <span>$346</span></div>
+              <div class="m-tick">ZEC <span>$360</span></div>
+            </div>
+            <!-- Body grid -->
+            <div style="display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto auto 1fr;gap:5px;padding:5px;overflow:hidden;height:100%">
+              <!-- 2x2 stats -->
+              <div style="display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:4px;">
+                <div class="m-card"><div class="m-card-hdr">Smart Money</div><div class="m-stat">200</div><div class="m-sub">wallets</div></div>
+                <div class="m-card"><div class="m-card-hdr">Book Value</div><div class="m-stat">$191M</div><div class="m-sub">total AV</div></div>
+                <div class="m-card"><div class="m-card-hdr">Unrealised PnL</div><div class="m-stat red">-$5.4M</div><div class="m-sub">open pos</div></div>
+                <div class="m-card"><div class="m-card-hdr">Avg Score</div><div class="m-stat">0.02</div><div class="m-sub">of 1.00</div></div>
+              </div>
+              <!-- Signal heatmap (compact) -->
+              <div class="m-card" style="overflow:hidden">
+                <div class="m-card-hdr">Signal Activity 24h</div>
+                <div class="m-bar-chart">
+                  <div class="m-bar" style="height:20%"></div><div class="m-bar" style="height:15%"></div>
+                  <div class="m-bar" style="height:10%"></div><div class="m-bar g" style="height:60%"></div>
+                  <div class="m-bar" style="height:30%"></div><div class="m-bar r" style="height:45%"></div>
+                  <div class="m-bar" style="height:20%"></div><div class="m-bar g" style="height:80%"></div>
+                  <div class="m-bar" style="height:40%"></div><div class="m-bar g" style="height:100%"></div>
+                  <div class="m-bar" style="height:55%"></div><div class="m-bar" style="height:30%"></div>
+                </div>
+              </div>
+              <!-- Recent signals -->
+              <div class="m-card" style="overflow:hidden">
+                <div class="m-card-hdr">Recent Signals <span style="color:rgba(255,255,255,0.2);margin-left:auto;float:right">View all →</span></div>
+                <div class="m-row">Liquidation Flush <span><span class="m-badge long">LONG</span></span></div>
+                <div class="m-row">Accumulation Wave <span><span class="m-badge long">LONG</span></span></div>
+                <div class="m-row">Momentum Break <span><span class="m-badge short">SHORT</span></span></div>
+                <div class="m-row">Smart Entry <span><span class="m-badge long">LONG</span></span></div>
+              </div>
+              <!-- Top wallets + market vibes stacked -->
+              <div style="display:grid;grid-template-rows:1fr auto;gap:4px;overflow:hidden">
+                <div class="m-card" style="overflow:hidden">
+                  <div class="m-card-hdr">Top Wallets</div>
+                  <div class="m-row">0xf517...c032 <span style="color:var(--green)">0.06</span></div>
+                  <div class="m-progress"><div class="m-progress-fill" style="width:6%"></div></div>
+                  <div class="m-row">0xa500...1d41 <span>0.00</span></div>
+                  <div class="m-progress"><div class="m-progress-fill" style="width:0%"></div></div>
+                  <div class="m-row">0x0ddf...a082 <span>0.00</span></div>
+                  <div class="m-progress"><div class="m-progress-fill" style="width:0%"></div></div>
+                </div>
+                <div class="m-card">
+                  <div class="m-card-hdr">Market Vibes</div>
+                  <div class="m-dots">
+                    <div class="m-dot"></div><div class="m-dot"></div><div class="m-dot g"></div>
+                    <div class="m-dot"></div><div class="m-dot"></div><div class="m-dot g"></div><div class="m-dot g"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── OPTION 2 ── -->
+  <div class="option-card" onclick="select(this, '2')">
+    <div class="option-label">
+      <div class="option-num">2</div>
+      <div class="option-name">Three-Column Holy Grail</div>
+      <div class="option-tag">Data-dense</div>
+    </div>
+    <div class="option-desc">
+      Sidebar stays. Main area splits into 3 vertical columns: left (stats + vibes), center (chart + signals), right (wallets + exposure). Ticker across the full top. Zero scroll, maximum parallel scanning.
+    </div>
+    <div class="mockup-wrap">
+      <div class="mini-screen">
+        <div style="display:grid;grid-template-columns:52px 1fr;height:100%">
+          <div class="m-sidebar">
+            <div class="m-logo">HLF</div>
+            <div class="m-nav-item active">Overview</div>
+            <div class="m-nav-item">Brief</div>
+            <div class="m-nav-item">Wallets</div>
+            <div class="m-nav-item">Signals</div>
+            <div class="m-nav-item">Edge</div>
+          </div>
+          <div style="display:grid;grid-template-rows:auto auto 1fr;height:100%;overflow:hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.06)">
+              <div style="font-size:8px;font-weight:800;color:rgba(255,255,255,0.85)">Overview</div>
+              <div class="m-regime">RANGING</div>
+            </div>
+            <div class="m-ticker-strip">
+              <div class="m-tick">BTC <span>$70k</span></div>
+              <div class="m-tick">ETH <span class="dn">$2.1k</span></div>
+              <div class="m-tick">SOL <span class="dn">$81</span></div>
+              <div class="m-tick">HYPE <span>$41</span></div>
+              <div class="m-tick">XMR <span>$346</span></div>
+              <div class="m-tick">ZEC <span>$360</span></div>
+            </div>
+            <!-- 3-col body -->
+            <div style="display:grid;grid-template-columns:1fr 1.6fr 1fr;gap:5px;padding:5px;overflow:hidden;height:100%">
+              <!-- Left: stats + vibes -->
+              <div style="display:grid;grid-template-rows:repeat(4,1fr) auto;gap:4px;overflow:hidden">
+                <div class="m-card"><div class="m-card-hdr">Smart Money</div><div class="m-stat">200</div></div>
+                <div class="m-card"><div class="m-card-hdr">Book Value</div><div class="m-stat">$191M</div></div>
+                <div class="m-card"><div class="m-card-hdr">Unrealised</div><div class="m-stat red">-$5.4M</div></div>
+                <div class="m-card"><div class="m-card-hdr">Avg Score</div><div class="m-stat">0.02</div></div>
+                <div class="m-card">
+                  <div class="m-card-hdr">Vibes 7d</div>
+                  <div class="m-dots" style="padding:4px 4px">
+                    <div class="m-dot" style="width:5px;height:5px"></div>
+                    <div class="m-dot" style="width:5px;height:5px"></div>
+                    <div class="m-dot g" style="width:5px;height:5px"></div>
+                    <div class="m-dot" style="width:5px;height:5px"></div>
+                    <div class="m-dot g" style="width:5px;height:5px"></div>
+                    <div class="m-dot g" style="width:5px;height:5px"></div>
+                    <div class="m-dot g" style="width:5px;height:5px"></div>
+                  </div>
+                </div>
+              </div>
+              <!-- Center: chart + signals -->
+              <div style="display:grid;grid-template-rows:auto 1fr;gap:4px;overflow:hidden">
+                <div class="m-card">
+                  <div class="m-card-hdr">Signal Activity 24h</div>
+                  <div class="m-bar-chart" style="height:36px">
+                    <div class="m-bar" style="height:15%"></div><div class="m-bar" style="height:20%"></div>
+                    <div class="m-bar g" style="height:55%"></div><div class="m-bar" style="height:30%"></div>
+                    <div class="m-bar r" style="height:50%"></div><div class="m-bar" style="height:20%"></div>
+                    <div class="m-bar g" style="height:75%"></div><div class="m-bar" style="height:40%"></div>
+                    <div class="m-bar g" style="height:100%"></div><div class="m-bar" style="height:60%"></div>
+                    <div class="m-bar" style="height:35%"></div><div class="m-bar" style="height:25%"></div>
+                  </div>
+                </div>
+                <div class="m-card" style="overflow:hidden">
+                  <div class="m-card-hdr">Recent Signals</div>
+                  <div class="m-row">Liquidation Flush <span class="m-badge long">LONG</span></div>
+                  <div class="m-row">Accumulation Wave <span class="m-badge long">LONG</span></div>
+                  <div class="m-row">Momentum Break <span class="m-badge short">SHORT</span></div>
+                  <div class="m-row">Smart Entry <span class="m-badge long">LONG</span></div>
+                  <div class="m-row">Liq. Flush <span class="m-badge long">LONG</span></div>
+                </div>
+              </div>
+              <!-- Right: wallets + exposure -->
+              <div style="display:grid;grid-template-rows:1fr auto;gap:4px;overflow:hidden">
+                <div class="m-card" style="overflow:hidden">
+                  <div class="m-card-hdr">Top Wallets</div>
+                  <div class="m-row">0xf517...c032 <span style="color:var(--green)">0.06</span></div>
+                  <div class="m-progress"><div class="m-progress-fill" style="width:6%"></div></div>
+                  <div class="m-row">0xa500...1d41 <span>0.00</span></div>
+                  <div class="m-progress"><div class="m-progress-fill" style="width:0%"></div></div>
+                  <div class="m-row">0x0ddf...a082 <span>0.00</span></div>
+                  <div class="m-progress"><div class="m-progress-fill" style="width:0%"></div></div>
+                  <div class="m-row">0xeeb5...6464 <span style="color:var(--green)">0.07</span></div>
+                  <div class="m-progress"><div class="m-progress-fill" style="width:7%"></div></div>
+                </div>
+                <div class="m-card">
+                  <div class="m-card-hdr">Exposure</div>
+                  <div style="padding:3px 6px">
+                    <div style="display:flex;align-items:center;gap:3px;margin-bottom:2px"><span style="font-size:5.5px;color:var(--muted);width:18px">BTC</span><div class="m-progress" style="margin:0;flex:1"><div class="m-progress-fill" style="width:80%"></div></div></div>
+                    <div style="display:flex;align-items:center;gap:3px;margin-bottom:2px"><span style="font-size:5.5px;color:var(--muted);width:18px">ETH</span><div class="m-progress" style="margin:0;flex:1"><div class="m-progress-fill" style="width:55%"></div></div></div>
+                    <div style="display:flex;align-items:center;gap:3px"><span style="font-size:5.5px;color:var(--muted);width:18px">SOL</span><div class="m-progress" style="margin:0;flex:1"><div class="m-progress-fill" style="width:30%"></div></div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── OPTION 3 ── -->
+  <div class="option-card" onclick="select(this, '3')">
+    <div class="option-label">
+      <div class="option-num">3</div>
+      <div class="option-name">Bento Grid (No Sidebar)</div>
+      <div class="option-tag">Modern</div>
+    </div>
+    <div class="option-desc">
+      Drop the sidebar entirely. Replace with a compact top nav bar. Use the full width in a bento-style asymmetric grid: large signal chart center-left, tall wallet list right, stats across the top, vibes/exposure in compact bottom row.
+    </div>
+    <div class="mockup-wrap">
+      <div class="mini-screen">
+        <div style="display:grid;grid-template-rows:auto auto 1fr;height:100%;overflow:hidden">
+          <!-- Top nav bar -->
+          <div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:#111;border-bottom:1px solid rgba(255,255,255,0.06)">
+            <div style="font-size:7px;font-weight:800;color:rgba(255,255,255,0.7);margin-right:6px">HLF</div>
+            <div style="font-size:6.5px;color:rgba(255,255,255,0.7);background:rgba(255,255,255,0.07);padding:2px 6px;border-radius:3px">Overview</div>
+            <div style="font-size:6.5px;color:var(--muted);padding:2px 6px">Brief</div>
+            <div style="font-size:6.5px;color:var(--muted);padding:2px 6px">Wallets</div>
+            <div style="font-size:6.5px;color:var(--muted);padding:2px 6px">Signals</div>
+            <div style="font-size:6.5px;color:var(--muted);padding:2px 6px">Edge</div>
+            <div class="m-regime" style="margin-left:auto">RANGING</div>
+          </div>
+          <!-- Ticker -->
+          <div class="m-ticker-strip">
+            <div class="m-tick">BTC <span>$70k</span></div>
+            <div class="m-tick">ETH <span class="dn">$2.1k</span></div>
+            <div class="m-tick">SOL <span class="dn">$81</span></div>
+            <div class="m-tick">HYPE <span>$41</span></div>
+            <div class="m-tick">XMR <span>$346</span></div>
+            <div class="m-tick">ZEC <span>$360</span></div>
+          </div>
+          <!-- Bento body -->
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:auto 1fr auto;gap:5px;padding:5px;overflow:hidden;height:100%">
+            <!-- Top: 4 stat cards -->
+            <div class="m-card"><div class="m-card-hdr">Smart Money</div><div class="m-stat">200</div><div class="m-sub">wallets tracked</div></div>
+            <div class="m-card"><div class="m-card-hdr">Book Value</div><div class="m-stat">$191M</div><div class="m-sub">across wallets</div></div>
+            <div class="m-card"><div class="m-card-hdr">Unrealised PnL</div><div class="m-stat red">-$5.4M</div><div class="m-sub">open positions</div></div>
+            <div class="m-card"><div class="m-card-hdr">Avg Score</div><div class="m-stat">0.02</div><div class="m-sub">out of 1.00</div></div>
+            <!-- Middle: chart spans 2, signals spans 1, wallets spans 1 -->
+            <div class="m-card" style="grid-column:span 2;overflow:hidden">
+              <div class="m-card-hdr">Signal Activity 24h</div>
+              <div class="m-bar-chart" style="height:40px">
+                <div class="m-bar" style="height:10%"></div><div class="m-bar" style="height:25%"></div>
+                <div class="m-bar g" style="height:65%"></div><div class="m-bar" style="height:35%"></div>
+                <div class="m-bar r" style="height:50%"></div><div class="m-bar" style="height:20%"></div>
+                <div class="m-bar g" style="height:90%"></div><div class="m-bar" style="height:45%"></div>
+                <div class="m-bar g" style="height:100%"></div><div class="m-bar" style="height:70%"></div>
+                <div class="m-bar" style="height:40%"></div><div class="m-bar" style="height:25%"></div>
+                <div class="m-bar g" style="height:55%"></div><div class="m-bar" style="height:30%"></div>
+                <div class="m-bar" style="height:15%"></div>
+              </div>
+            </div>
+            <div class="m-card" style="overflow:hidden">
+              <div class="m-card-hdr">Recent Signals</div>
+              <div class="m-row">Liquidation Flush <span class="m-badge long">LONG</span></div>
+              <div class="m-row">Accumulation <span class="m-badge long">LONG</span></div>
+              <div class="m-row">Momentum Break <span class="m-badge short">SHORT</span></div>
+              <div class="m-row">Smart Entry <span class="m-badge long">LONG</span></div>
+            </div>
+            <div class="m-card" style="overflow:hidden">
+              <div class="m-card-hdr">Top Wallets</div>
+              <div class="m-row">0xf517 <span style="color:var(--green)">0.06</span></div>
+              <div class="m-progress"><div class="m-progress-fill" style="width:6%"></div></div>
+              <div class="m-row">0xa500 <span>0.00</span></div>
+              <div class="m-progress"><div class="m-progress-fill" style="width:0%"></div></div>
+              <div class="m-row">0xeeb5 <span style="color:var(--green)">0.07</span></div>
+              <div class="m-progress"><div class="m-progress-fill" style="width:7%"></div></div>
+            </div>
+            <!-- Bottom: vibes + exposure span full width -->
+            <div class="m-card" style="grid-column:span 2">
+              <div class="m-card-hdr">Market Vibes 7d</div>
+              <div class="m-dots" style="justify-content:space-around;padding:5px 10px">
+                <div class="m-dot"></div><div class="m-dot"></div><div class="m-dot g"></div>
+                <div class="m-dot"></div><div class="m-dot"></div><div class="m-dot g"></div><div class="m-dot g"></div>
+              </div>
+            </div>
+            <div class="m-card" style="grid-column:span 2">
+              <div class="m-card-hdr">Smart Money Exposure</div>
+              <div style="padding:4px 6px 0">
+                <div style="display:flex;align-items:center;gap:3px;margin-bottom:3px"><span style="font-size:5.5px;color:var(--muted);width:20px">BTC</span><div class="m-progress" style="margin:0;flex:1"><div class="m-progress-fill" style="width:80%"></div></div><span style="font-size:5.5px;color:var(--muted);margin-left:2px">80%</span></div>
+                <div style="display:flex;align-items:center;gap:3px;margin-bottom:3px"><span style="font-size:5.5px;color:var(--muted);width:20px">ETH</span><div class="m-progress" style="margin:0;flex:1"><div class="m-progress-fill" style="width:55%"></div></div><span style="font-size:5.5px;color:var(--muted);margin-left:2px">55%</span></div>
+                <div style="display:flex;align-items:center;gap:3px"><span style="font-size:5.5px;color:var(--muted);width:20px">SOL</span><div class="m-progress" style="margin:0;flex:1"><div class="m-progress-fill" style="width:30%"></div></div><span style="font-size:5.5px;color:var(--muted);margin-left:2px">30%</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── OPTION 4 ── -->
+  <div class="option-card" onclick="select(this, '4')">
+    <div class="option-label">
+      <div class="option-num">4</div>
+      <div class="option-name">Icon Sidebar + Signal Focus</div>
+      <div class="option-tag">Signal-first</div>
+    </div>
+    <div class="option-desc">
+      Collapse sidebar to icon-only strip (32px). Give the saved space to a large signal feed in the center. Stats in a compact 1-row banner under the ticker. Right column: wallets + exposure + vibes stacked.
+    </div>
+    <div class="mockup-wrap">
+      <div class="mini-screen">
+        <div style="display:grid;grid-template-columns:28px 1fr;height:100%">
+          <!-- Icon sidebar -->
+          <div style="background:#0e0e0e;border-right:1px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;align-items:center;padding:5px 0;gap:5px">
+            <div style="font-size:7px;font-weight:900;color:rgba(255,255,255,0.5);border-bottom:1px solid rgba(255,255,255,0.05);padding-bottom:4px;margin-bottom:2px;width:100%;text-align:center">H</div>
+            <div style="width:16px;height:16px;background:rgba(255,255,255,0.08);border-radius:3px"></div>
+            <div style="width:16px;height:16px;background:rgba(255,255,255,0.04);border-radius:3px"></div>
+            <div style="width:16px;height:16px;background:rgba(255,255,255,0.04);border-radius:3px"></div>
+            <div style="width:16px;height:16px;background:rgba(255,255,255,0.04);border-radius:3px"></div>
+            <div style="width:16px;height:16px;background:rgba(255,255,255,0.04);border-radius:3px"></div>
+          </div>
+          <!-- Main -->
+          <div style="display:grid;grid-template-rows:auto auto auto 1fr;height:100%;overflow:hidden">
+            <!-- Header -->
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:4px 8px;border-bottom:1px solid rgba(255,255,255,0.06)">
+              <div style="font-size:8px;font-weight:800;color:rgba(255,255,255,0.85)">Overview</div>
+              <div class="m-regime">RANGING</div>
+            </div>
+            <!-- Ticker -->
+            <div class="m-ticker-strip">
+              <div class="m-tick">BTC <span>$70k</span></div>
+              <div class="m-tick">ETH <span class="dn">$2.1k</span></div>
+              <div class="m-tick">SOL <span class="dn">$81</span></div>
+              <div class="m-tick">HYPE <span>$41</span></div>
+              <div class="m-tick">XMR <span>$346</span></div>
+              <div class="m-tick">ZEC <span>$360</span></div>
+            </div>
+            <!-- Stat banner (1 row, horizontal) -->
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:4px 5px;border-bottom:1px solid rgba(255,255,255,0.05)">
+              <div class="m-card" style="display:flex;align-items:center;gap:4px;padding:3px 6px">
+                <span style="font-size:5.5px;color:var(--muted);white-space:nowrap">Smart Money</span>
+                <span style="font-size:8px;font-weight:800;color:#f0f0f0;margin-left:auto">200</span>
+              </div>
+              <div class="m-card" style="display:flex;align-items:center;gap:4px;padding:3px 6px">
+                <span style="font-size:5.5px;color:var(--muted)">Book Value</span>
+                <span style="font-size:8px;font-weight:800;color:#f0f0f0;margin-left:auto">$191M</span>
+              </div>
+              <div class="m-card" style="display:flex;align-items:center;gap:4px;padding:3px 6px">
+                <span style="font-size:5.5px;color:var(--muted)">PnL</span>
+                <span style="font-size:8px;font-weight:800;color:var(--red);margin-left:auto">-$5.4M</span>
+              </div>
+              <div class="m-card" style="display:flex;align-items:center;gap:4px;padding:3px 6px">
+                <span style="font-size:5.5px;color:var(--muted)">Avg Score</span>
+                <span style="font-size:8px;font-weight:800;color:#f0f0f0;margin-left:auto">0.02</span>
+              </div>
+            </div>
+            <!-- Body: signals big + right column -->
+            <div style="display:grid;grid-template-columns:1fr 1.1fr;gap:5px;padding:5px;overflow:hidden;height:100%">
+              <!-- Signal feed big -->
+              <div style="display:grid;grid-template-rows:auto 1fr;gap:4px;overflow:hidden">
+                <div class="m-card">
+                  <div class="m-card-hdr">Signal Activity 24h</div>
+                  <div class="m-bar-chart" style="height:30px">
+                    <div class="m-bar" style="height:15%"></div><div class="m-bar g" style="height:60%"></div>
+                    <div class="m-bar" style="height:30%"></div><div class="m-bar r" style="height:45%"></div>
+                    <div class="m-bar g" style="height:80%"></div><div class="m-bar" style="height:40%"></div>
+                    <div class="m-bar g" style="height:100%"></div><div class="m-bar" style="height:55%"></div>
+                    <div class="m-bar" style="height:30%"></div><div class="m-bar" style="height:20%"></div>
+                  </div>
+                </div>
+                <div class="m-card" style="overflow:hidden">
+                  <div class="m-card-hdr">Recent Signals <span style="float:right;color:rgba(255,255,255,0.2)">View all →</span></div>
+                  <div class="m-row">Liquidation Flush <span class="m-badge long">LONG</span></div>
+                  <div class="m-row">Accumulation Wave <span class="m-badge long">LONG</span></div>
+                  <div class="m-row">Momentum Break <span class="m-badge short">SHORT</span></div>
+                  <div class="m-row">Smart Entry <span class="m-badge long">LONG</span></div>
+                  <div class="m-row">Liq. Flush <span class="m-badge long">LONG</span></div>
+                  <div class="m-row">Divergence <span class="m-badge short">SHORT</span></div>
+                </div>
+              </div>
+              <!-- Right: wallets + exposure + vibes -->
+              <div style="display:grid;grid-template-rows:1fr auto auto;gap:4px;overflow:hidden">
+                <div class="m-card" style="overflow:hidden">
+                  <div class="m-card-hdr">Top Wallets <span style="float:right;color:rgba(255,255,255,0.2)">Full report →</span></div>
+                  <div class="m-row">0xf517...c032 <span style="color:var(--green)">0.06</span></div>
+                  <div class="m-progress"><div class="m-progress-fill" style="width:6%"></div></div>
+                  <div class="m-row">0xa500...1d41 <span>0.00</span></div>
+                  <div class="m-progress"><div class="m-progress-fill" style="width:0%"></div></div>
+                  <div class="m-row">0x0ddf...a082 <span>0.00</span></div>
+                  <div class="m-progress"><div class="m-progress-fill" style="width:0%"></div></div>
+                  <div class="m-row">0xeeb5...6464 <span style="color:var(--green)">0.07</span></div>
+                  <div class="m-progress"><div class="m-progress-fill" style="width:7%"></div></div>
+                </div>
+                <div class="m-card">
+                  <div class="m-card-hdr">Exposure</div>
+                  <div style="padding:2px 6px 4px">
+                    <div style="display:flex;align-items:center;gap:3px;margin-bottom:2px"><span style="font-size:5.5px;color:var(--muted);width:18px">BTC</span><div class="m-progress" style="margin:0;flex:1"><div class="m-progress-fill" style="width:80%"></div></div></div>
+                    <div style="display:flex;align-items:center;gap:3px"><span style="font-size:5.5px;color:var(--muted);width:18px">ETH</span><div class="m-progress" style="margin:0;flex:1"><div class="m-progress-fill" style="width:50%"></div></div></div>
+                  </div>
+                </div>
+                <div class="m-card">
+                  <div class="m-card-hdr">Market Vibes</div>
+                  <div class="m-dots" style="padding:4px">
+                    <div class="m-dot" style="width:5px;height:5px"></div>
+                    <div class="m-dot g" style="width:5px;height:5px"></div>
+                    <div class="m-dot" style="width:5px;height:5px"></div>
+                    <div class="m-dot g" style="width:5px;height:5px"></div>
+                    <div class="m-dot g" style="width:5px;height:5px"></div>
+                    <div class="m-dot g" style="width:5px;height:5px"></div>
+                    <div class="m-dot r" style="width:5px;height:5px"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── OPTION 5 ── -->
+  <div class="option-card full-width" onclick="select(this, '5')">
+    <div class="option-label">
+      <div class="option-num">5</div>
+      <div class="option-name">Split-Pane Dashboard (Current Nav, Scrollable Panes)</div>
+      <div class="option-tag">Least change</div>
+    </div>
+    <div class="option-desc">
+      Keep the sidebar and layout exactly as-is, but make the <em>individual content panels</em> independently scrollable within the viewport. Page never scrolls. Each card section (signals, wallets) gets its own overflow-y scroll. Ticker + stats stay pinned at top. Minimum code changes.
+    </div>
+    <div class="mockup-wrap">
+      <div class="mini-screen">
+        <div style="display:grid;grid-template-columns:52px 1fr;height:100%">
+          <div class="m-sidebar">
+            <div class="m-logo">HLF</div>
+            <div class="m-nav-item active">Overview</div>
+            <div class="m-nav-item">Brief</div>
+            <div class="m-nav-item">Wallets</div>
+            <div class="m-nav-item">Signals</div>
+            <div class="m-nav-item">Edge</div>
+          </div>
+          <div style="display:grid;grid-template-rows:auto auto auto 1fr;height:100%;overflow:hidden">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 8px;border-bottom:1px solid rgba(255,255,255,0.06)">
+              <div style="font-size:8px;font-weight:800;color:rgba(255,255,255,0.85)">Overview</div>
+              <div class="m-regime">RANGING</div>
+            </div>
+            <div class="m-ticker-strip">
+              <div class="m-tick">BTC <span>$70k</span></div>
+              <div class="m-tick">ETH <span class="dn">$2.1k</span></div>
+              <div class="m-tick">SOL <span class="dn">$81</span></div>
+              <div class="m-tick">HYPE <span>$41</span></div>
+              <div class="m-tick">XMR <span>$346</span></div>
+              <div class="m-tick">ZEC <span>$360</span></div>
+            </div>
+            <!-- Pinned stats row -->
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;padding:4px 5px;border-bottom:1px solid rgba(255,255,255,0.05)">
+              <div class="m-card"><div class="m-card-hdr">Smart Money</div><div class="m-stat">200</div></div>
+              <div class="m-card"><div class="m-card-hdr">Book Value</div><div class="m-stat">$191M</div></div>
+              <div class="m-card"><div class="m-card-hdr">Unrealised</div><div class="m-stat red">-$5.4M</div></div>
+              <div class="m-card"><div class="m-card-hdr">Avg Score</div><div class="m-stat">0.02</div></div>
+            </div>
+            <!-- Scrollable panes -->
+            <div style="display:grid;grid-template-columns:3fr 2fr;gap:5px;padding:5px;overflow:hidden;height:100%">
+              <!-- Left pane: chart + signals (scrollable within) -->
+              <div style="display:grid;grid-template-rows:auto 1fr;gap:4px;overflow:hidden">
+                <div class="m-card">
+                  <div class="m-card-hdr">Signal Activity 24h</div>
+                  <div class="m-bar-chart">
+                    <div class="m-bar" style="height:20%"></div><div class="m-bar g" style="height:55%"></div>
+                    <div class="m-bar r" style="height:40%"></div><div class="m-bar g" style="height:80%"></div>
+                    <div class="m-bar" style="height:30%"></div><div class="m-bar g" style="height:100%"></div>
+                    <div class="m-bar" style="height:50%"></div><div class="m-bar" style="height:25%"></div>
+                  </div>
+                </div>
+                <!-- signals with scroll indicator -->
+                <div class="m-card" style="overflow:hidden;position:relative">
+                  <div class="m-card-hdr">Recent Signals <span style="float:right;color:rgba(255,255,255,0.2)">View all →</span></div>
+                  <div style="overflow-y:auto;height:calc(100% - 18px)">
+                    <div class="m-row">Liquidation Flush <span class="m-badge long">LONG</span></div>
+                    <div class="m-row">Accumulation Wave <span class="m-badge long">LONG</span></div>
+                    <div class="m-row">Momentum Break <span class="m-badge short">SHORT</span></div>
+                    <div class="m-row">Smart Entry <span class="m-badge long">LONG</span></div>
+                    <div class="m-row">Liq. Flush <span class="m-badge long">LONG</span></div>
+                  </div>
+                  <!-- scroll arrow hint -->
+                  <div style="position:absolute;bottom:3px;right:6px;font-size:6px;color:rgba(255,255,255,0.2)">↕ scroll</div>
+                </div>
+              </div>
+              <!-- Right pane: wallets scrollable + bottom cards -->
+              <div style="display:grid;grid-template-rows:1fr auto;gap:4px;overflow:hidden">
+                <div class="m-card" style="overflow:hidden;position:relative">
+                  <div class="m-card-hdr">Top Wallets <span style="float:right;color:rgba(255,255,255,0.2)">Full →</span></div>
+                  <div style="overflow-y:auto;height:calc(100% - 18px)">
+                    <div class="m-row">0xf517...c032 <span style="color:var(--green)">0.06</span></div>
+                    <div class="m-progress"><div class="m-progress-fill" style="width:6%"></div></div>
+                    <div class="m-row">0xa500...1d41 <span>0.00</span></div>
+                    <div class="m-progress"><div class="m-progress-fill" style="width:0%"></div></div>
+                    <div class="m-row">0x0ddf...a082 <span>0.00</span></div>
+                    <div class="m-progress"><div class="m-progress-fill" style="width:0%"></div></div>
+                    <div class="m-row">0xeeb5...6464 <span style="color:var(--green)">0.07</span></div>
+                    <div class="m-progress"><div class="m-progress-fill" style="width:7%"></div></div>
+                  </div>
+                  <div style="position:absolute;bottom:3px;right:6px;font-size:6px;color:rgba(255,255,255,0.2)">↕ scroll</div>
+                </div>
+                <!-- vibes + exposure fixed -->
+                <div style="display:grid;grid-template-rows:auto auto;gap:4px">
+                  <div class="m-card">
+                    <div class="m-card-hdr">Market Vibes</div>
+                    <div class="m-dots"><div class="m-dot"></div><div class="m-dot g"></div><div class="m-dot"></div><div class="m-dot g"></div><div class="m-dot g"></div><div class="m-dot g"></div><div class="m-dot r"></div></div>
+                  </div>
+                  <div class="m-card">
+                    <div class="m-card-hdr">Exposure</div>
+                    <div style="padding:2px 6px 4px">
+                      <div style="display:flex;align-items:center;gap:3px;margin-bottom:2px"><span style="font-size:5.5px;color:var(--muted);width:18px">BTC</span><div class="m-progress" style="margin:0;flex:1"><div class="m-progress-fill" style="width:80%"></div></div></div>
+                      <div style="display:flex;align-items:center;gap:3px"><span style="font-size:5.5px;color:var(--muted);width:18px">ETH</span><div class="m-progress" style="margin:0;flex:1"><div class="m-progress-fill" style="width:50%"></div></div></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div id="selection-bar" style="display:none;position:fixed;bottom:0;left:0;right:0;background:#111;border-top:1px solid rgba(255,255,255,0.08);padding:12px 24px;display:flex;align-items:center;gap:12px">
+  <span id="selection-text" style="font-size:13px;color:rgba(255,255,255,0.6)">No selection yet</span>
+  <span style="font-size:11px;color:rgba(255,255,255,0.3)">— tell me in the terminal which you prefer, or click to select</span>
+</div>
+
+<script src="/helper.js"></script>
+<script>
+let currentSelected = null;
+function select(el, choice) {
+  if (currentSelected && currentSelected !== el) {
+    currentSelected.classList.remove('selected');
+  }
+  el.classList.toggle('selected');
+  currentSelected = el.classList.contains('selected') ? el : null;
+
+  const bar = document.getElementById('selection-bar');
+  const txt = document.getElementById('selection-text');
+  if (currentSelected) {
+    bar.style.display = 'flex';
+    const name = el.querySelector('.option-name').textContent;
+    txt.textContent = `Selected: Option ${choice} — ${name}`;
+  } else {
+    bar.style.display = 'none';
+  }
+
+  if (typeof recordChoice === 'function') {
+    recordChoice(choice, el.querySelector('.option-name').textContent);
+  }
+}
+</script>
+</body>
+</html>

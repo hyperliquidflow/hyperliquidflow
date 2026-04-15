@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Design System Brainstorm</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #060606;
+    color: #f0f0f0;
+    padding: 40px 48px 60px;
+    min-height: 100vh;
+    position: relative;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at 100% 100%, oklch(32% 0.06 170) 0%, oklch(3.5% 0 0) 100%);
+    z-index: 0;
+    pointer-events: none;
+  }
+  .page { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; }
+
+  .step-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.28);
+    margin-bottom: 8px;
+  }
+  h1 {
+    font-size: 24px;
+    font-weight: 700;
+    color: #f0f0f0;
+    margin-bottom: 6px;
+  }
+  .subtitle {
+    font-size: 14px;
+    color: rgba(255,255,255,0.42);
+    margin-bottom: 40px;
+    line-height: 1.5;
+  }
+
+  /* Removed colors */
+  .removed-section {
+    margin-bottom: 40px;
+  }
+  .removed-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.2);
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .removed-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(255,255,255,0.06);
+  }
+  .removed-chips {
+    display: flex;
+    gap: 12px;
+  }
+  .removed-chip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.06);
+    opacity: 0.4;
+    position: relative;
+    overflow: hidden;
+  }
+  .removed-chip::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      -45deg,
+      rgba(255,255,255,0.04) 0px,
+      rgba(255,255,255,0.04) 1px,
+      transparent 1px,
+      transparent 8px
+    );
+  }
+  .chip-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .chip-label {
+    font-family: 'Geist Mono', monospace;
+    font-size: 12px;
+    color: rgba(255,255,255,0.5);
+  }
+
+  /* Staying colors */
+  .stays-section {
+    margin-bottom: 40px;
+  }
+  .stays-chips {
+    display: flex;
+    gap: 12px;
+  }
+  .stays-chip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 20px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.03);
+  }
+  .stays-chip .chip-label { color: rgba(255,255,255,0.7); font-size: 13px; }
+
+  /* Amber options */
+  .amber-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.32);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .amber-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(255,255,255,0.06);
+  }
+
+  .amber-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-bottom: 48px;
+  }
+
+  .amber-option {
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.15s;
+    background: rgba(12,12,12,0.6);
+    backdrop-filter: blur(16px);
+  }
+  .amber-option:hover {
+    border-color: rgba(255,255,255,0.16);
+    transform: translateY(-2px);
+  }
+  .amber-option.selected {
+    border-color: rgba(255,255,255,0.4);
+    box-shadow: 0 0 0 1px rgba(255,255,255,0.15);
+  }
+
+  .option-preview {
+    padding: 24px 20px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  /* Mini palette row */
+  .mini-palette {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .palette-dot {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .palette-connector {
+    height: 1px;
+    flex: 1;
+    background: rgba(255,255,255,0.08);
+  }
+
+  /* Mini signal pills */
+  .mini-signals {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .mini-pill {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 10px;
+    border-radius: 4px;
+    letter-spacing: 0.04em;
+  }
+
+  /* Mini stat */
+  .mini-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .mini-stat-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+  .mini-stat-value {
+    font-size: 24px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+  .mini-stat-sub {
+    font-size: 11px;
+  }
+
+  .option-info {
+    padding: 14px 20px 18px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+  .option-letter {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.22);
+    margin-bottom: 4px;
+  }
+  .option-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #f0f0f0;
+    margin-bottom: 4px;
+  }
+  .option-desc {
+    font-size: 12px;
+    color: rgba(255,255,255,0.38);
+    line-height: 1.5;
+  }
+  .option-hex {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    color: rgba(255,255,255,0.25);
+    margin-top: 6px;
+  }
+
+  .selected-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: rgba(8,8,8,0.95);
+    border-top: 1px solid rgba(255,255,255,0.08);
+    padding: 16px 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    backdrop-filter: blur(20px);
+    z-index: 100;
+    opacity: 0;
+    transform: translateY(100%);
+    transition: opacity 0.2s, transform 0.2s;
+  }
+  .selected-bar.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .selected-bar-text {
+    font-size: 14px;
+    color: rgba(255,255,255,0.6);
+  }
+  .selected-bar-action {
+    font-size: 13px;
+    color: rgba(255,255,255,0.38);
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="step-label">Step 1 of 2 — Palette</div>
+  <h1>Pick your earthy amber</h1>
+  <p class="subtitle">
+    Blue and purple are gone. Your green (#6aaa7a) and red (#b06868) are staying.
+    All three options below are in the same muted, earthy register — pick the one that fits.
+  </p>
+
+  <!-- Removed -->
+  <div class="removed-section">
+    <div class="removed-label">Removing</div>
+    <div class="removed-chips">
+      <div class="removed-chip">
+        <div class="chip-dot" style="background:#60a5fa;"></div>
+        <div class="chip-label">color.blue — #60a5fa</div>
+      </div>
+      <div class="removed-chip">
+        <div class="chip-dot" style="background:#c084fc;"></div>
+        <div class="chip-label">color.purple — #c084fc</div>
+      </div>
+      <div class="removed-chip">
+        <div class="chip-dot" style="background:#f59e0b;"></div>
+        <div class="chip-label">color.amber — #f59e0b (too bright)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Staying -->
+  <div class="stays-section">
+    <div class="removed-label">Keeping</div>
+    <div class="stays-chips">
+      <div class="stays-chip">
+        <div class="chip-dot" style="background:#6aaa7a;"></div>
+        <div class="chip-label">color.green — #6aaa7a</div>
+      </div>
+      <div class="stays-chip">
+        <div class="chip-dot" style="background:#b06868;"></div>
+        <div class="chip-label">color.red — #b06868</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Amber options -->
+  <div class="amber-label">Choose a new amber</div>
+  <div class="amber-grid">
+
+    <!-- Option A: Warm ochre -->
+    <div class="amber-option" id="opt-a" onclick="select('a')">
+      <div class="option-preview">
+        <div class="mini-palette">
+          <div class="palette-dot" style="background:#6aaa7a;"></div>
+          <div class="palette-connector"></div>
+          <div class="palette-dot" style="background:#c4925a;"></div>
+          <div class="palette-connector"></div>
+          <div class="palette-dot" style="background:#b06868;"></div>
+        </div>
+        <div class="mini-signals">
+          <span class="mini-pill" style="background:rgba(196,146,90,0.12);border:1px solid rgba(196,146,90,0.25);color:#c4925a;">WARNING</span>
+          <span class="mini-pill" style="background:rgba(106,170,122,0.1);border:1px solid rgba(106,170,122,0.2);color:#6aaa7a;">LONG</span>
+          <span class="mini-pill" style="background:rgba(176,104,104,0.1);border:1px solid rgba(176,104,104,0.2);color:#b06868;">SHORT</span>
+        </div>
+        <div class="mini-stat">
+          <div class="mini-stat-label" style="color:rgba(255,255,255,0.38);">Avg Score</div>
+          <div class="mini-stat-value" style="color:#c4925a;">61.4</div>
+          <div class="mini-stat-sub" style="color:rgba(255,255,255,0.32);">cohort avg</div>
+        </div>
+      </div>
+      <div class="option-info">
+        <div class="option-letter">Option A</div>
+        <div class="option-name">Warm Ochre</div>
+        <div class="option-desc">Closest to classic amber but toned way down. Warm and golden, sits naturally between the green and red.</div>
+        <div class="option-hex">#c4925a</div>
+      </div>
+    </div>
+
+    <!-- Option B: Terracotta amber -->
+    <div class="amber-option" id="opt-b" onclick="select('b')">
+      <div class="option-preview">
+        <div class="mini-palette">
+          <div class="palette-dot" style="background:#6aaa7a;"></div>
+          <div class="palette-connector"></div>
+          <div class="palette-dot" style="background:#b87844;"></div>
+          <div class="palette-connector"></div>
+          <div class="palette-dot" style="background:#b06868;"></div>
+        </div>
+        <div class="mini-signals">
+          <span class="mini-pill" style="background:rgba(184,120,68,0.12);border:1px solid rgba(184,120,68,0.25);color:#b87844;">WARNING</span>
+          <span class="mini-pill" style="background:rgba(106,170,122,0.1);border:1px solid rgba(106,170,122,0.2);color:#6aaa7a;">LONG</span>
+          <span class="mini-pill" style="background:rgba(176,104,104,0.1);border:1px solid rgba(176,104,104,0.2);color:#b06868;">SHORT</span>
+        </div>
+        <div class="mini-stat">
+          <div class="mini-stat-label" style="color:rgba(255,255,255,0.38);">Avg Score</div>
+          <div class="mini-stat-value" style="color:#b87844;">61.4</div>
+          <div class="mini-stat-sub" style="color:rgba(255,255,255,0.32);">cohort avg</div>
+        </div>
+      </div>
+      <div class="option-info">
+        <div class="option-letter">Option B</div>
+        <div class="option-name">Burnt Sienna</div>
+        <div class="option-desc">Deeper and more saturated. Almost a warm red-amber. The three semantic colors form a very tight earthy family.</div>
+        <div class="option-hex">#b87844</div>
+      </div>
+    </div>
+
+    <!-- Option C: Dusty gold -->
+    <div class="amber-option" id="opt-c" onclick="select('c')">
+      <div class="option-preview">
+        <div class="mini-palette">
+          <div class="palette-dot" style="background:#6aaa7a;"></div>
+          <div class="palette-connector"></div>
+          <div class="palette-dot" style="background:#a8905c;"></div>
+          <div class="palette-connector"></div>
+          <div class="palette-dot" style="background:#b06868;"></div>
+        </div>
+        <div class="mini-signals">
+          <span class="mini-pill" style="background:rgba(168,144,92,0.12);border:1px solid rgba(168,144,92,0.25);color:#a8905c;">WARNING</span>
+          <span class="mini-pill" style="background:rgba(106,170,122,0.1);border:1px solid rgba(106,170,122,0.2);color:#6aaa7a;">LONG</span>
+          <span class="mini-pill" style="background:rgba(176,104,104,0.1);border:1px solid rgba(176,104,104,0.2);color:#b06868;">SHORT</span>
+        </div>
+        <div class="mini-stat">
+          <div class="mini-stat-label" style="color:rgba(255,255,255,0.38);">Avg Score</div>
+          <div class="mini-stat-value" style="color:#a8905c;">61.4</div>
+          <div class="mini-stat-sub" style="color:rgba(255,255,255,0.32);">cohort avg</div>
+        </div>
+      </div>
+      <div class="option-info">
+        <div class="option-letter">Option C</div>
+        <div class="option-name">Dusty Gold</div>
+        <div class="option-desc">Most neutral of the three. Muted and dry, like aged brass. Very low contrast, reads as a quiet warning tone.</div>
+        <div class="option-hex">#a8905c</div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<div class="selected-bar" id="selected-bar">
+  <div class="selected-bar-text" id="selected-text"></div>
+  <div class="selected-bar-action">Tell me in the terminal or click another to compare</div>
+</div>
+
+<script>
+let current = null;
+function select(id) {
+  document.querySelectorAll('.amber-option').forEach(el => el.classList.remove('selected'));
+  document.getElementById('opt-' + id).classList.add('selected');
+  current = id;
+  const names = { a: 'Option A — Warm Ochre (#c4925a)', b: 'Option B — Burnt Sienna (#b87844)', c: 'Option C — Dusty Gold (#a8905c)' };
+  document.getElementById('selected-text').textContent = 'Selected: ' + names[id];
+  document.getElementById('selected-bar').classList.add('visible');
+}
+</script>
+</body>
+</html>

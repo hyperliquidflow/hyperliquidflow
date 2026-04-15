@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nav interaction preview</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #080808; color: #f0f0f0; font-family: 'Inter', -apple-system, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; min-height: 100vh; padding: 32px 24px; }
+  h2 { font-size: 18px; font-weight: 700; margin-bottom: 6px; text-align: center; }
+  .sub { font-size: 13px; color: #555; margin-bottom: 24px; text-align: center; }
+
+  .app-shell {
+    display: flex;
+    width: 900px;
+    height: 520px;
+    border: 1px solid #1e1e1e;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 24px 80px rgba(0,0,0,0.8);
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: 160px;
+    background: #111;
+    border-right: 1px solid #1a1a1a;
+    padding: 20px 0;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .brand {
+    padding: 0 16px 16px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #f0f0f0;
+    letter-spacing: 0.02em;
+  }
+  .nav-item {
+    padding: 8px 16px;
+    font-size: 12px;
+    color: #666;
+    cursor: pointer;
+    transition: color 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    user-select: none;
+  }
+  .nav-item:hover { color: #ccc; }
+  .nav-item.active { color: #f0f0f0; font-weight: 600; }
+  .nav-arrow { font-size: 8px; color: #444; transition: transform 0.2s; }
+  .nav-item.expanded .nav-arrow { color: #666; }
+
+  .nav-children {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.25s ease;
+  }
+  .nav-children.open { max-height: 200px; }
+
+  .nav-child {
+    padding: 6px 16px 6px 28px;
+    font-size: 11px;
+    color: #555;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+    border-left: 2px solid transparent;
+    margin: 1px 0;
+  }
+  .nav-child:hover { color: #ccc; }
+  .nav-child.active {
+    color: #f0f0f0;
+    background: #1a1a1a;
+    border-left-color: #606060;
+  }
+
+  /* ── Main ── */
+  .main {
+    flex: 1;
+    background: #0d0d0d;
+    padding: 24px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .page { display: none; height: 100%; }
+  .page.active { display: block; }
+
+  .page-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+  .page-sub { font-size: 11px; color: #555; margin-bottom: 18px; }
+
+  .lookup-bar {
+    display: flex; gap: 8px; margin-bottom: 16px;
+    background: #141414; border: 1px solid #1e1e1e; border-radius: 6px; padding: 10px 12px;
+  }
+  .lookup-input {
+    flex: 1; background: #0e0e0e; border: 1px solid #1e1e1e; border-radius: 4px;
+    padding: 6px 10px; font-size: 11px; color: #444;
+  }
+  .lookup-btn {
+    background: #1e1e1e; border: 1px solid #2a2a2a; border-radius: 4px;
+    padding: 6px 14px; font-size: 11px; color: #ccc; cursor: pointer;
+  }
+
+  .stats-grid {
+    display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-bottom: 14px;
+  }
+  .stat-card {
+    background: #141414; border-radius: 5px; padding: 10px 12px;
+  }
+  .stat-label { font-size: 9px; color: #555; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+  .stat-val { font-size: 16px; font-weight: 700; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .mini-card {
+    background: #141414; border-radius: 5px; padding: 10px 12px;
+  }
+  .mini-label { font-size: 9px; color: #555; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+  .mini-row { font-size: 10px; color: #888; margin-bottom: 5px; display: flex; align-items: center; gap: 6px; }
+  .dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+
+  .signal-list { display: flex; flex-direction: column; gap: 6px; }
+  .signal-row {
+    background: #141414; border-radius: 5px; padding: 10px 12px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .sig-recipe { font-size: 11px; font-weight: 600; color: #f0f0f0; }
+  .sig-coin { font-size: 11px; font-weight: 700; }
+  .sig-dir { font-size: 9px; letter-spacing: 0.08em; }
+  .sig-time { margin-left: auto; font-size: 10px; color: #444; }
+
+  .leaderboard { width: 100%; border-collapse: collapse; }
+  .leaderboard th { font-size: 9px; color: #555; text-transform: uppercase; letter-spacing: 0.08em; padding: 8px 10px; text-align: left; }
+  .leaderboard td { font-size: 11px; padding: 8px 10px; border-bottom: 1px solid #161616; color: #ccc; }
+  .see-all { text-align: center; padding: 12px; font-size: 11px; color: #555; cursor: pointer; background: #111; border-top: 1px solid #1a1a1a; }
+  .see-all:hover { color: #999; }
+
+  .inposition-empty { display: flex; align-items: center; justify-content: center; height: 60%; color: #333; font-size: 12px; }
+
+  .diverg-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; margin-bottom: 12px; }
+  .diverg-card { background: #141414; border-radius: 5px; padding: 10px 12px; }
+  .diverg-coin { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+  .diverg-val { font-size: 10px; color: #888; }
+
+  .edge-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+  .edge-card { background: #141414; border-radius: 5px; padding: 12px; }
+  .edge-name { font-size: 11px; font-weight: 600; margin-bottom: 4px; }
+  .edge-stat { font-size: 10px; color: #888; }
+
+  /* hint bar */
+  .hint { margin-top: 20px; font-size: 12px; color: #444; text-align: center; }
+</style>
+</head>
+<body>
+
+<h2>Navigation — interactive preview</h2>
+<p class="sub">Click any nav item to see the collapse/expand behavior and page content</p>
+
+<div class="app-shell">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="brand">HyperliquidFLOW</div>
+
+    <div class="nav-item" id="nav-overview" onclick="go('overview')">Overview</div>
+    <div class="nav-item" id="nav-brief" onclick="go('brief')">Daily Brief</div>
+
+    <!-- Wallets -->
+    <div class="nav-item" id="nav-wallets" onclick="toggleSection('wallets')">
+      <span>Wallets</span>
+      <span class="nav-arrow" id="arrow-wallets">▸</span>
+    </div>
+    <div class="nav-children" id="children-wallets">
+      <div class="nav-child" id="nav-discovery" onclick="go('discovery')">Discovery</div>
+      <div class="nav-child" id="nav-leaderboard" onclick="go('leaderboard')">Leaderboard</div>
+      <div class="nav-child" id="nav-inposition" onclick="go('inposition')">In Position</div>
+    </div>
+
+    <!-- Signals -->
+    <div class="nav-item" id="nav-signals" onclick="toggleSection('signals')">
+      <span>Signals</span>
+      <span class="nav-arrow" id="arrow-signals">▸</span>
+    </div>
+    <div class="nav-children" id="children-signals">
+      <div class="nav-child" id="nav-feed" onclick="go('feed')">Signal Feed</div>
+      <div class="nav-child" id="nav-divergence" onclick="go('divergence')">Divergence</div>
+    </div>
+
+    <div class="nav-item" id="nav-edge" onclick="go('edge')">Edge</div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- Overview -->
+    <div class="page active" id="page-overview">
+      <div class="page-title">Overview</div>
+      <div class="page-sub">200 wallets · BTC 24h +0.0%</div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Smart Money</div><div class="stat-val">200</div></div>
+        <div class="stat-card"><div class="stat-label">Book Value</div><div class="stat-val" style="color:#f0f0f0">$191M</div></div>
+        <div class="stat-card"><div class="stat-label">Unrealised PnL</div><div class="stat-val" style="color:#b06868">-$6.5M</div></div>
+        <div class="stat-card"><div class="stat-label">Avg Score</div><div class="stat-val">0.02</div></div>
+      </div>
+      <div class="two-col">
+        <div class="mini-card"><div class="mini-label">Recent Signals</div>
+          <div class="mini-row"><span class="dot" style="background:#6aaa7a"></span>Liquidation Flush · ZEC LONG · 31m ago</div>
+          <div class="mini-row"><span class="dot" style="background:#b06868"></span>Anti-Whale Trap · SOL SHORT · 1h ago</div>
+        </div>
+        <div class="mini-card"><div class="mini-label">Top Wallets</div>
+          <div class="mini-row">0xf517...c032 <span style="margin-left:auto;color:#f0f0f0">0.06</span></div>
+          <div class="mini-row">0xa500...1d41 <span style="margin-left:auto;color:#f0f0f0">0.00</span></div>
+          <div class="mini-row">0x0ddf...a982 <span style="margin-left:auto;color:#f0f0f0">0.00</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Daily Brief -->
+    <div class="page" id="page-brief">
+      <div class="page-title">Daily Brief</div>
+      <div class="page-sub">Generated daily at 02:30 UTC · 8h ago</div>
+      <div class="mini-card" style="margin-bottom:10px">
+        <div class="mini-label">Summary</div>
+        <div style="font-size:11px;color:#888;line-height:1.6">Market is in a RANGING regime. BTC moved +0.00% in the last 24 hours. The smart money cohort has 200 active wallets with an average score of 0.02.</div>
+      </div>
+      <div class="two-col">
+        <div class="mini-card"><div class="mini-label">Smart Money Health</div>
+          <div class="mini-row">Active Wallets <span style="margin-left:auto;color:#f0f0f0">200</span></div>
+          <div class="mini-row">Avg Score <span style="margin-left:auto;color:#f0f0f0">0.02</span></div>
+        </div>
+        <div class="mini-card"><div class="mini-label">Watch List</div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px">
+            <span style="font-size:9px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:2px 8px;color:#ccc">ZEC</span>
+            <span style="font-size:9px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:2px 8px;color:#ccc">SOL</span>
+            <span style="font-size:9px;background:#1a1a1a;border:1px solid #2a2a2a;border-radius:10px;padding:2px 8px;color:#ccc">ETH</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Discovery -->
+    <div class="page" id="page-discovery">
+      <div class="page-title">Discovery</div>
+      <div class="page-sub">5,000 wallets scanned · 992 qualified</div>
+      <div class="lookup-bar">
+        <div class="lookup-input">0x... wallet address</div>
+        <div class="lookup-btn">Lookup</div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">Discovered</div><div class="stat-val">5,000</div></div>
+        <div class="stat-card"><div class="stat-label">Active SM</div><div class="stat-val" style="color:#6aaa7a">992</div></div>
+        <div class="stat-card"><div class="stat-label">Filtered</div><div class="stat-val" style="color:#b06868">4,008</div></div>
+        <div class="stat-card"><div class="stat-label">Avg Win Rate</div><div class="stat-val">75.3%</div></div>
+      </div>
+      <div class="two-col">
+        <div class="mini-card"><div class="mini-label">Scan Pipeline</div>
+          <div class="mini-row"><span class="dot" style="background:#6aaa7a"></span>Leaderboard Discovery</div>
+          <div class="mini-row"><span class="dot" style="background:#6aaa7a"></span>Fill Scoring</div>
+          <div class="mini-row"><span class="dot" style="background:#6aaa7a"></span>Cohort Activation</div>
+        </div>
+        <div class="mini-card"><div class="mini-label">Last Scan</div>
+          <div class="mini-row">Last Run <span style="margin-left:auto;color:#f0f0f0">8h ago</span></div>
+          <div class="mini-row">Source <span style="margin-left:auto;color:#f0f0f0">leaderboard_api</span></div>
+          <div class="mini-row">Schedule <span style="margin-left:auto;color:#f0f0f0">02:00 UTC</span></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Leaderboard -->
+    <div class="page" id="page-leaderboard">
+      <div class="page-title">Leaderboard</div>
+      <div class="page-sub">Smart money ranked by composite score</div>
+      <div class="mini-card" style="padding:0;overflow:hidden">
+        <table class="leaderboard">
+          <thead><tr><th>#</th><th>Wallet</th><th>Score</th><th>AUM</th><th>Win Rate</th></tr></thead>
+          <tbody>
+            <tr><td style="color:#555">1</td><td style="color:#9ca3af;font-family:monospace">0xf517...c032</td><td style="color:#6aaa7a">0.06</td><td>$2.1M</td><td>68%</td></tr>
+            <tr><td style="color:#555">2</td><td style="color:#9ca3af;font-family:monospace">0xa500...1d41</td><td>0.00</td><td>$840K</td><td>61%</td></tr>
+            <tr><td style="color:#555">3</td><td style="color:#9ca3af;font-family:monospace">0x0ddf...a982</td><td>0.00</td><td>$520K</td><td>57%</td></tr>
+            <tr><td style="color:#555">4</td><td style="color:#9ca3af;font-family:monospace">0xeeb5...6464</td><td style="color:#b06868">-0.01</td><td>$310K</td><td>52%</td></tr>
+          </tbody>
+        </table>
+        <div class="see-all">Show all 992 wallets ↓</div>
+      </div>
+    </div>
+
+    <!-- In Position -->
+    <div class="page" id="page-inposition">
+      <div class="page-title">In Position</div>
+      <div class="page-sub">Wallets with open positions right now</div>
+      <div class="mini-card" style="padding:0;overflow:hidden">
+        <table class="leaderboard">
+          <thead><tr><th>#</th><th>Wallet</th><th>Score</th><th>uPnL</th><th>Positions</th></tr></thead>
+          <tbody>
+            <tr><td style="color:#555">1</td><td style="color:#9ca3af;font-family:monospace">0xf517...c032</td><td style="color:#6aaa7a">0.06</td><td style="color:#6aaa7a">+$12.4K</td><td>3</td></tr>
+            <tr><td style="color:#555">2</td><td style="color:#9ca3af;font-family:monospace">0x0ddf...a982</td><td>0.00</td><td style="color:#b06868">-$2.1K</td><td>1</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Signal Feed -->
+    <div class="page" id="page-feed">
+      <div class="page-title">Signal Feed</div>
+      <div class="page-sub">Live signals from 992 smart money wallets</div>
+      <div class="signal-list">
+        <div class="signal-row"><span class="dot" style="background:#6aaa7a"></span><span class="sig-recipe">Momentum Stack</span><span class="sig-coin" style="color:#6aaa7a">ZEC</span><span class="sig-dir" style="color:#6aaa7a">LONG</span><span class="sig-time">31m ago</span></div>
+        <div class="signal-row"><span class="dot" style="background:#b06868"></span><span class="sig-recipe">Anti-Whale Trap</span><span class="sig-coin" style="color:#b06868">SOL</span><span class="sig-dir" style="color:#b06868">SHORT</span><span class="sig-time">1h ago</span></div>
+        <div class="signal-row"><span class="dot" style="background:#6aaa7a"></span><span class="sig-recipe">Divergence Squeeze</span><span class="sig-coin" style="color:#6aaa7a">ETH</span><span class="sig-dir" style="color:#6aaa7a">LONG</span><span class="sig-time">2h ago</span></div>
+        <div class="signal-row"><span class="dot" style="background:#6aaa7a"></span><span class="sig-recipe">Streak Continuation</span><span class="sig-coin" style="color:#6aaa7a">BTC</span><span class="sig-dir" style="color:#6aaa7a">LONG</span><span class="sig-time">3h ago</span></div>
+        <div class="signal-row"><span class="dot" style="background:#b06868"></span><span class="sig-recipe">Funding Divergence</span><span class="sig-coin" style="color:#b06868">HYPE</span><span class="sig-dir" style="color:#b06868">SHORT</span><span class="sig-time">4h ago</span></div>
+      </div>
+    </div>
+
+    <!-- Divergence -->
+    <div class="page" id="page-divergence">
+      <div class="page-title">Divergence</div>
+      <div class="page-sub">Smart money vs retail positioning gaps</div>
+      <div class="diverg-grid">
+        <div class="diverg-card"><div class="diverg-coin" style="color:#6aaa7a">ZEC</div><div class="diverg-val">SM Long · Retail Short</div><div style="font-size:11px;color:#6aaa7a;margin-top:4px">+$4.2M net</div></div>
+        <div class="diverg-card"><div class="diverg-coin" style="color:#b06868">SOL</div><div class="diverg-val">SM Short · Retail Long</div><div style="font-size:11px;color:#b06868;margin-top:4px">-$2.8M net</div></div>
+        <div class="diverg-card"><div class="diverg-coin" style="color:#6aaa7a">ETH</div><div class="diverg-val">SM Long · Retail Short</div><div style="font-size:11px;color:#6aaa7a;margin-top:4px">+$1.1M net</div></div>
+      </div>
+    </div>
+
+    <!-- Edge -->
+    <div class="page" id="page-edge">
+      <div class="page-title">Edge</div>
+      <div class="page-sub">Signal recipe performance analytics</div>
+      <div class="edge-grid">
+        <div class="edge-card"><div class="edge-name">Momentum Stack</div><div class="edge-stat" style="color:#6aaa7a">Win rate: 71%</div><div class="edge-stat">42 signals</div></div>
+        <div class="edge-card"><div class="edge-name">Anti-Whale Trap</div><div class="edge-stat" style="color:#6aaa7a">Win rate: 64%</div><div class="edge-stat">28 signals</div></div>
+        <div class="edge-card"><div class="edge-name">Divergence Squeeze</div><div class="edge-stat" style="color:#f59e0b">Win rate: 55%</div><div class="edge-stat">19 signals</div></div>
+        <div class="edge-card"><div class="edge-name">Streak Continuation</div><div class="edge-stat" style="color:#6aaa7a">Win rate: 68%</div><div class="edge-stat">35 signals</div></div>
+        <div class="edge-card"><div class="edge-name">Funding Divergence</div><div class="edge-stat" style="color:#b06868">Win rate: 48%</div><div class="edge-stat">12 signals</div></div>
+        <div class="edge-card"><div class="edge-name">Whale Validated</div><div class="edge-stat" style="color:#6aaa7a">Win rate: 73%</div><div class="edge-stat">22 signals</div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<div class="hint">Click any nav item above to navigate · Wallets and Signals collapse when you leave them</div>
+
+<script>
+const sections = { wallets: ['discovery','leaderboard','inposition'], signals: ['feed','divergence'] };
+const sectionFirstPage = { wallets: 'discovery', signals: 'feed' };
+let currentPage = 'overview';
+let openSection = null;
+
+function go(pageId) {
+  // Deactivate all pages
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-' + pageId).classList.add('active');
+
+  // Deactivate all nav items and children
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.nav-child').forEach(n => n.classList.remove('active'));
+
+  // Determine which section this page belongs to
+  let pageSection = null;
+  for (const [sec, pages] of Object.entries(sections)) {
+    if (pages.includes(pageId)) { pageSection = sec; break; }
+  }
+
+  // Collapse all sections, open only the active one
+  for (const sec of Object.keys(sections)) {
+    const children = document.getElementById('children-' + sec);
+    const arrow = document.getElementById('arrow-' + sec);
+    const navItem = document.getElementById('nav-' + sec);
+    if (sec === pageSection) {
+      children.classList.add('open');
+      arrow.textContent = '▾';
+      navItem.classList.add('active', 'expanded');
+      openSection = sec;
+    } else {
+      children.classList.remove('open');
+      arrow.textContent = '▸';
+      navItem.classList.remove('active', 'expanded');
+    }
+  }
+
+  // Activate the right nav item
+  if (pageSection) {
+    const child = document.getElementById('nav-' + pageId);
+    if (child) child.classList.add('active');
+  } else {
+    const item = document.getElementById('nav-' + pageId);
+    if (item) item.classList.add('active');
+  }
+
+  currentPage = pageId;
+}
+
+function toggleSection(sec) {
+  const children = document.getElementById('children-' + sec);
+  const arrow = document.getElementById('arrow-' + sec);
+  const navItem = document.getElementById('nav-' + sec);
+  const isOpen = children.classList.contains('open');
+
+  if (isOpen) {
+    // Clicking active section header collapses and navigates away — go to overview
+    children.classList.remove('open');
+    arrow.textContent = '▸';
+    navItem.classList.remove('active', 'expanded');
+    go('overview');
+  } else {
+    // Navigate to section's first page
+    go(sectionFirstPage[sec]);
+  }
+}
+
+// Start on Overview
+go('overview');
+</script>
+</body>
+</html>

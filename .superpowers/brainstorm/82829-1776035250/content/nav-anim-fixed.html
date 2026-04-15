@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nav Animation</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #060606;
+  color: #f0f0f0;
+  font-family: -apple-system, 'Inter', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  padding: 40px 40px 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+h2 { font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.45); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; text-align: center; }
+.sub { font-size: 12px; color: rgba(255,255,255,0.25); margin-bottom: 32px; text-align: center; }
+
+.shell {
+  display: flex;
+  width: 780px;
+  height: 480px;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.8);
+}
+
+/* ── Nav rail — exact match to live ── */
+.rail {
+  width: 200px;
+  background: rgba(8,8,8,0.97);
+  border-right: 1px solid rgba(255,255,255,0.05);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  padding-top: 24px;
+}
+.logo-wrap {
+  padding: 0 20px 24px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  margin-bottom: 16px;
+}
+.logo { font-size: 17px; font-weight: 700; color: rgba(255,255,255,0.85); letter-spacing: 0.01em; }
+.items { padding-top: 8px; }
+
+/* Top-level item */
+.ni {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 20px;
+  font-size: 14px; font-weight: 500;
+  color: rgba(255,255,255,0.44);
+  border-left: 2px solid transparent;
+  cursor: pointer;
+  user-select: none;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.ni:hover { color: rgba(255,255,255,0.72); }
+.ni.parent-open { color: #f0f0f0; }
+
+/* Arrow */
+.arr {
+  font-size: 12px;
+  color: rgba(255,255,255,0.22);
+  transition: transform 0.22s cubic-bezier(0.4,0,0.2,1), color 0.22s;
+  line-height: 1;
+}
+.ni.parent-open .arr { transform: rotate(90deg); color: rgba(255,255,255,0.5); }
+
+/* Children container — key: transition only max-height, no opacity tricks */
+.children {
+  overflow: hidden;
+  max-height: 0;
+  /* transition controlled by JS for sequential behavior */
+}
+
+/* Child item */
+.ci {
+  display: flex; align-items: center;
+  padding: 7px 20px 7px 32px;
+  font-size: 13px; font-weight: 400;
+  color: rgba(255,255,255,0.38);
+  border-left: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s, border-color 0.15s;
+  user-select: none;
+}
+.ci:hover { color: rgba(255,255,255,0.72); }
+.ci.active {
+  color: #f0f0f0;
+  border-left-color: rgba(151,253,229,0.65);
+  background: rgba(151,253,229,0.04);
+}
+
+/* Footer */
+.footer {
+  margin-top: auto;
+  padding: 18px 0;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  text-align: center;
+}
+.footer-inner { display: inline-flex; align-items: center; gap: 8px; }
+.pdot { width: 6px; height: 6px; border-radius: 50%; background: #6aaa7a; box-shadow: 0 0 6px #6aaa7a; animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+.flabel { font-size: 13px; color: rgba(255,255,255,0.5); }
+.ftime { font-size: 11px; color: rgba(255,255,255,0.28); margin-top: 4px; }
+
+/* ── Content area ── */
+.content {
+  flex: 1;
+  background: #0d0d0d;
+  padding: 28px;
+  position: relative;
+  overflow: hidden;
+}
+.page { position: absolute; inset: 28px; opacity: 0; pointer-events: none; transition: opacity 0.18s ease; }
+.page.visible { opacity: 1; pointer-events: auto; }
+.page-title { font-size: 20px; font-weight: 700; color: #f0f0f0; margin-bottom: 4px; }
+.page-sub { font-size: 12px; color: rgba(255,255,255,0.35); margin-bottom: 20px; }
+.card { background: #141414; border: 1px solid rgba(255,255,255,0.04); border-radius: 6px; padding: 14px 16px; margin-bottom: 10px; }
+.card-title { font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.38); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 10px; }
+.frow { height: 8px; background: rgba(255,255,255,0.06); border-radius: 3px; margin-bottom: 6px; }
+.stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin-bottom: 12px; }
+.stat { background: #141414; border-radius: 5px; padding: 12px; }
+.sl { font-size: 9px; color: rgba(255,255,255,0.3); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 4px; }
+.sv { font-size: 16px; font-weight: 700; }
+.sig { display: flex; flex-direction: column; gap: 6px; }
+.srow { display: flex; align-items: center; gap: 8px; background: #141414; border-radius: 5px; padding: 9px 12px; }
+.sdot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.srec { font-size: 11px; font-weight: 600; }
+.scoin { font-size: 11px; font-weight: 700; }
+.sdir { font-size: 9px; letter-spacing: 0.08em; }
+.stime { margin-left: auto; font-size: 10px; color: rgba(255,255,255,0.3); }
+
+/* hint pill at bottom */
+.hint {
+  margin-top: 28px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 20px;
+  padding: 6px 16px;
+}
+</style>
+</head>
+<body>
+
+<h2>Arrow rotate — sequential collapse/expand</h2>
+<p class="sub">Click Wallets or Signals to see the coordinated animation. No layout jump.</p>
+
+<div class="shell">
+  <!-- Rail -->
+  <div class="rail">
+    <div class="logo-wrap"><div class="logo">HyperliquidFLOW</div></div>
+    <div class="items">
+      <div class="ni" onclick="goFlat('overview')">Overview</div>
+      <div class="ni" onclick="goFlat('brief')">Daily Brief</div>
+
+      <div class="ni parent-open" id="ni-wallets" onclick="toggleSection('wallets')">
+        <span>Wallets</span><span class="arr">›</span>
+      </div>
+      <div class="children" id="ch-wallets">
+        <div class="ci active" id="ci-discovery" onclick="goChild('discovery','wallets')">Discovery</div>
+        <div class="ci" id="ci-leaderboard" onclick="goChild('leaderboard','wallets')">Leaderboard</div>
+        <div class="ci" id="ci-inposition" onclick="goChild('inposition','wallets')">In Position</div>
+      </div>
+
+      <div class="ni" id="ni-signals" onclick="toggleSection('signals')">
+        <span>Signals</span><span class="arr">›</span>
+      </div>
+      <div class="children" id="ch-signals">
+        <div class="ci" id="ci-feed" onclick="goChild('feed','signals')">Feed</div>
+        <div class="ci" id="ci-divergence" onclick="goChild('divergence','signals')">Divergence</div>
+      </div>
+
+      <div class="ni" onclick="goFlat('edge')">Edge</div>
+    </div>
+    <div class="footer">
+      <div class="footer-inner"><span class="pdot"></span><span class="flabel">Monitoring</span></div>
+      <div class="ftime">8h ago</div>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+
+    <div class="page visible" id="pg-overview">
+      <div class="page-title">Overview</div>
+      <div class="page-sub">200 wallets · BTC 24h +0.0%</div>
+      <div class="stats">
+        <div class="stat"><div class="sl">Smart Money</div><div class="sv">200</div></div>
+        <div class="stat"><div class="sl">Book Value</div><div class="sv">$191M</div></div>
+        <div class="stat"><div class="sl">Unrealised PnL</div><div class="sv" style="color:#b06868">-$6.5M</div></div>
+        <div class="stat"><div class="sl">Avg Score</div><div class="sv">0.02</div></div>
+      </div>
+      <div class="card"><div class="card-title">Signal Activity · 24h</div><div class="frow" style="width:30%"></div><div class="frow" style="width:55%"></div><div class="frow" style="width:45%"></div></div>
+    </div>
+
+    <div class="page" id="pg-brief">
+      <div class="page-title">Daily Brief</div>
+      <div class="page-sub">Generated at 02:30 UTC · 8h ago</div>
+      <div class="card"><div class="card-title">Summary</div><div class="frow" style="width:90%"></div><div class="frow" style="width:75%"></div><div class="frow" style="width:60%"></div></div>
+      <div class="card"><div class="card-title">Watch List</div><div class="frow" style="width:45%"></div></div>
+    </div>
+
+    <div class="page" id="pg-discovery">
+      <div class="page-title">Discovery</div>
+      <div class="page-sub">5,000 wallets scanned · 992 qualified</div>
+      <div style="display:flex;gap:8px;margin-bottom:14px;background:#141414;border:1px solid rgba(255,255,255,0.05);border-radius:6px;padding:10px 12px;align-items:center">
+        <div style="flex:1;background:#0e0e0e;border:1px solid #1e1e1e;border-radius:4px;padding:7px 10px;font-size:11px;color:rgba(255,255,255,0.2)">0x... wallet address</div>
+        <div style="background:#1e1e1e;border:1px solid #2a2a2a;border-radius:4px;padding:7px 14px;font-size:11px;color:rgba(255,255,255,0.6)">Lookup</div>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="sl">Discovered</div><div class="sv">5,000</div></div>
+        <div class="stat"><div class="sl">Active SM</div><div class="sv" style="color:#6aaa7a">992</div></div>
+        <div class="stat"><div class="sl">Filtered</div><div class="sv" style="color:#b06868">4,008</div></div>
+        <div class="stat"><div class="sl">Avg Win Rate</div><div class="sv">75.3%</div></div>
+      </div>
+      <div class="card"><div class="card-title">Scan Pipeline</div><div class="frow" style="width:70%"></div><div class="frow" style="width:60%"></div><div class="frow" style="width:65%"></div></div>
+    </div>
+
+    <div class="page" id="pg-leaderboard">
+      <div class="page-title">Leaderboard</div>
+      <div class="page-sub">Smart money ranked by composite score</div>
+      <div class="card"><div class="card-title">Top Wallets</div><div class="frow"></div><div class="frow" style="width:88%"></div><div class="frow" style="width:92%"></div><div class="frow" style="width:80%"></div></div>
+      <div class="card" style="text-align:center;padding:10px;font-size:11px;color:rgba(255,255,255,0.25)">Show all 992 wallets ↓</div>
+    </div>
+
+    <div class="page" id="pg-inposition">
+      <div class="page-title">In Position</div>
+      <div class="page-sub">Wallets with open positions right now</div>
+      <div class="card"><div class="card-title">Active Positions</div><div class="frow" style="width:65%"></div><div class="frow" style="width:50%"></div></div>
+    </div>
+
+    <div class="page" id="pg-feed">
+      <div class="page-title">Feed</div>
+      <div class="page-sub">Live signals from 992 smart money wallets</div>
+      <div class="sig">
+        <div class="srow"><span class="sdot" style="background:#6aaa7a"></span><span class="srec">Momentum Stack</span><span class="scoin" style="color:#6aaa7a">ZEC</span><span class="sdir" style="color:#6aaa7a">LONG</span><span class="stime">31m ago</span></div>
+        <div class="srow"><span class="sdot" style="background:#b06868"></span><span class="srec">Anti-Whale Trap</span><span class="scoin" style="color:#b06868">SOL</span><span class="sdir" style="color:#b06868">SHORT</span><span class="stime">1h ago</span></div>
+        <div class="srow"><span class="sdot" style="background:#6aaa7a"></span><span class="srec">Divergence Squeeze</span><span class="scoin" style="color:#6aaa7a">ETH</span><span class="sdir" style="color:#6aaa7a">LONG</span><span class="stime">2h ago</span></div>
+        <div class="srow"><span class="sdot" style="background:#6aaa7a"></span><span class="srec">Streak Continuation</span><span class="scoin" style="color:#6aaa7a">BTC</span><span class="sdir" style="color:#6aaa7a">LONG</span><span class="stime">3h ago</span></div>
+      </div>
+    </div>
+
+    <div class="page" id="pg-divergence">
+      <div class="page-title">Divergence</div>
+      <div class="page-sub">Smart money vs retail positioning gaps</div>
+      <div class="stats" style="grid-template-columns:repeat(3,1fr)">
+        <div class="stat"><div class="sl">ZEC</div><div class="sv" style="color:#6aaa7a">+$4.2M</div></div>
+        <div class="stat"><div class="sl">SOL</div><div class="sv" style="color:#b06868">-$2.8M</div></div>
+        <div class="stat"><div class="sl">ETH</div><div class="sv" style="color:#6aaa7a">+$1.1M</div></div>
+      </div>
+    </div>
+
+    <div class="page" id="pg-edge">
+      <div class="page-title">Edge</div>
+      <div class="page-sub">Signal recipe performance analytics</div>
+      <div class="card"><div class="card-title">Recipe Performance</div><div class="frow" style="width:80%"></div><div class="frow" style="width:70%"></div><div class="frow" style="width:75%"></div></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="hint">Wallets and Signals collapse sequentially — no layout jump</div>
+
+<script>
+const CHILD_HEIGHT = { wallets: 99, signals: 66 }; // px — 3 items × 33px, 2 items × 33px
+const DURATION = 220; // ms per segment
+
+let openSection = 'wallets';
+let activePage  = 'discovery';
+let animating   = false;
+
+function px(section) {
+  return CHILD_HEIGHT[section] + 'px';
+}
+
+function openImmediate(section) {
+  const ch = document.getElementById('ch-' + section);
+  const ni = document.getElementById('ni-' + section);
+  ch.style.transition = `max-height ${DURATION}ms cubic-bezier(0.4,0,0.2,1)`;
+  ch.style.maxHeight  = px(section);
+  ni.classList.add('parent-open');
+}
+
+function closeImmediate(section) {
+  const ch = document.getElementById('ch-' + section);
+  const ni = document.getElementById('ni-' + section);
+  ch.style.transition = `max-height ${DURATION}ms cubic-bezier(0.4,0,0.2,1)`;
+  ch.style.maxHeight  = '0';
+  ni.classList.remove('parent-open');
+}
+
+function toggleSection(sec) {
+  if (animating) return;
+
+  // Already open — collapse and go to overview
+  if (openSection === sec) {
+    animating = true;
+    closeImmediate(sec);
+    openSection = null;
+    showPage('overview');
+    setTimeout(() => { animating = false; }, DURATION);
+    return;
+  }
+
+  // Different section open — collapse old THEN expand new
+  if (openSection && openSection !== sec) {
+    animating = true;
+    closeImmediate(openSection);
+    const prev = openSection;
+    openSection = null;
+
+    setTimeout(() => {
+      openImmediate(sec);
+      openSection = sec;
+      // auto-navigate to first child
+      const firstChild = document.getElementById('ch-' + sec).querySelector('.ci');
+      if (firstChild) {
+        const pageId = firstChild.id.replace('ci-', '');
+        goChild(pageId, sec);
+      }
+      setTimeout(() => { animating = false; }, DURATION);
+    }, DURATION + 30); // small gap between collapse and expand
+    return;
+  }
+
+  // Nothing open — just expand
+  animating = true;
+  openImmediate(sec);
+  openSection = sec;
+  const firstChild = document.getElementById('ch-' + sec).querySelector('.ci');
+  if (firstChild) {
+    const pageId = firstChild.id.replace('ci-', '');
+    goChild(pageId, sec);
+  }
+  setTimeout(() => { animating = false; }, DURATION);
+}
+
+function goChild(pageId, section) {
+  document.querySelectorAll('.ci').forEach(c => c.classList.remove('active'));
+  const ci = document.getElementById('ci-' + pageId);
+  if (ci) ci.classList.add('active');
+  showPage(pageId);
+  activePage = pageId;
+}
+
+function goFlat(pageId) {
+  if (animating) return;
+
+  // Collapse open section
+  if (openSection) {
+    animating = true;
+    closeImmediate(openSection);
+    openSection = null;
+    setTimeout(() => { animating = false; }, DURATION);
+  }
+
+  document.querySelectorAll('.ci').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('.ni').forEach(n => n.classList.remove('active'));
+  showPage(pageId);
+  activePage = pageId;
+}
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('visible'));
+  const pg = document.getElementById('pg-' + id);
+  if (pg) pg.classList.add('visible');
+}
+
+// Init — wallets open, discovery active
+(function() {
+  const ch = document.getElementById('ch-wallets');
+  ch.style.maxHeight = px('wallets');
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>HyperliquidFLOW — Sprint Roadmap (6)</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: #060606;
+  color: #f0f0f0;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 13px;
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* Background aura — bottom-right corner like the real app */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 100% 100%, oklch(28% 0.055 170) 0%, oklch(20% 0.032 170) 30%, oklch(10% 0.010 170) 55%, transparent 75%),
+    radial-gradient(ellipse at 0% 0%, oklch(10% 0.020 170) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Grain overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.90' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.15'/%3E%3C/svg%3E");
+  opacity: 0.18;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.wrap {
+  position: relative; z-index: 1;
+  max-width: 900px; margin: 0 auto;
+  padding: 36px 40px 80px;
+}
+
+/* ── Header ── */
+.hdr { margin-bottom: 32px; }
+.hdr-top { display: flex; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+.logo { font-size: 20px; font-weight: 700; color: #f0f0f0; letter-spacing: -0.02em; }
+.logo span { color: #6aaa7a; }
+.hdr-sub { font-size: 12px; color: rgba(255,255,255,0.32); }
+.live-dot {
+  display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  background: #6aaa7a; box-shadow: 0 0 6px rgba(106,170,122,0.7);
+  margin-right: 6px; vertical-align: middle; animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+/* ── Sprint Tabs ── */
+.sprint-tabs {
+  display: flex; gap: 4px; margin-bottom: 24px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  padding-bottom: 0;
+}
+.tab-btn {
+  background: none; border: none; cursor: pointer;
+  padding: 8px 14px; border-radius: 6px 6px 0 0;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.03em;
+  color: rgba(255,255,255,0.32);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  white-space: nowrap;
+}
+.tab-btn:hover { color: rgba(255,255,255,0.6); background: rgba(255,255,255,0.03); }
+.tab-btn.active { color: #6aaa7a; border-bottom-color: #6aaa7a; background: rgba(106,170,122,0.04); }
+.tab-btn .tab-num { font-size: 10px; opacity: 0.6; margin-right: 4px; }
+
+/* ── Pane ── */
+.pane { display: none; }
+.pane.active { display: block; }
+
+/* ── Card ── */
+.card {
+  background: rgba(12,12,12,0.7);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 12px;
+  overflow: hidden;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 2px 20px rgba(0,0,0,0.4);
+  margin-bottom: 14px;
+}
+.card-hdr {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 20px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.card-hdr-label {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: rgba(255,255,255,0.3);
+}
+.card-body { padding: 20px; }
+
+/* ── Status badge ── */
+.status-pill {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; padding: 2px 8px; border-radius: 4px; border: 1px solid;
+}
+.status-ready   { background: rgba(106,170,122,0.1);  border-color: rgba(106,170,122,0.25); color: #6aaa7a; }
+.status-waiting { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.10); color: rgba(255,255,255,0.38); }
+.status-complex { background: rgba(176,104,104,0.08); border-color: rgba(176,104,104,0.2);  color: #b06868; }
+
+/* ── Section label ── */
+.section-label {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: rgba(255,255,255,0.28);
+  margin-bottom: 10px;
+}
+
+/* ── Prereads ── */
+.prereads {
+  background: rgba(176,104,104,0.05);
+  border: 1px solid rgba(176,104,104,0.15);
+  border-radius: 8px; padding: 14px 16px;
+  margin-bottom: 14px;
+}
+.prereads-title {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: rgba(176,104,104,0.8); margin-bottom: 10px;
+}
+.prereads-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 3px 20px; }
+.preread-item {
+  font-size: 11px; font-family: 'Geist Mono', 'SF Mono', monospace;
+  color: rgba(255,255,255,0.42); padding: 3px 0;
+  display: flex; align-items: center; gap: 6px;
+}
+.preread-item::before { content: "→"; color: rgba(255,255,255,0.18); }
+
+/* ── Tier table ── */
+.tier-table { width: 100%; border-collapse: collapse; }
+.tier-table th {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: rgba(255,255,255,0.28);
+  text-align: left; padding: 7px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.tier-table td {
+  font-size: 12px; color: rgba(255,255,255,0.5);
+  padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,0.04);
+  font-variant-numeric: tabular-nums;
+}
+.tier-table tr:last-child td { border-bottom: none; }
+.tier-table tr:hover td { background: rgba(255,255,255,0.02); }
+.tier-note { font-size: 11px; color: rgba(255,255,255,0.25); }
+
+/* ── Badge variants ── */
+.badge-variants { display: flex; flex-direction: column; gap: 12px; }
+.variant-row {
+  display: flex; align-items: center; gap: 20px;
+  padding: 14px 16px; border-radius: 8px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+}
+.variant-demo {
+  display: flex; align-items: center; gap: 8px;
+  min-width: 260px;
+}
+.mock-addr {
+  font-family: 'Geist Mono', 'SF Mono', monospace;
+  font-size: 12px; color: rgba(156,163,175,0.75);
+}
+.variant-info { flex: 1; }
+.variant-name { font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.7); margin-bottom: 2px; }
+.variant-desc { font-size: 11px; color: rgba(255,255,255,0.32); }
+.variant-label {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.05em;
+  text-transform: uppercase; padding: 2px 8px; border-radius: 3px;
+  font-family: 'Geist Mono', 'SF Mono', monospace; cursor: default;
+  white-space: nowrap;
+}
+
+/* Badge variant A — current design */
+.badge-a {
+  color: rgba(255,255,255,0.38);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 4px;
+}
+/* Badge variant B — slightly brighter text */
+.badge-b {
+  color: rgba(255,255,255,0.55);
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 4px;
+}
+/* Badge variant C — outlined only, no fill */
+.badge-c {
+  color: rgba(255,255,255,0.42);
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 4px;
+}
+/* Badge variant D — left accent bar */
+.badge-d {
+  color: rgba(255,255,255,0.42);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-left: 2px solid rgba(255,255,255,0.22);
+  border-radius: 2px 4px 4px 2px;
+  padding-left: 7px;
+}
+/* Badge variant E — pill shape */
+.badge-e {
+  color: rgba(255,255,255,0.38);
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 20px;
+  padding: 2px 10px;
+}
+/* All badges use .glow-btn shimmer */
+
+/* ── Task list ── */
+.tasks { display: flex; flex-direction: column; gap: 6px; }
+.task-row {
+  display: grid; grid-template-columns: 28px 1fr auto;
+  align-items: start; gap: 10px;
+  padding: 10px 14px; border-radius: 8px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+  transition: border-color 0.12s;
+}
+.task-row:hover { border-color: rgba(255,255,255,0.09); }
+.task-num { font-size: 11px; font-weight: 700; color: rgba(255,255,255,0.2); padding-top: 1px; }
+.task-name { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.75); margin-bottom: 2px; }
+.task-files { font-size: 11px; color: rgba(255,255,255,0.28); font-family: 'Geist Mono', 'SF Mono', monospace; }
+.task-tag {
+  font-size: 9px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 2px 7px; border-radius: 3px; margin-top: 2px; white-space: nowrap; align-self: start;
+}
+.tag-new  { background: rgba(106,170,122,0.08); color: rgba(106,170,122,0.75); border: 1px solid rgba(106,170,122,0.2); }
+.tag-mod  { background: rgba(245,158,11,0.08);  color: rgba(245,158,11,0.75);  border: 1px solid rgba(245,158,11,0.2); }
+.tag-docs { background: rgba(255,255,255,0.04); color: rgba(255,255,255,0.3);  border: 1px solid rgba(255,255,255,0.08); }
+
+/* ── Deliverables ── */
+.deliverable-list { list-style: none; display: flex; flex-direction: column; gap: 7px; }
+.deliverable-list li {
+  font-size: 12px; color: rgba(255,255,255,0.52);
+  display: flex; align-items: flex-start; gap: 8px; line-height: 1.5;
+}
+.deliverable-list li::before { content: "—"; color: rgba(255,255,255,0.18); flex-shrink: 0; margin-top: 1px; }
+.deliverable-list li strong { color: rgba(255,255,255,0.75); }
+.deliverable-list code {
+  font-family: 'Geist Mono', 'SF Mono', monospace; font-size: 10px;
+  background: rgba(255,255,255,0.06); padding: 1px 5px; border-radius: 3px;
+  color: rgba(255,255,255,0.55);
+}
+
+/* ── Two-col layout ── */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.two-col-3 { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; }
+
+/* ── File chips ── */
+.file-chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.file-chip {
+  font-size: 10px; font-family: 'Geist Mono', 'SF Mono', monospace;
+  padding: 2px 7px; border-radius: 3px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.38);
+}
+
+/* ── Depends banner ── */
+.depends {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px; border-radius: 7px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  margin-bottom: 14px;
+  font-size: 12px; color: rgba(255,255,255,0.38);
+}
+.depends-icon { color: rgba(255,255,255,0.2); font-size: 12px; }
+
+/* ── Grid for token cards ── */
+.token-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.token-card {
+  padding: 10px 12px; border-radius: 7px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.token-card-lbl { font-size: 10px; color: rgba(255,255,255,0.28); margin-bottom: 3px; }
+.token-card-name { font-size: 11px; font-family: 'Geist Mono', 'SF Mono', monospace; color: #6aaa7a; font-weight: 600; }
+.token-card-val { font-size: 10px; font-family: 'Geist Mono', 'SF Mono', monospace; color: rgba(255,255,255,0.28); margin-top: 1px; }
+
+hr { border: none; border-top: 1px solid rgba(255,255,255,0.05); margin: 14px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- Header -->
+<div class="hdr">
+  <div class="hdr-top">
+    <span style="font-size:17px;font-weight:700;letter-spacing:0.01em;color:rgba(255,255,255,0.85);cursor:default;user-select:none">HyperliquidFLOW</span>
+    <span class="status-pill status-ready"><span class="live-dot"></span>Sprint 1 Ready</span>
+  </div>
+  <div class="hdr-sub">Feature Roadmap &nbsp;·&nbsp; 6 Sprints &nbsp;·&nbsp; 2026-04-13</div>
+</div>
+
+<!-- Sprint Tabs -->
+<div class="sprint-tabs">
+  <button class="tab-btn active" onclick="showTab(1, this)">
+    <span class="tab-num">01</span>Wallet Tiers
+  </button>
+  <button class="tab-btn" onclick="showTab(2, this)">
+    <span class="tab-num">02</span>Bias Chart
+  </button>
+  <button class="tab-btn" onclick="showTab(3, this)">
+    <span class="tab-num">03</span>Heatmap
+  </button>
+  <button class="tab-btn" onclick="showTab(4, this)">
+    <span class="tab-num">04</span>Market Radar
+  </button>
+  <button class="tab-btn" onclick="showTab(5, this)">
+    <span class="tab-num">05</span>Alerts + Paper
+  </button>
+  <button class="tab-btn" onclick="showTab(6, this)">
+    <span class="tab-num">06</span>Auth
+  </button>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════ SPRINT 1 -->
+<div id="pane-1" class="pane active">
+
+  <div class="prereads">
+    <div class="prereads-title">Agent must read all 10 files before writing any code</div>
+    <div class="prereads-grid">
+      <div class="preread-item">docs/sprints/status.md</div>
+      <div class="preread-item">app/wallets/leaderboard/page.tsx</div>
+      <div class="preread-item">docs/superpowers/specs/…sprint-1…md</div>
+      <div class="preread-item">app/wallets/discovery/page.tsx</div>
+      <div class="preread-item">lib/cohort-engine.ts</div>
+      <div class="preread-item">lib/design-tokens.ts</div>
+      <div class="preread-item">app/api/refresh-cohort/route.ts</div>
+      <div class="preread-item">app/globals.css (.glow-btn)</div>
+      <div class="preread-item">app/api/scanner-stats/route.ts</div>
+      <div class="preread-item">components/glow-init.tsx</div>
+    </div>
+  </div>
+
+  <div class="two-col-3">
+    <!-- Left: Tiers + Tasks -->
+    <div>
+      <!-- Tier table -->
+      <div class="card">
+        <div class="card-hdr"><span class="card-hdr-label">7 Tier Definitions</span></div>
+        <table class="tier-table">
+          <thead><tr><th>Badge</th><th>Min</th><th>Max</th><th>Live wallets</th></tr></thead>
+          <tbody>
+            <tr><td><span style="font-family:monospace;font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.38);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.07);border-radius:4px;padding:2px 8px">Elite</span></td><td>$5M+</td><td>--</td><td class="tier-note">8 wallets, max $40.8M</td></tr>
+            <tr><td><span style="font-family:monospace;font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.38);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.07);border-radius:4px;padding:2px 8px">Major</span></td><td>$1M</td><td>$5M</td><td class="tier-note">14 wallets</td></tr>
+            <tr><td><span style="font-family:monospace;font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.38);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.07);border-radius:4px;padding:2px 8px">Large</span></td><td>$500K</td><td>$1M</td><td class="tier-note">7 wallets</td></tr>
+            <tr><td><span style="font-family:monospace;font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.38);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.07);border-radius:4px;padding:2px 8px">Mid</span></td><td>$100K</td><td>$500K</td><td class="tier-note">Merged bands, 7 wallets</td></tr>
+            <tr><td><span style="font-family:monospace;font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.38);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.07);border-radius:4px;padding:2px 8px">Small</span></td><td>$50K</td><td>$100K</td><td class="tier-note">5 wallets</td></tr>
+            <tr><td><span style="font-family:monospace;font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.38);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.07);border-radius:4px;padding:2px 8px">Micro</span></td><td>$1K</td><td>$50K</td><td class="tier-note">Active small traders</td></tr>
+            <tr><td><span style="font-family:monospace;font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:rgba(255,255,255,.38);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.07);border-radius:4px;padding:2px 8px">Dust</span></td><td>$0</td><td>$1K</td><td class="tier-note">Tagged, excluded from aggregations</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Tasks -->
+      <div class="card">
+        <div class="card-hdr"><span class="card-hdr-label">9 Tasks · TDD</span></div>
+        <div class="card-body">
+          <div class="tasks">
+            <div class="task-row">
+              <div class="task-num">T1</div>
+              <div><div class="task-name">Set up Vitest</div><div class="task-files">vitest.config.ts · package.json</div></div>
+              <div class="task-tag tag-new">New</div>
+            </div>
+            <div class="task-row">
+              <div class="task-num">T2</div>
+              <div><div class="task-name">getEquityTier() — write failing tests, implement, pass</div><div class="task-files">lib/__tests__/cohort-engine.test.ts · lib/cohort-engine.ts</div></div>
+              <div class="task-tag tag-new">TDD</div>
+            </div>
+            <div class="task-row">
+              <div class="task-num">T3</div>
+              <div><div class="task-name">Supabase migration + backfill</div><div class="task-files">supabase/migrations/003_equity_tier.sql</div></div>
+              <div class="task-tag tag-new">DB</div>
+            </div>
+            <div class="task-row">
+              <div class="task-num">T4</div>
+              <div><div class="task-name">Wire equity_tier into snapshot writes + KV payload</div><div class="task-files">lib/cohort-engine.ts · app/api/refresh-cohort/route.ts</div></div>
+              <div class="task-tag tag-mod">Modify</div>
+            </div>
+            <div class="task-row">
+              <div class="task-num">T5</div>
+              <div><div class="task-name">scanner-stats API — tier breakdown counts</div><div class="task-files">app/api/scanner-stats/route.ts · discovery/page.tsx (type)</div></div>
+              <div class="task-tag tag-mod">Modify</div>
+            </div>
+            <div class="task-row">
+              <div class="task-num">T6</div>
+              <div><div class="task-name">Leaderboard — TierBadge (design-tokens + .glow-btn)</div><div class="task-files">app/wallets/leaderboard/page.tsx</div></div>
+              <div class="task-tag tag-mod">Updated</div>
+            </div>
+            <div class="task-row">
+              <div class="task-num">T7</div>
+              <div><div class="task-name">Leaderboard — tier filter (All / Elite / Major / ...)</div><div class="task-files">app/wallets/leaderboard/page.tsx — client-side only</div></div>
+              <div class="task-tag tag-mod">Modify</div>
+            </div>
+            <div class="task-row">
+              <div class="task-num">T8</div>
+              <div><div class="task-name">Discovery page — tier breakdown section (7 stat cards)</div><div class="task-files">app/wallets/discovery/page.tsx</div></div>
+              <div class="task-tag tag-mod">Modify</div>
+            </div>
+            <div class="task-row">
+              <div class="task-num">T9</div>
+              <div><div class="task-name">Mark Sprint 1 complete in status tracker</div><div class="task-files">docs/sprints/status.md</div></div>
+              <div class="task-tag tag-docs">Docs</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: Badge variants -->
+    <div>
+      <div class="card" style="position:sticky;top:20px">
+        <div class="card-hdr"><span class="card-hdr-label">Badge Style Options</span></div>
+        <div class="card-body">
+          <p style="font-size:11px;color:rgba(255,255,255,0.35);margin-bottom:14px">All use design-tokens.ts + .glow-btn shimmer on hover. Pick one for the implementation plan.</p>
+
+          <div class="badge-variants">
+
+            <!-- A -->
+            <div class="variant-row" style="border-color:rgba(106,170,122,0.25);background:rgba(106,170,122,0.03)">
+              <div class="variant-demo">
+                <span class="mock-addr">0x1a2b...c3d4</span>
+                <span class="variant-label badge-a">Elite</span>
+              </div>
+              <div class="variant-info">
+                <div class="variant-name">A — Filled muted <span style="font-size:10px;color:#6aaa7a;font-weight:400">(current plan)</span></div>
+                <div class="variant-desc">tagBg fill, textMuted text, border. Subtle, uniform across all tiers.</div>
+              </div>
+            </div>
+
+            <!-- B -->
+            <div class="variant-row">
+              <div class="variant-demo">
+                <span class="mock-addr">0x1a2b...c3d4</span>
+                <span class="variant-label badge-b">Major</span>
+              </div>
+              <div class="variant-info">
+                <div class="variant-name">B — Brighter text</div>
+                <div class="variant-desc">Same fill, text at 0.55 opacity vs 0.38. Easier to read at small size.</div>
+              </div>
+            </div>
+
+            <!-- C -->
+            <div class="variant-row">
+              <div class="variant-demo">
+                <span class="mock-addr">0x1a2b...c3d4</span>
+                <span class="variant-label badge-c">Large</span>
+              </div>
+              <div class="variant-info">
+                <div class="variant-name">C — Ghost / outline only</div>
+                <div class="variant-desc">No fill, only border. Least visual noise. Disappears on dark rows.</div>
+              </div>
+            </div>
+
+            <!-- D -->
+            <div class="variant-row">
+              <div class="variant-demo">
+                <span class="mock-addr">0x1a2b...c3d4</span>
+                <span class="variant-label badge-d">Mid</span>
+              </div>
+              <div class="variant-info">
+                <div class="variant-name">D — Left accent line</div>
+                <div class="variant-desc">Thin left border at higher opacity. Gives visual anchor without color.</div>
+              </div>
+            </div>
+
+            <!-- E -->
+            <div class="variant-row">
+              <div class="variant-demo">
+                <span class="mock-addr">0x1a2b...c3d4</span>
+                <span class="variant-label badge-e">Small</span>
+              </div>
+              <div class="variant-info">
+                <div class="variant-name">E — Pill (rounded)</div>
+                <div class="variant-desc">Same as A but border-radius 20px. Softer look, common in finance UIs.</div>
+              </div>
+            </div>
+
+          </div>
+
+          <hr>
+
+          <div class="section-label" style="margin-bottom:8px">Tokens used by all variants</div>
+          <div class="token-grid">
+            <div class="token-card">
+              <div class="token-card-lbl">Text</div>
+              <div class="token-card-name">color.textMuted</div>
+              <div class="token-card-val">rgba(255,255,255,0.38)</div>
+            </div>
+            <div class="token-card">
+              <div class="token-card-lbl">Background</div>
+              <div class="token-card-name">color.tagBg</div>
+              <div class="token-card-val">rgba(255,255,255,0.06)</div>
+            </div>
+            <div class="token-card">
+              <div class="token-card-lbl">Border</div>
+              <div class="token-card-name">color.border</div>
+              <div class="token-card-val">rgba(255,255,255,0.07)</div>
+            </div>
+            <div class="token-card">
+              <div class="token-card-lbl">Radius</div>
+              <div class="token-card-name">radius.dirPill</div>
+              <div class="token-card-val">4px</div>
+            </div>
+            <div class="token-card">
+              <div class="token-card-lbl">Font</div>
+              <div class="token-card-name">Geist Mono</div>
+              <div class="token-card-val">type.mono</div>
+            </div>
+            <div class="token-card">
+              <div class="token-card-lbl">Shimmer</div>
+              <div class="token-card-name">.glow-btn</div>
+              <div class="token-card-val">cursor radial</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div><!-- /pane-1 -->
+
+
+<!-- ═══════════════════════════════════════════════════════════ SPRINT 2 -->
+<div id="pane-2" class="pane">
+  <div class="depends">
+    <span class="depends-icon">&#8594;</span>
+    Depends on Sprint 1: <code style="font-family:monospace;font-size:10px;background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px;color:rgba(255,255,255,.55)">equity_tier</code> column must exist in <code style="font-family:monospace;font-size:10px;background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px;color:rgba(255,255,255,.55)">cohort_snapshots</code>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-hdr"><span class="card-hdr-label">Goal</span></div>
+      <div class="card-body">
+        <p style="font-size:13px;color:rgba(255,255,255,.6);margin-bottom:12px">Multi-line time-series chart showing average net long/short bias per wallet tier across the last N snapshots. Elite going bearish while Dust goes long = the divergence signal.</p>
+        <div class="section-label">Bias formula</div>
+        <div style="font-family:monospace;font-size:11px;background:rgba(255,255,255,.04);padding:10px 14px;border-radius:6px;color:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.07)">
+          net_bias = (long_notional - short_notional)<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/ (long_notional + short_notional)<br><br>
+          Range: -1.0 (fully short) to +1.0 (fully long)
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr"><span class="card-hdr-label">Deliverables</span></div>
+      <div class="card-body">
+        <ul class="deliverable-list">
+          <li>New API route <code>/api/bias-trend</code> — per-tier bias per snapshot, last 30-90 snapshots</li>
+          <li>Multi-line chart using recharts, one line per tier</li>
+          <li>Tier toggle checkboxes — default: Elite, Major, Large visible</li>
+          <li>Zero reference line at Y=0 (dashed)</li>
+          <li>KV cached, 5-min TTL, invalidated by refresh-cohort</li>
+          <li>New page <code>/signals/bias</code> + nav entry under Signals</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr"><span class="card-hdr-label">Files Touched</span></div>
+    <div class="card-body">
+      <div class="file-chips">
+        <span class="file-chip">app/api/bias-trend/route.ts (new)</span>
+        <span class="file-chip">app/signals/bias/page.tsx (new)</span>
+        <span class="file-chip">components/nav.tsx</span>
+        <span class="file-chip">lib/design-tokens.ts (read only)</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr"><span class="card-hdr-label">Chart Spec</span></div>
+    <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <div>
+        <div class="section-label">Chart params</div>
+        <ul class="deliverable-list">
+          <li>X: snapshot timestamps — "Apr 13 14:00"</li>
+          <li>Y: -1.0 to +1.0 — labeled "-100% Short" to "+100% Long"</li>
+          <li>Tooltip: all visible tier values at hover timestamp</li>
+          <li>Responsive width, full viewport height minus controls</li>
+        </ul>
+      </div>
+      <div>
+        <div class="section-label">API query params</div>
+        <ul class="deliverable-list">
+          <li><code>window</code> — number of snapshots (default 30, max 90)</li>
+          <li><code>tiers</code> — comma-separated tier names (default: all)</li>
+          <li>Null tier = no wallets that snapshot (no line rendered)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div><!-- /pane-2 -->
+
+
+<!-- ═══════════════════════════════════════════════════════════ SPRINT 3 -->
+<div id="pane-3" class="pane">
+  <div class="depends">
+    <span class="depends-icon">&#8594;</span>
+    Depends on Sprint 1: <code style="font-family:monospace;font-size:10px;background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px;color:rgba(255,255,255,.55)">equity_tier</code> in <code style="font-family:monospace;font-size:10px;background:rgba(255,255,255,.06);padding:1px 5px;border-radius:3px;color:rgba(255,255,255,.55)">cohort_snapshots</code>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-hdr"><span class="card-hdr-label">Goal</span></div>
+      <div class="card-body">
+        <p style="font-size:13px;color:rgba(255,255,255,.6);margin-bottom:12px">Asset x tier grid showing which tiers are net long or short in which assets right now. One glance: Elite short ETH, Micro long ETH = actionable divergence.</p>
+        <div class="section-label">Cell formula</div>
+        <div style="font-family:monospace;font-size:11px;background:rgba(255,255,255,.04);padding:10px 14px;border-radius:6px;color:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.07)">
+          bias_score = net_notional / total_oi<br>
+          Color: green (long) / red (short)<br>
+          Opacity: abs(bias_score) — min 0.08
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr"><span class="card-hdr-label">Deliverables</span></div>
+      <div class="card-body">
+        <ul class="deliverable-list">
+          <li>New API route <code>/api/position-heatmap</code> — asset x tier matrix from latest snapshot positions JSONB</li>
+          <li>Grid: rows = top 15 assets by OI, columns = 7 tiers</li>
+          <li>Cell colors from <strong>color.green / color.red</strong> at opacity = abs(bias_score)</li>
+          <li>Position age filter: 24h (default), 7d, all</li>
+          <li>Rightmost column: total OI per asset (e.g. $8.4M)</li>
+          <li>Hover tooltip per cell</li>
+          <li>New page <code>/signals/heatmap</code> + nav entry</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr"><span class="card-hdr-label">Files Touched</span></div>
+    <div class="card-body">
+      <div class="file-chips">
+        <span class="file-chip">app/api/position-heatmap/route.ts (new)</span>
+        <span class="file-chip">app/signals/heatmap/page.tsx (new)</span>
+        <span class="file-chip">components/nav.tsx</span>
+        <span class="file-chip">lib/design-tokens.ts (read only)</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr"><span class="card-hdr-label">Grid Design</span></div>
+    <div class="card-body">
+      <div style="overflow:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:11px">
+          <thead>
+            <tr>
+              <th style="text-align:left;padding:6px 10px;color:rgba(255,255,255,.28);font-weight:700;letter-spacing:.06em;border-bottom:1px solid rgba(255,255,255,.06)">Asset</th>
+              <th style="padding:6px 8px;color:rgba(255,255,255,.28);font-weight:700;letter-spacing:.05em;border-bottom:1px solid rgba(255,255,255,.06)">Elite</th>
+              <th style="padding:6px 8px;color:rgba(255,255,255,.28);font-weight:700;letter-spacing:.05em;border-bottom:1px solid rgba(255,255,255,.06)">Major</th>
+              <th style="padding:6px 8px;color:rgba(255,255,255,.28);font-weight:700;letter-spacing:.05em;border-bottom:1px solid rgba(255,255,255,.06)">Large</th>
+              <th style="padding:6px 8px;color:rgba(255,255,255,.28);font-weight:700;letter-spacing:.05em;border-bottom:1px solid rgba(255,255,255,.06)">Mid</th>
+              <th style="padding:6px 8px;color:rgba(255,255,255,.28);font-weight:700;letter-spacing:.05em;border-bottom:1px solid rgba(255,255,255,.06)">Small</th>
+              <th style="padding:6px 8px;color:rgba(255,255,255,.28);font-weight:700;letter-spacing:.05em;border-bottom:1px solid rgba(255,255,255,.06)">Micro</th>
+              <th style="text-align:right;padding:6px 8px;color:rgba(255,255,255,.28);font-weight:700;letter-spacing:.05em;border-bottom:1px solid rgba(255,255,255,.06)">OI</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td style="padding:7px 10px;font-weight:700;color:rgba(255,255,255,.6)">BTC</td>
+              <td style="padding:4px 8px"><div style="background:rgba(106,170,122,0.55);border-radius:3px;height:28px;display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(255,255,255,.7)">+0.62</div></td>
+              <td style="padding:4px 8px"><div style="background:rgba(176,104,104,0.20);border-radius:3px;height:28px;display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(255,255,255,.5)">-0.18</div></td>
+              <td style="padding:4px 8px"><div style="background:rgba(106,170,122,0.15);border-radius:3px;height:28px;display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(255,255,255,.5)">+0.12</div></td>
+              <td style="padding:4px 8px"><div style="background:rgba(255,255,255,0.04);border-radius:3px;height:28px;display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(255,255,255,.2)">--</div></td>
+              <td style="padding:4px 8px"><div style="background:rgba(106,170,122,0.35);border-radius:3px;height:28px;display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(255,255,255,.6)">+0.41</div></td>
+              <td style="padding:4px 8px"><div style="background:rgba(106,170,122,0.60);border-radius:3px;height:28px;display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(255,255,255,.7)">+0.71</div></td>
+              <td style="padding:7px 8px;text-align:right;font-variant-numeric:tabular-nums;color:rgba(255,255,255,.42)">$8.4M</td>
+            </tr>
+            <tr>
+              <td style="padding:7px 10px;font-weight:700;color:rgba(255,255,255,.6)">ETH</td>
+              <td style="padding:4px 8px"><div style="background:rgba(176,104,104,0.45);border-radius:3px;height:28px;display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(255,255,255,.65)">-0.44</div></td>
+              <td style="padding:4px 8px"><div style="background:rgba(255,255,255,0.04);border-radius:3px;height:28px;display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(255,255,255,.2)">--</div></td>
+              <td style="padding:4px 8px"><div style="background:rgba(176,104,104,0.25);border-radius:3px;height:28px;display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(255,255,255,.5)">-0.22</div></td>
+              <td style="padding:4px 8px"><div style="background:rgba(106,170,122,0.22);border-radius:3px;height:28px;display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(255,255,255,.5)">+0.18</div></td>
+              <td style="padding:4px 8px"><div style="background:rgba(106,170,122,0.45);border-radius:3px;height:28px;display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(255,255,255,.65)">+0.50</div></td>
+              <td style="padding:4px 8px"><div style="background:rgba(106,170,122,0.68);border-radius:3px;height:28px;display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(255,255,255,.75)">+0.80</div></td>
+              <td style="padding:7px 8px;text-align:right;font-variant-numeric:tabular-nums;color:rgba(255,255,255,.42)">$3.2M</td>
+            </tr>
+          </tbody>
+        </table>
+        <p style="font-size:10px;color:rgba(255,255,255,.2);margin-top:8px">Mock data — illustrative. Green = net long, red = net short. Opacity = conviction.</p>
+      </div>
+    </div>
+  </div>
+</div><!-- /pane-3 -->
+
+
+<!-- ═══════════════════════════════════════════════════════════ SPRINT 4 -->
+<div id="pane-4" class="pane">
+  <div class="depends">
+    <span class="depends-icon">&#8594;</span>
+    Depends on Sprint 1 (equity_tier) and live price data from existing market-ticker route
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-hdr"><span class="card-hdr-label">Goal</span></div>
+      <div class="card-body">
+        <p style="font-size:13px;color:rgba(255,255,255,.6);margin-bottom:12px">For a selected asset, show where wallet positions cluster along the price axis. Entry density, liquidation zones, and position-heavy levels at a glance. Reveals where forced selling or profit-taking is likely.</p>
+        <div class="section-label">Bucket logic</div>
+        <div style="font-family:monospace;font-size:11px;background:rgba(255,255,255,.04);padding:10px 14px;border-radius:6px;color:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.07)">
+          60 price buckets<br>
+          Range: current_price * 0.7 to 1.3<br>
+          Liq estimate: avg_px * (1 - liq_buffer) for longs
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hdr"><span class="card-hdr-label">Deliverables</span></div>
+      <div class="card-body">
+        <ul class="deliverable-list">
+          <li>New API route <code>/api/market-radar</code> — bucketed long/short/liq density per price level</li>
+          <li>Horizontal bar chart: longs extend left (green), shorts right (red)</li>
+          <li>Current price reference line with label</li>
+          <li>Liquidation zone overlay (dashed, distinct)</li>
+          <li>Asset selector (top 10 by OI) + tier filter</li>
+          <li>Stats row: total positions, long OI, short OI, avg entries</li>
+          <li>New page <code>/signals/radar</code> + nav entry</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr"><span class="card-hdr-label">Files Touched</span></div>
+    <div class="card-body">
+      <div class="file-chips">
+        <span class="file-chip">app/api/market-radar/route.ts (new)</span>
+        <span class="file-chip">app/signals/radar/page.tsx (new)</span>
+        <span class="file-chip">components/nav.tsx</span>
+        <span class="file-chip">lib/hyperliquid-api-client.ts (price lookup)</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr"><span class="card-hdr-label">Chart Layout (sketch)</span></div>
+    <div class="card-body">
+      <div style="display:flex;align-items:stretch;gap:2px;height:160px;font-size:10px">
+        <!-- Price levels -->
+        <div style="display:flex;flex-direction:column;justify-content:space-between;padding:4px 0;text-align:right;color:rgba(255,255,255,.22);font-variant-numeric:tabular-nums;min-width:60px">
+          <span>$109k</span><span>$99k</span><span>$92k</span><span style="color:#6aaa7a;font-weight:700">$84k ←</span><span>$76k</span><span>$69k</span><span>$59k</span>
+        </div>
+        <!-- Chart area -->
+        <div style="flex:1;display:flex;flex-direction:column;gap:2px;padding:0 4px">
+          <!-- bars -->
+          <div style="flex:1;display:flex;align-items:center;gap:2px">
+            <div style="width:8px;height:100%;background:rgba(176,104,104,0.3);border-radius:2px 0 0 2px;margin-left:auto"></div>
+            <div style="width:4px;height:80%;background:rgba(106,170,122,0.4);border-radius:0 2px 2px 0"></div>
+          </div>
+          <div style="flex:1;display:flex;align-items:center;gap:2px">
+            <div style="width:20px;height:100%;background:rgba(176,104,104,0.25);border-radius:2px 0 0 2px;margin-left:auto"></div>
+            <div style="width:6px;height:80%;background:rgba(106,170,122,0.3);border-radius:0 2px 2px 0"></div>
+          </div>
+          <div style="flex:1;display:flex;align-items:center;gap:2px">
+            <div style="width:12px;height:100%;background:rgba(176,104,104,0.2);border-radius:2px 0 0 2px;margin-left:auto"></div>
+            <div style="width:3px;height:80%;background:rgba(106,170,122,0.2);border-radius:0 2px 2px 0"></div>
+          </div>
+          <!-- current price line -->
+          <div style="height:2px;background:rgba(106,170,122,0.5);border-radius:1px;position:relative">
+            <span style="position:absolute;right:-2px;top:-8px;font-size:9px;color:#6aaa7a;white-space:nowrap">$84,200</span>
+          </div>
+          <div style="flex:1;display:flex;align-items:center;gap:2px">
+            <div style="width:6px;height:90%;background:rgba(176,104,104,0.15);border-radius:2px 0 0 2px;margin-left:auto"></div>
+            <div style="width:28px;height:80%;background:rgba(106,170,122,0.45);border-radius:0 2px 2px 0"></div>
+          </div>
+          <div style="flex:1;display:flex;align-items:center;gap:2px">
+            <div style="width:4px;height:90%;background:rgba(176,104,104,0.1);border-radius:2px 0 0 2px;margin-left:auto"></div>
+            <div style="width:36px;height:80%;background:rgba(106,170,122,0.55);border-radius:0 2px 2px 0"></div>
+          </div>
+          <div style="flex:1;display:flex;align-items:center;gap:2px">
+            <div style="width:2px;height:90%;background:rgba(176,104,104,0.08);border-radius:2px 0 0 2px;margin-left:auto"></div>
+            <div style="width:14px;height:80%;background:rgba(106,170,122,0.3);border-radius:0 2px 2px 0"></div>
+          </div>
+        </div>
+      </div>
+      <p style="font-size:10px;color:rgba(255,255,255,.2);margin-top:8px">Longs left (green) / shorts right (red) from center axis. Width = notional. Dashed = liquidation zones.</p>
+    </div>
+  </div>
+</div><!-- /pane-4 -->
+
+
+<!-- ═══════════════════════════════════════════════════════════ SPRINT 5 -->
+<div id="pane-5" class="pane">
+  <div class="depends">
+    <span class="depends-icon">&#8594;</span>
+    Depends on Sprint 1 (wallet tier infra). localStorage-first — data model ready to swap to Supabase in Sprint 6.
+  </div>
+
+  <div class="two-col">
+    <div>
+      <!-- Part A -->
+      <div class="card" style="margin-bottom:14px">
+        <div class="card-hdr"><span class="card-hdr-label">Part A — Wallet Alerts</span></div>
+        <div class="card-body">
+          <ul class="deliverable-list">
+            <li><strong>Follow button</strong> on wallet profile: nickname, alert types (open/close/resize), paper toggle</li>
+            <li><strong>Position diff engine</strong> <code>lib/alert-engine.ts</code> — runs on every cohort-state poll for followed wallets</li>
+            <li><strong>Bell icon</strong> in nav with unseen count badge</li>
+            <li><strong>Alert drawer</strong> (slide-in): events newest-first, grouped by wallet, mark-all-seen</li>
+            <li><strong>/wallets/following</strong> — followed wallets with live positions + PnL</li>
+            <li>3 event types: POSITION_OPENED, POSITION_CLOSED, POSITION_RESIZED (10% threshold)</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Part B -->
+      <div class="card">
+        <div class="card-hdr"><span class="card-hdr-label">Part B — Paper Copy Trading</span></div>
+        <div class="card-body">
+          <ul class="deliverable-list">
+            <li>When followed wallet opens + paper_copy = true: record paper position at detection price</li>
+            <li>Real-time P&amp;L using live prices from market-ticker cache</li>
+            <li>Auto-close paper position when followed wallet closes</li>
+            <li><strong>/wallets/paper</strong> — open positions, closed positions, realized PnL, settings</li>
+            <li>Performance comparison: paper PnL vs actual wallet PnL over same period</li>
+            <li>Default virtual trade size $100, configurable</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <div class="card-hdr"><span class="card-hdr-label">localStorage Schema</span></div>
+        <div class="card-body">
+          <div style="font-family:monospace;font-size:10px;color:rgba(255,255,255,.45);line-height:1.7;background:rgba(255,255,255,.03);padding:12px;border-radius:6px;border:1px solid rgba(255,255,255,.06)">
+            <span style="color:rgba(255,255,255,.22)">// 4 keys in localStorage</span><br><br>
+            <span style="color:#6aaa7a">hl_followed_wallets</span><br>
+            &nbsp;address, label, alert_on[],<br>
+            &nbsp;paper_copy: boolean<br><br>
+            <span style="color:#6aaa7a">hl_alert_events</span><br>
+            &nbsp;type, asset, side, size_usd,<br>
+            &nbsp;price, detected_at, seen<br><br>
+            <span style="color:#6aaa7a">hl_paper_positions</span><br>
+            &nbsp;asset, side, size_usd, entry_price,<br>
+            &nbsp;status, realized_pnl<br><br>
+            <span style="color:#6aaa7a">hl_wallet_snapshots</span><br>
+            &nbsp;prev snapshot per wallet for diffing
+          </div>
+          <div style="margin-top:12px;padding:10px 12px;border-radius:6px;background:rgba(106,170,122,0.05);border:1px solid rgba(106,170,122,0.15)">
+            <div style="font-size:10px;font-weight:700;color:rgba(106,170,122,0.7);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">Sprint 6 Migration</div>
+            <div style="font-size:11px;color:rgba(255,255,255,.38)">Each key maps 1:1 to a Supabase table. Hooks abstract the storage layer — swapping requires changing only hook internals, not components.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <div class="card-hdr"><span class="card-hdr-label">Files Touched</span></div>
+        <div class="card-body">
+          <div class="file-chips">
+            <span class="file-chip">lib/alert-engine.ts (new)</span>
+            <span class="file-chip">app/wallets/following/page.tsx (new)</span>
+            <span class="file-chip">app/wallets/paper/page.tsx (new)</span>
+            <span class="file-chip">components/alert-bell.tsx (new)</span>
+            <span class="file-chip">components/nav.tsx</span>
+            <span class="file-chip">hooks/useFollowedWallets.ts (new)</span>
+            <span class="file-chip">hooks/useAlertEvents.ts (new)</span>
+            <span class="file-chip">hooks/usePaperPositions.ts (new)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div><!-- /pane-5 -->
+
+
+<!-- ═══════════════════════════════════════════════════════════ SPRINT 6 -->
+<div id="pane-6" class="pane">
+  <div class="depends" style="background:rgba(176,104,104,0.05);border-color:rgba(176,104,104,0.15)">
+    <span class="depends-icon" style="color:rgba(176,104,104,0.5)">&#9888;</span>
+    <span style="color:rgba(176,104,104,0.7);font-weight:600">Do not implement until Sprint 5 is complete.</span>
+    <span style="color:rgba(255,255,255,.32);margin-left:4px">Spec is a placeholder — full design session runs when Sprint 5 ships.</span>
+  </div>
+
+  <div class="two-col">
+    <div>
+      <div class="card">
+        <div class="card-hdr"><span class="card-hdr-label">Goal</span></div>
+        <div class="card-body">
+          <p style="font-size:13px;color:rgba(255,255,255,.6);margin-bottom:12px">Add user accounts so that followed wallets, alert history, and paper portfolios persist across devices and browsers. Sprint 5 built everything in localStorage — Sprint 6 is the backend swap.</p>
+          <div class="section-label">Auth approach</div>
+          <ul class="deliverable-list">
+            <li>Supabase Auth — email/password as phase 1</li>
+            <li>Wallet-connect login (sign message) — optional phase 2</li>
+            <li>On first login: import existing localStorage data into Supabase tables (one-time migration)</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <div class="card-hdr"><span class="card-hdr-label">What Gets Built</span></div>
+        <div class="card-body">
+          <ul class="deliverable-list">
+            <li>Login + signup pages</li>
+            <li>Session management via Supabase client</li>
+            <li>Protected routes for <code>/wallets/following</code> and <code>/wallets/paper</code></li>
+            <li>Hook internals swapped: <code>useFollowedWallets</code>, <code>useAlertEvents</code>, <code>usePaperPositions</code> — localStorage out, Supabase queries in. Component layer unchanged.</li>
+            <li>3 new Supabase tables (see right)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="card">
+        <div class="card-hdr"><span class="card-hdr-label">Database Tables</span></div>
+        <div class="card-body">
+          <div style="font-family:monospace;font-size:10px;color:rgba(255,255,255,.42);line-height:1.75;background:rgba(255,255,255,.03);padding:12px;border-radius:6px;border:1px solid rgba(255,255,255,.06)">
+            <span style="color:#6aaa7a">user_wallet_follows</span><br>
+            &nbsp;user_id, wallet_address, label,<br>
+            &nbsp;alert_on text[], paper_copy bool<br><br>
+            <span style="color:#6aaa7a">user_alert_events</span><br>
+            &nbsp;user_id, wallet_address, event_type,<br>
+            &nbsp;asset, side, size_usd, price,<br>
+            &nbsp;detected_at, seen bool<br><br>
+            <span style="color:#6aaa7a">user_paper_positions</span><br>
+            &nbsp;user_id, source_wallet, asset,<br>
+            &nbsp;side, size_usd, entry_price,<br>
+            &nbsp;status, exit_price, realized_pnl
+          </div>
+
+          <div style="margin-top:12px;padding:10px 12px;border-radius:6px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07)">
+            <div style="font-size:10px;font-weight:700;color:rgba(255,255,255,.28);letter-spacing:.06em;text-transform:uppercase;margin-bottom:6px">localStorage migration map</div>
+            <div style="font-size:11px;color:rgba(255,255,255,.35);font-family:monospace;line-height:1.8">
+              hl_followed_wallets &nbsp;→&nbsp; <span style="color:#6aaa7a">user_wallet_follows</span><br>
+              hl_alert_events &nbsp;→&nbsp; <span style="color:#6aaa7a">user_alert_events</span><br>
+              hl_paper_positions &nbsp;→&nbsp; <span style="color:#6aaa7a">user_paper_positions</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:14px">
+        <div class="card-hdr"><span class="card-hdr-label">Files Touched</span></div>
+        <div class="card-body">
+          <div class="file-chips">
+            <span class="file-chip">app/auth/login/page.tsx (new)</span>
+            <span class="file-chip">app/auth/signup/page.tsx (new)</span>
+            <span class="file-chip">lib/supabase-auth.ts (new)</span>
+            <span class="file-chip">hooks/useFollowedWallets.ts</span>
+            <span class="file-chip">hooks/useAlertEvents.ts</span>
+            <span class="file-chip">hooks/usePaperPositions.ts</span>
+            <span class="file-chip">supabase/migrations/00N_auth_tables.sql (new)</span>
+            <span class="file-chip">middleware.ts (protected routes)</span>
+          </div>
+          <div style="margin-top:10px;font-size:11px;color:rgba(255,255,255,.28)">Component files (pages, UI) unchanged — only hook internals swap.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hdr"><span class="card-hdr-label">Sprint 5 Design Contract</span></div>
+    <div class="card-body">
+      <p style="font-size:12px;color:rgba(255,255,255,.45)">Sprint 5 must build all hooks with an abstracted storage interface. The contract: each hook exposes the same API regardless of backend. Sprint 6 only changes what sits behind that interface. If Sprint 5 hooks call localStorage directly in components, Sprint 6 becomes a larger refactor.</p>
+    </div>
+  </div>
+</div><!-- /pane-6 -->
+
+</div><!-- /wrap -->
+
+<script>
+function showTab(n, btn) {
+  document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('pane-' + n).classList.add('active');
+  btn.classList.add('active');
+}
+</script>
+</body>
+</html>

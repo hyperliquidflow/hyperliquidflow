@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Type Scale + Full Palette</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Geist+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, sans-serif;
+    background: #060606;
+    color: #f0f0f0;
+    padding: 40px 48px 80px;
+    min-height: 100vh;
+    position: relative;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse at 100% 100%, oklch(32% 0.06 170) 0%, oklch(3.5% 0 0) 100%);
+    z-index: 0;
+    pointer-events: none;
+  }
+  .page { position: relative; z-index: 1; max-width: 1040px; margin: 0 auto; }
+
+  .step-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.14em;
+    text-transform: uppercase; color: rgba(255,255,255,0.28); margin-bottom: 8px;
+  }
+  h1 { font-size: 24px; font-weight: 700; color: #f0f0f0; margin-bottom: 6px; }
+  .subtitle { font-size: 14px; color: rgba(255,255,255,0.42); margin-bottom: 32px; line-height: 1.5; max-width: 640px; }
+
+  /* Full palette card */
+  .palette-card {
+    background: rgba(12,12,12,0.7);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px;
+    overflow: hidden;
+    backdrop-filter: blur(16px);
+    margin-bottom: 32px;
+  }
+  .palette-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    display: flex;
+    align-items: center;
+  }
+  .palette-title { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255,255,255,0.5); }
+  .locked-badge {
+    margin-left: auto;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+    text-transform: uppercase; color: #6aaa7a;
+    background: rgba(106,170,122,0.1); border: 1px solid rgba(106,170,122,0.2);
+    padding: 3px 10px; border-radius: 4px;
+  }
+  .palette-body {
+    padding: 24px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 20px;
+  }
+  .color-block {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .color-swatch {
+    height: 64px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.06);
+    position: relative;
+    overflow: hidden;
+  }
+  .color-swatch.new::after {
+    content: 'NEW';
+    position: absolute;
+    top: 6px; right: 6px;
+    font-size: 9px; font-weight: 700; letter-spacing: 0.1em;
+    background: rgba(0,0,0,0.5);
+    color: rgba(255,255,255,0.7);
+    padding: 2px 6px; border-radius: 3px;
+  }
+  .color-swatch.changed::after {
+    content: 'UPDATED';
+    position: absolute;
+    top: 6px; right: 6px;
+    font-size: 9px; font-weight: 700; letter-spacing: 0.1em;
+    background: rgba(0,0,0,0.5);
+    color: rgba(255,255,255,0.7);
+    padding: 2px 6px; border-radius: 3px;
+  }
+  .color-name { font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.8); }
+  .color-role { font-size: 11px; color: rgba(255,255,255,0.32); margin-top: 1px; }
+  .color-hex { font-family: 'Geist Mono', monospace; font-size: 11px; color: rgba(255,255,255,0.25); margin-top: 4px; }
+
+  /* Usage examples */
+  .usage-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+  }
+  .usage-pill {
+    font-size: 11px; font-weight: 700; padding: 3px 10px;
+    border-radius: 4px; letter-spacing: 0.04em;
+  }
+
+  /* Separator */
+  .section-sep {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+    text-transform: uppercase; color: rgba(255,255,255,0.2);
+    margin: 32px 0 20px;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .section-sep::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.06); }
+
+  /* Type scale split */
+  .split { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .panel {
+    background: rgba(12,12,12,0.7);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px;
+    overflow: hidden;
+    backdrop-filter: blur(16px);
+  }
+  .panel-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .panel-title { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255,255,255,0.5); }
+  .count-badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 4px; margin-left: auto; }
+  .count-bad { background: rgba(201,36,53,0.12); color: #c92435; border: 1px solid rgba(201,36,53,0.2); }
+  .count-good { background: rgba(106,170,122,0.1); color: #6aaa7a; border: 1px solid rgba(106,170,122,0.2); }
+  .panel-body { padding: 16px 20px 20px; }
+
+  .type-row {
+    display: flex; align-items: baseline; gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .type-row:last-child { border-bottom: none; }
+  .type-meta { width: 40px; flex-shrink: 0; font-family: 'Geist Mono', monospace; font-size: 10px; color: rgba(255,255,255,0.2); }
+  .type-sample { color: rgba(255,255,255,0.7); flex: 1; }
+  .type-note { font-size: 10px; color: rgba(255,255,255,0.18); font-family: 'Geist Mono', monospace; text-align: right; white-space: nowrap; }
+
+  .group-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.12em;
+    text-transform: uppercase; color: rgba(255,255,255,0.18);
+    padding: 10px 0 6px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+
+  /* Mapping table */
+  .mapping-section {
+    margin-top: 20px;
+    background: rgba(12,12,12,0.7);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px;
+    overflow: hidden;
+    backdrop-filter: blur(16px);
+  }
+  .mapping-header { padding: 14px 20px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+  .mapping-title { font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: rgba(255,255,255,0.5); }
+  .mapping-body { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; }
+  .map-col { padding: 16px 16px 20px; border-right: 1px solid rgba(255,255,255,0.04); }
+  .map-col:last-child { border-right: none; }
+  .map-size { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: rgba(255,255,255,0.28); margin-bottom: 10px; }
+  .map-tags { display: flex; flex-direction: column; gap: 5px; }
+  .map-tag { font-size: 11px; background: rgba(255,255,255,0.04); border-radius: 4px; padding: 3px 7px; color: rgba(255,255,255,0.5); font-family: 'Geist Mono', monospace; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="step-label">Palette confirmed + Type Scale</div>
+  <h1>Full palette locked in</h1>
+  <p class="subtitle">
+    Four semantic colors, no blue, no purple. The accent (#50d2c1) replaces the old mint
+    and becomes the active/highlight color throughout the UI.
+    Below that, the type scale reduction for your review.
+  </p>
+
+  <!-- Full palette -->
+  <div class="palette-card">
+    <div class="palette-header">
+      <span class="palette-title">Semantic Color Palette</span>
+      <span class="locked-badge">All confirmed</span>
+    </div>
+    <div class="palette-body">
+
+      <div class="color-block">
+        <div class="color-swatch" style="background:#6aaa7a;"></div>
+        <div>
+          <div class="color-name">Green</div>
+          <div class="color-role">Bullish / positive / profit</div>
+          <div class="color-hex">#6aaa7a</div>
+        </div>
+        <div class="usage-row">
+          <span class="usage-pill" style="background:rgba(106,170,122,0.1);border:1px solid rgba(106,170,122,0.2);color:#6aaa7a;">LONG</span>
+          <span class="usage-pill" style="background:rgba(106,170,122,0.1);border:1px solid rgba(106,170,122,0.2);color:#6aaa7a;">+12.4%</span>
+        </div>
+      </div>
+
+      <div class="color-block">
+        <div class="color-swatch changed" style="background:#c92435;"></div>
+        <div>
+          <div class="color-name">Red</div>
+          <div class="color-role">Bearish / negative / loss</div>
+          <div class="color-hex">#c92435</div>
+        </div>
+        <div class="usage-row">
+          <span class="usage-pill" style="background:rgba(201,36,53,0.1);border:1px solid rgba(201,36,53,0.2);color:#c92435;">SHORT</span>
+          <span class="usage-pill" style="background:rgba(201,36,53,0.1);border:1px solid rgba(201,36,53,0.2);color:#c92435;">-3.8%</span>
+        </div>
+      </div>
+
+      <div class="color-block">
+        <div class="color-swatch changed" style="background:#c4925a;"></div>
+        <div>
+          <div class="color-name">Amber</div>
+          <div class="color-role">Warning / caution / neutral signal</div>
+          <div class="color-hex">#c4925a</div>
+        </div>
+        <div class="usage-row">
+          <span class="usage-pill" style="background:rgba(196,146,90,0.12);border:1px solid rgba(196,146,90,0.25);color:#c4925a;">CAUTION</span>
+          <span class="usage-pill" style="background:rgba(196,146,90,0.12);border:1px solid rgba(196,146,90,0.25);color:#c4925a;">RANGING</span>
+        </div>
+      </div>
+
+      <div class="color-block">
+        <div class="color-swatch new" style="background:#50d2c1;"></div>
+        <div>
+          <div class="color-name">Accent</div>
+          <div class="color-role">Active states / highlights / nav</div>
+          <div class="color-hex">#50d2c1</div>
+        </div>
+        <div class="usage-row">
+          <span class="usage-pill" style="background:rgba(80,210,193,0.1);border:1px solid rgba(80,210,193,0.25);color:#50d2c1;">ACTIVE</span>
+          <span class="usage-pill" style="background:rgba(80,210,193,0.1);border:1px solid rgba(80,210,193,0.25);color:#50d2c1;">LIVE</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Quick in-context preview -->
+  <div style="background:rgba(12,12,12,0.7);border:1px solid rgba(255,255,255,0.07);border-radius:12px;overflow:hidden;backdrop-filter:blur(16px);margin-bottom:32px;">
+    <div style="padding:14px 20px;border-bottom:1px solid rgba(255,255,255,0.05);display:flex;align-items:center;">
+      <span style="font-size:13px;font-weight:600;letter-spacing:0.06em;text-transform:uppercase;color:rgba(255,255,255,0.5);">How they look together</span>
+    </div>
+    <div style="padding:20px;display:flex;flex-direction:column;gap:0;">
+      <!-- Signal row mock -->
+      <div style="display:grid;grid-template-columns:28px 1fr auto auto auto;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
+        <span style="font-size:11px;color:rgba(255,255,255,0.2);text-align:right;font-variant-numeric:tabular-nums;">1</span>
+        <div>
+          <div style="font-size:16px;font-weight:600;color:#f0f0f0;">Divergence Signal</div>
+          <div style="font-size:13px;color:rgba(255,255,255,0.36);margin-top:2px;">3 wallets vs market consensus</div>
+        </div>
+        <span style="font-size:13px;font-weight:700;padding:2px 8px;border-radius:5px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.7);">BTC</span>
+        <span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:4px;letter-spacing:0.04em;background:rgba(106,170,122,0.1);border:1px solid rgba(106,170,122,0.2);color:#6aaa7a;">LONG</span>
+        <span style="font-size:13px;color:rgba(255,255,255,0.35);text-align:right;font-variant-numeric:tabular-nums;">4.2</span>
+      </div>
+      <div style="display:grid;grid-template-columns:28px 1fr auto auto auto;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.04);">
+        <span style="font-size:11px;color:rgba(255,255,255,0.2);text-align:right;font-variant-numeric:tabular-nums;">2</span>
+        <div>
+          <div style="font-size:16px;font-weight:600;color:#f0f0f0;">Regime Warning</div>
+          <div style="font-size:13px;color:rgba(255,255,255,0.36);margin-top:2px;">BTC approaching resistance</div>
+        </div>
+        <span style="font-size:13px;font-weight:700;padding:2px 8px;border-radius:5px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.7);">BTC</span>
+        <span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:4px;letter-spacing:0.04em;background:rgba(196,146,90,0.12);border:1px solid rgba(196,146,90,0.25);color:#c4925a;">CAUTION</span>
+        <span style="font-size:13px;color:rgba(255,255,255,0.35);text-align:right;font-variant-numeric:tabular-nums;">2.1</span>
+      </div>
+      <div style="display:grid;grid-template-columns:28px 1fr auto auto auto;align-items:center;gap:12px;padding:12px 0;">
+        <span style="font-size:11px;color:rgba(255,255,255,0.2);text-align:right;font-variant-numeric:tabular-nums;">3</span>
+        <div>
+          <div style="font-size:16px;font-weight:600;color:#f0f0f0;">Momentum Reversal</div>
+          <div style="font-size:13px;color:rgba(255,255,255,0.36);margin-top:2px;">7 elite wallets exiting</div>
+        </div>
+        <span style="font-size:13px;font-weight:700;padding:2px 8px;border-radius:5px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.7);">ETH</span>
+        <span style="font-size:11px;font-weight:700;padding:3px 9px;border-radius:4px;letter-spacing:0.04em;background:rgba(201,36,53,0.1);border:1px solid rgba(201,36,53,0.2);color:#c92435;">SHORT</span>
+        <span style="font-size:13px;color:rgba(255,255,255,0.35);text-align:right;font-variant-numeric:tabular-nums;">3.7</span>
+      </div>
+    </div>
+    <!-- Live footer using accent -->
+    <div style="padding:10px 20px;border-top:1px solid rgba(255,255,255,0.04);display:flex;align-items:center;gap:8px;">
+      <div style="width:7px;height:7px;border-radius:50%;background:#50d2c1;box-shadow:0 0 6px #50d2c1;animation:pulse 2s ease-in-out infinite;flex-shrink:0;"></div>
+      <span style="font-size:13px;color:rgba(255,255,255,0.5);">Live · updated 12s ago</span>
+      <span style="margin-left:auto;font-size:11px;font-weight:700;letter-spacing:0.06em;text-transform:uppercase;color:#50d2c1;background:rgba(80,210,193,0.08);border:1px solid rgba(80,210,193,0.2);padding:3px 10px;border-radius:4px;">Accent in use</span>
+    </div>
+  </div>
+
+  <!-- Type scale -->
+  <div class="section-sep">Type Scale</div>
+
+  <div class="split">
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Current</span>
+        <span class="count-badge count-bad">10 sizes</span>
+      </div>
+      <div class="panel-body">
+        <div class="type-row"><span class="type-meta">10px</span><span class="type-sample" style="font-size:10px;">Labels, heatmap ticks</span></div>
+        <div class="type-row"><span class="type-meta">11px</span><span class="type-sample" style="font-size:11px;">Nav sections, coin names</span></div>
+        <div class="type-row"><span class="type-meta">12px</span><span class="type-sample" style="font-size:12px;">Stat labels, rank, times</span></div>
+        <div class="type-row"><span class="type-meta">13px</span><span class="type-sample" style="font-size:13px;">Secondary text, tags, subs</span></div>
+        <div class="type-row"><span class="type-meta">14px</span><span class="type-sample" style="font-size:14px;">Nav items, page subtitles</span></div>
+        <div class="type-row"><span class="type-meta">15px</span><span class="type-sample" style="font-size:15px;">Coin prices</span></div>
+        <div class="type-row"><span class="type-meta">16px</span><span class="type-sample" style="font-size:16px;">Signal names</span></div>
+        <div class="type-row"><span class="type-meta">17px</span><span class="type-sample" style="font-size:17px;">Wallet scores</span></div>
+        <div class="type-row"><span class="type-meta">26px</span><span class="type-sample" style="font-size:26px;font-weight:700;">Page titles</span></div>
+        <div class="type-row"><span class="type-meta">31px</span><span class="type-sample" style="font-size:31px;font-weight:700;font-variant-numeric:tabular-nums;">94.2</span></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Proposed</span>
+        <span class="count-badge count-good">5 sizes</span>
+      </div>
+      <div class="panel-body">
+        <div class="group-label">Micro — labels, mono, ticks</div>
+        <div class="type-row">
+          <span class="type-meta">11px</span>
+          <span class="type-sample" style="font-size:11px;letter-spacing:0.06em;">Labels, nav sections, heatmap, ranks</span>
+          <span class="type-note">absorbs 10 + 11 + 12</span>
+        </div>
+        <div class="group-label" style="margin-top:8px;">Small — secondary, metadata</div>
+        <div class="type-row">
+          <span class="type-meta">13px</span>
+          <span class="type-sample" style="font-size:13px;">Sub text, tags, times, addresses</span>
+          <span class="type-note">absorbs 13 + 14</span>
+        </div>
+        <div class="group-label" style="margin-top:8px;">Body — main readable content</div>
+        <div class="type-row">
+          <span class="type-meta">16px</span>
+          <span class="type-sample" style="font-size:16px;font-weight:500;">Signal names, nav, prices, scores</span>
+          <span class="type-note">absorbs 15–17</span>
+        </div>
+        <div class="group-label" style="margin-top:8px;">Title — page headers</div>
+        <div class="type-row">
+          <span class="type-meta">26px</span>
+          <span class="type-sample" style="font-size:26px;font-weight:700;">Overview</span>
+          <span class="type-note">unchanged</span>
+        </div>
+        <div class="group-label" style="margin-top:8px;">Display — stat values</div>
+        <div class="type-row">
+          <span class="type-meta">32px</span>
+          <span class="type-sample" style="font-size:32px;font-weight:700;font-variant-numeric:tabular-nums;">94.2</span>
+          <span class="type-note">31 → 32</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mapping -->
+  <div class="mapping-section">
+    <div class="mapping-header">
+      <span class="mapping-title">Where every existing token lands</span>
+    </div>
+    <div class="mapping-body">
+      <div class="map-col">
+        <div class="map-size">11px micro</div>
+        <div class="map-tags">
+          <span class="map-tag">heatmapLabel</span>
+          <span class="map-tag">navSectionLabel</span>
+          <span class="map-tag">coinName</span>
+          <span class="map-tag">walletRank</span>
+          <span class="map-tag">sigNum</span>
+          <span class="map-tag">statLabel</span>
+          <span class="map-tag">coinChange</span>
+          <span class="map-tag">liveTime</span>
+          <span class="map-tag">sigDir</span>
+        </div>
+      </div>
+      <div class="map-col">
+        <div class="map-size">13px small</div>
+        <div class="map-tags">
+          <span class="map-tag">pageSubtitle</span>
+          <span class="map-tag">cardTitle</span>
+          <span class="map-tag">statSub</span>
+          <span class="map-tag">sigSub</span>
+          <span class="map-tag">sigCoinTag</span>
+          <span class="map-tag">sigEv</span>
+          <span class="map-tag">walletAddr</span>
+          <span class="map-tag">liveText</span>
+          <span class="map-tag">cardLink</span>
+        </div>
+      </div>
+      <div class="map-col">
+        <div class="map-size">16px body</div>
+        <div class="map-tags">
+          <span class="map-tag">navItem</span>
+          <span class="map-tag">sigName</span>
+          <span class="map-tag">walletScore</span>
+          <span class="map-tag">coinPrice</span>
+          <span class="map-tag">navActive</span>
+        </div>
+      </div>
+      <div class="map-col">
+        <div class="map-size">26px title</div>
+        <div class="map-tags">
+          <span class="map-tag">pageTitle</span>
+          <span class="map-tag">regimeLabel</span>
+        </div>
+      </div>
+      <div class="map-col">
+        <div class="map-size">32px display</div>
+        <div class="map-tags">
+          <span class="map-tag">statValue</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+<style>
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+</style>
+</body>
+</html>
