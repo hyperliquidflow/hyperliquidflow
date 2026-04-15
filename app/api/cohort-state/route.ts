@@ -92,11 +92,13 @@ export async function GET(): Promise<NextResponse> {
       }
     }
 
+    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data: recentSignals } = await supabase
       .from("signals_history")
       .select("recipe_id, coin, signal_type, direction, detected_at, ev_score, metadata, wallet_id")
+      .gte("detected_at", since24h)
       .order("detected_at", { ascending: false })
-      .limit(20);
+      .limit(500);
 
     // Count total active wallets for accurate display (fallback path queries up to 200)
     const { count: totalActiveCount } = await supabase

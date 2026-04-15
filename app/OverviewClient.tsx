@@ -99,7 +99,7 @@ function buildTopMovers(signals: Signal[]) {
   }
   return Object.entries(counts)
     .sort((a, b) => b[1].count - a[1].count)
-    .slice(0, 5)
+    .slice(0, 10)
     .map(([coin, { count, long, short }]) => ({
       coin,
       count,
@@ -320,8 +320,8 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
               <span style={S.title}>Recent Signals</span>
               <a href="/signals" style={S.link}>View all</a>
             </div>
-            <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-              {data.recent_signals.slice(0, 5).map((sig, i, arr) => (
+            <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+              {data.recent_signals.slice(0, 10).map((sig, i, arr) => (
                 <div key={i} style={{
                   display: "grid", gridTemplateColumns: "24px 1fr auto auto auto",
                   alignItems: "center", gap: "10px", padding: "7px 14px",
@@ -351,8 +351,8 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
               <span style={S.title}>Top Movers</span>
               <span style={{ ...S.link, cursor: "default" }}>24h</span>
             </div>
-            <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-              {topMovers.length > 0 ? topMovers.slice(0, 5).map(({ coin, count, direction }, i, arr) => {
+            <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+              {topMovers.length > 0 ? topMovers.slice(0, 10).map(({ coin, count, direction }, i, arr) => {
                 const isLong = direction === "LONG";
                 const dirColor = isLong ? color.green : color.red;
                 return (
@@ -384,8 +384,8 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
               <span style={S.title}>Top Wallets</span>
               <a href="/wallets" style={S.link}>Full report</a>
             </div>
-            <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-              {data.top_wallets.slice(0, 5).map((w, i, arr) => (
+            <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+              {data.top_wallets.slice(0, 10).map((w, i, arr) => (
                 <div key={w.wallet_id} style={{
                   display: "flex", alignItems: "center", gap: "10px",
                   padding: "7px 14px",

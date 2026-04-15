@@ -268,11 +268,14 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
     });
 
     // ── Step 10: Fetch recent signals to include in KV payload ────────────────
+    // Need 24h of signals for the heatmap activity bar — 500 is a safe upper bound
+    const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data: recentSignals } = await supabase
       .from("signals_history")
       .select("recipe_id, coin, signal_type, direction, detected_at, ev_score, metadata, wallet_id")
+      .gte("detected_at", since24h)
       .order("detected_at", { ascending: false })
-      .limit(20);
+      .limit(500);
 
     // ── Step 11: Write cohort payload to Vercel KV ────────────────────────────
     const payload: CohortCachePayload = {
