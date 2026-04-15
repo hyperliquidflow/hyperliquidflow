@@ -21,6 +21,13 @@ const S = {
   stMetaValue: { ...T.statSub, color: color.text, marginTop: "3px" },
 };
 
+function winRateColor(rate: number): string {
+  const r = Math.round(255 + (106 - 255) * rate);
+  const g = Math.round(255 + (170 - 255) * rate);
+  const b = Math.round(255 + (122 - 255) * rate);
+  return `rgb(${r},${g},${b})`;
+}
+
 export function PerformanceClient({ initialData }: { initialData: RecipeStats[] | null }) {
   const { data: stats } = useQuery<RecipeStats[]>({
     queryKey:        ["recipe-performance"],
@@ -45,14 +52,8 @@ export function PerformanceClient({ initialData }: { initialData: RecipeStats[] 
             const winRate = perf?.win_rate ?? null;
             const signals = perf?.signal_count ?? 0;
             const ev      = perf?.avg_ev_score ?? null;
-            const winColor = winRate == null ? color.textFaint
-              : winRate >= 0.6 ? color.green
-              : winRate >= 0.5 ? color.text
-              : color.red;
-            const barColor = winRate == null ? "rgba(255,255,255,0.08)"
-              : winRate >= 0.6 ? color.green
-              : winRate >= 0.5 ? "rgba(255,255,255,0.3)"
-              : color.red;
+            const winColor = winRate == null ? color.textFaint : winRateColor(winRate);
+            const barColor = winRate == null ? "rgba(255,255,255,0.08)" : winRateColor(winRate);
 
             return (
               <div key={id} className="card-hover glow-btn" style={S.stCard}>
