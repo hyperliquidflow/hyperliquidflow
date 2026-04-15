@@ -245,11 +245,10 @@ async function recipe2(
     const direction: "LONG" | "SHORT" | null =
       longs > shorts ? "LONG" : shorts > longs ? "SHORT" : null;
 
-    // Use the highest-scoring wallet as the placeholder wallet_id
     const anchor = wallets.sort((a, b) => b.score - a.score)[0];
 
     events.push({
-      wallet_id:   anchor.walletId,
+      wallet_id:   "",
       recipe_id:   "divergence_squeeze",
       coin,
       signal_type: "ALERT",
