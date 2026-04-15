@@ -70,13 +70,15 @@ metadata              JSONB
 
 **Dedup:** `ON CONFLICT (signal_hash) DO NOTHING` on every write. Safe to retry.
 
+**Write timing:** Signal writes happen via `after()` in `refresh-cohort` — fire-and-forget, same pattern as `pruneUnderperformers`. This keeps the cron response within the 10s Vercel free tier budget. Writes complete in the background after the response is served.
+
 ---
 
 ### `signal_outcomes`
 One row per signal. Columns filled progressively as time windows pass.
 
 ```sql
-signal_id             UUID REFERENCES signal_events
+signal_id             UUID PRIMARY KEY REFERENCES signal_events
 price_at_fire         FLOAT NOT NULL
 price_1h              FLOAT
 price_4h              FLOAT
@@ -85,22 +87,22 @@ move_pct_1h           FLOAT
 move_pct_4h           FLOAT                -- primary evaluation window
 move_pct_24h          FLOAT
 direction_ok_4h       BOOLEAN              -- price moved >0.5% correct direction within 4h
-is_win                BOOLEAN              -- direction_ok_4h AND move_pct_4h > win_threshold
-wallet_pnl_avg        FLOAT                -- avg realized PnL across wallet_ids when they close
+price_win             BOOLEAN              -- set at 4h: direction_ok_4h AND move_pct_4h > win_threshold
+is_win                BOOLEAN              -- set lazily: price_win = true AND wallet_outcome = WIN
+wallet_return_avg     FLOAT                -- avg(realized_pnl / position_notional) across wallet_ids — normalized return, not raw PnL
 wallet_outcome        TEXT                 -- WIN|LOSS|OPEN
-confirming_recipe_ids TEXT[]               -- other recipes that fired same coin/direction within 10 min
+confirming_recipe_ids TEXT[]               -- filled by measure-outcomes cron: other recipes that fired same coin/direction within ±10 min
 confirmation_count    INT DEFAULT 0
 measured_at           TIMESTAMPTZ
 ```
 
-**Win definition:** A signal is a win when:
-1. Price moved in the predicted direction
-2. By more than 0.5% (the `win_threshold`, itself a tunable param)
-3. Within 4 hours
+**Two-stage win tracking:**
+- `price_win` is set immediately when the 4h window passes. Used by the stats engine for fast win rate calculations.
+- `is_win` is set lazily once `wallet_outcome` resolves (wallet closes position). Used for EV calculation and the strongest true positive signal. May remain null for days if a wallet holds a position long-term.
 
-This threshold prevents noise moves from counting as wins. 4h is the primary window because it gives enough time for the signal to play out while remaining actionable.
+**Why `wallet_return_avg` not raw PnL:** An Elite wallet making $50K on a $2M position has the same dollar figure as a Micro wallet making $50K on a $50K position. Normalized return (PnL / notional) makes wallet outcomes comparable across tiers and position sizes.
 
-**True positive requires both:** `direction_ok_4h = true` AND `wallet_outcome = WIN`. Price right + wallet lost = timing issue. Wallet won + price wrong = wallet hedged or signal wrong. Both wrong = strongest false positive signal for learning.
+**confirming_recipe_ids population:** Filled by the measure-outcomes cron when writing the signal_outcomes row. Queries `signal_events WHERE coin = X AND direction = Y AND fired_at BETWEEN signal.fired_at - 10min AND signal.fired_at + 10min AND recipe_id != signal.recipe_id`.
 
 ---
 
@@ -198,7 +200,33 @@ metadata              JSONB
 
 **Follow-up loop:** When the agent makes a config change, `follow_up_due_at` is set to now + 14 days and `resolution = PENDING`. The nightly script checks for pending follow-ups, computes win rate before vs after the change date, writes a FOLLOW_UP log entry, and sets resolution. If `DEGRADED`, the script rolls back `agent_config` to the previous value and logs the rollback.
 
-**Calibration:** Weekly, the nightly script groups resolved log entries by `agent_confidence` bucket and computes actual improvement rates. A CALIBRATION log entry is written: "Confidence 0.80–0.89 → actual improvement rate 61% (30 resolved decisions)." The agent's system prompt is updated with this data.
+**Calibration:** Weekly, the nightly script groups resolved log entries by `agent_confidence` bucket and computes actual improvement rates. A CALIBRATION log entry is written: "Confidence 0.80–0.89 → actual improvement rate 61% (30 resolved decisions)."
+
+The calibration addendum is stored in KV at key `agent:calibration_addendum` and appended to the base system prompt at runtime. The nightly script writes a fresh addendum after each calibration pass. This keeps the prompt dynamic without requiring code changes or PRs.
+
+---
+
+## Required Indexes
+
+Must be created alongside table migrations. Without these, stats engine queries will full-scan as signal volume grows.
+
+```sql
+-- signal_events
+CREATE INDEX ON signal_events (recipe_id, fired_at, regime_at_fire);
+CREATE INDEX ON signal_events (coin, fired_at);
+
+-- signal_outcomes: fast lookup for unfilled windows and pending wallet resolution
+CREATE INDEX ON signal_outcomes (measured_at) WHERE price_4h IS NULL;
+CREATE INDEX ON signal_outcomes (wallet_outcome) WHERE wallet_outcome = 'OPEN';
+
+-- agent_log: recipe history lookups + pending follow-up checks
+CREATE INDEX ON agent_log (recipe_id, created_at DESC);
+CREATE INDEX ON agent_log (resolution) WHERE resolution = 'PENDING';
+CREATE INDEX ON agent_log (follow_up_due_at) WHERE follow_up_due_at IS NOT NULL;
+
+-- agent_findings: latest finding per recipe
+CREATE INDEX ON agent_findings (recipe_id, created_at DESC);
+```
 
 ---
 
@@ -215,7 +243,11 @@ for each signal in signal_events with unfilled outcome windows:
   if fired_at + 24h <= now and price_24h is null:  fill price_24h, move_pct_24h
 ```
 
+**Batching:** Processes at most 50 signals per tick, `ORDER BY fired_at ASC` (oldest unfilled first). Prevents timeout on large backlogs and avoids hammering the Hyperliquid price API.
+
 **Late measurement tolerance:** If the cron misses a run (Vercel free tier), it catches up on the next tick. A signal measured at T+1h20m instead of T+1h is still valid — the window is "at least 1h has passed," not exact.
+
+**Vercel cron slots:** The free tier allows 2 cron functions. Slot 1 is `/api/refresh-cohort` (every 60s). Slot 2 is `/api/measure-outcomes` (every hour). Both slots are consumed — no further cron additions are possible without upgrading.
 
 ### GitHub Actions 00:00 — `daily-wallet-scan.ts` (modified)
 
@@ -243,8 +275,8 @@ Receives structured findings. Runs through this sequence for each recipe with a 
 4. If recommending a param change: run `simulate_threshold_change` first
 5. Check `next_eligible_change` — skip if cooldown active
 6. Check `last_change_run_id` — skip if another param already changed this recipe this run
-7. If all gates pass and confidence > 0.80: write to `agent_config`, `agent_config_history`, set `follow_up_due_at`
-8. Write full reasoning to `agent_log` with `agent_confidence` score
+7. If all gates pass and confidence > 0.80: write in this order — (a) `agent_log` entry first, capture `log_id`, (b) `agent_config_history` with that `log_id`, (c) update `agent_config`, (d) set `follow_up_due_at = now() + 14 days` and `last_change_run_id = current run ID`
+8. If gates fail: write OBSERVATION to `agent_log` explaining why no action was taken
 
 ---
 
