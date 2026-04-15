@@ -220,12 +220,12 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
   const topMovers    = buildTopMovers(data.recent_signals);
 
   return (
-    <div className="page-enter">
+    <div className="page-enter" style={{ height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <PageHeader title="Overview" regime={regime} btcReturn={data.btc_return_24h} />
 
       <div style={{
         display: "grid", gridTemplateColumns: "repeat(6, 1fr)",
-        margin: "20px 32px 0",
+        margin: `10px ${space.pagePaddingX} 0`,
         background: "rgba(255,255,255,0.03)",
         border: "1px solid rgba(255,255,255,0.07)",
         borderRadius: "12px", overflow: "hidden",
@@ -270,15 +270,15 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
         ))}
       </div>
 
-      <div style={{ ...S.page, paddingTop: "20px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "16px" }}>
+      <div style={{ flex: 1, minHeight: 0, overflow: "hidden", padding: `10px ${space.pagePaddingX} 12px`, display: "flex", flexDirection: "column", gap: "10px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px", flexShrink: 0 }}>
           {[
             { label: "Smart Money",    value: `${data.total_active_wallets ?? data.wallet_count}`, sub: "wallets tracked" },
             { label: "Book Value",     value: formatUsd(totalAv),      sub: "across Smart Money" },
             { label: "Unrealised PnL", value: formatUsd(totalPnl), clr: totalPnl >= 0 ? color.green : color.red, sub: "open positions" },
             { label: "Avg Score",      value: avgScore.toFixed(2),     sub: "out of 1.00" },
           ].map(({ label, value, sub, clr }) => (
-            <div key={label} style={{ ...S.card, padding: "20px", transition: "border-color 0.2s, background 0.2s" }}>
+            <div key={label} style={{ ...S.card, padding: "14px 16px", transition: "border-color 0.2s, background 0.2s" }}>
               <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(255,255,255,0.38)" }}>{label}</div>
               <div style={{ fontSize: "32px", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: clr ?? color.text, marginTop: "10px", lineHeight: 1 }}>{value}</div>
               <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.32)", marginTop: "6px" }}>{sub}</div>
@@ -286,8 +286,8 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
           ))}
         </div>
 
-        <div style={{ ...S.card, marginBottom: "16px" }}>
-          <div style={S.hdr}>
+        <div style={{ ...S.card, flexShrink: 0 }}>
+          <div style={{ ...S.hdr, padding: "10px 16px" }}>
             <span style={S.title}>Signal Activity · 24h</span>
             <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "rgba(255,255,255,0.3)" }}>
               <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: color.green, display: "inline-block" }} />
@@ -296,8 +296,8 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
               Short bias
             </span>
           </div>
-          <div style={{ padding: "14px 20px 12px" }}>
-            <div style={{ display: "flex", alignItems: "flex-end", gap: "3px", height: "56px" }}>
+          <div style={{ padding: "8px 16px 10px" }}>
+            <div style={{ display: "flex", alignItems: "flex-end", gap: "3px", height: "40px" }}>
               {heatmap.map((bar, i) => (
                 <div key={i} style={{
                   flex: 1, borderRadius: "2px 2px 0 0",
@@ -314,30 +314,30 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr", gap: "16px", marginBottom: "16px" }}>
-          <div style={S.card}>
-            <div style={S.hdr}>
+        <div style={{ display: "grid", gridTemplateColumns: "3fr 2fr 2fr", gap: "10px", flex: 1, minHeight: 0, overflow: "hidden" }}>
+          <div style={{ ...S.card, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
+            <div style={{ ...S.hdr, padding: "10px 16px" }}>
               <span style={S.title}>Recent Signals</span>
               <a href="/signals" style={S.link}>View all</a>
             </div>
-            <div>
-              {data.recent_signals.slice(0, 6).map((sig, i, arr) => (
+            <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+              {data.recent_signals.slice(0, 5).map((sig, i, arr) => (
                 <div key={i} style={{
-                  display: "grid", gridTemplateColumns: "28px 1fr auto auto auto",
-                  alignItems: "center", gap: "12px", padding: "12px 20px",
+                  display: "grid", gridTemplateColumns: "24px 1fr auto auto auto",
+                  alignItems: "center", gap: "10px", padding: "7px 14px",
                   borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.04)" : undefined,
                   transition: "background 0.12s",
                 }}>
                   <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.2)", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{i + 1}</span>
-                  <div>
-                    <div style={{ fontSize: "16px", fontWeight: 600, color: color.text }}>{RECIPE_META[sig.recipe_id]?.label ?? sig.recipe_id}</div>
-                    <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.36)", marginTop: "2px" }}>{timeAgo(sig.detected_at)}</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
+                    <span style={{ fontSize: "13px", fontWeight: 600, color: color.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{RECIPE_META[sig.recipe_id]?.label ?? sig.recipe_id}</span>
+                    <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", flexShrink: 0 }}>{timeAgo(sig.detected_at)}</span>
                   </div>
-                  <span style={{ ...T.sigCoinTag }}>{sig.coin}</span>
-                  <DirBadge direction={sig.direction} />
-                  <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.35)", textAlign: "right", width: "46px" }}>
+                  <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)", textAlign: "right", width: "36px", fontVariantNumeric: "tabular-nums" }}>
                     {sig.ev_score != null ? `EV ${(sig.ev_score * 100).toFixed(0)}` : ""}
                   </span>
+                  <span style={{ ...T.sigCoinTag }}>{sig.coin}</span>
+                  <DirBadge direction={sig.direction} />
                 </div>
               ))}
               {data.recent_signals.length === 0 && (
@@ -346,40 +346,73 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
             </div>
           </div>
 
-          <div style={S.card}>
-            <div style={S.hdr}>
+          <div style={{ ...S.card, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
+            <div style={{ ...S.hdr, padding: "10px 16px" }}>
+              <span style={S.title}>Top Movers</span>
+              <span style={{ ...S.link, cursor: "default" }}>24h</span>
+            </div>
+            <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+              {topMovers.length > 0 ? topMovers.slice(0, 5).map(({ coin, count, direction }, i, arr) => {
+                const isLong = direction === "LONG";
+                const dirColor = isLong ? color.green : color.red;
+                return (
+                  <div key={coin} style={{
+                    display: "flex", alignItems: "center", gap: "10px",
+                    padding: "7px 14px",
+                    borderBottom: i < arr.length - 1 ? `1px solid ${color.divider}` : undefined,
+                  }}>
+                    <span style={{ fontSize: "13px", fontWeight: 700, color: color.text, minWidth: "38px" }}>{coin}</span>
+                    <span style={{
+                      ...T.sigDir,
+                      background: isLong ? color.longBg : color.shortBg,
+                      color: dirColor,
+                      border: `1px solid ${isLong ? color.longBorder : color.shortBorder}`,
+                    }}>{direction}</span>
+                    <span style={{ marginLeft: "auto", fontSize: "11px", color: color.textMuted, fontVariantNumeric: "tabular-nums" }}>
+                      {count} signal{count !== 1 ? "s" : ""}
+                    </span>
+                  </div>
+                );
+              }) : (
+                <div style={{ padding: "20px 14px", ...S.muted }}>No signal data yet</div>
+              )}
+            </div>
+          </div>
+
+          <div style={{ ...S.card, display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
+            <div style={{ ...S.hdr, padding: "10px 16px" }}>
               <span style={S.title}>Top Wallets</span>
               <a href="/wallets" style={S.link}>Full report</a>
             </div>
-            <div>
+            <div style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
               {data.top_wallets.slice(0, 5).map((w, i, arr) => (
-                <div key={w.wallet_id} style={{ padding: "14px 20px", borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.04)" : undefined, transition: "background 0.12s" }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                    <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.22)" }}>#{i + 1}</span>
-                    <span style={{ fontSize: "16px", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: w.overall_score >= 0.7 ? color.green : color.text }}>
-                      {w.overall_score.toFixed(2)}
-                    </span>
-                  </div>
-                  <a href={`/wallets?address=${w.address}`} style={{ display: "block", fontFamily: "var(--font-mono)", fontSize: "13px", color: "rgba(156,163,175,0.8)", marginTop: "4px", textDecoration: "none" }}>
+                <div key={w.wallet_id} style={{
+                  display: "flex", alignItems: "center", gap: "10px",
+                  padding: "7px 14px",
+                  borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.04)" : undefined,
+                  transition: "background 0.12s",
+                }}>
+                  <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.22)", flexShrink: 0 }}>#{i + 1}</span>
+                  <a href={`/wallets?address=${w.address}`} style={{ flex: 1, fontFamily: "var(--font-mono)", fontSize: "13px", color: "rgba(156,163,175,0.8)", textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {truncateAddress(w.address)}
                   </a>
-                  <div style={{ height: "2px", background: "rgba(255,255,255,0.06)", borderRadius: "1px", marginTop: "8px" }}>
-                    <div style={{ width: `${w.overall_score * 100}%`, height: "100%", background: w.overall_score >= 0.7 ? color.green : color.neutral, borderRadius: "1px", transition: "width 0.6s cubic-bezier(0.22,1,0.36,1)" }} />
-                  </div>
+                  <span style={{ fontSize: "13px", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: w.overall_score >= 0.7 ? color.green : color.text, flexShrink: 0 }}>
+                    {w.overall_score.toFixed(2)}
+                  </span>
                 </div>
               ))}
             </div>
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", flexShrink: 0, alignItems: "start" }}>
           <div style={S.card}>
-            <div style={S.hdr}>
+            <div style={{ ...S.hdr, padding: "10px 16px" }}>
               <span style={S.title}>Market Vibes</span>
               <span style={{ ...S.link, cursor: "default" }}>7 days</span>
             </div>
-            <div style={{ padding: "18px 20px 20px", display: "flex", alignItems: "flex-start", position: "relative" }}>
-              <div style={{ position: "absolute", top: "27px", left: "34px", right: "34px", height: "1px", background: "rgba(255,255,255,0.07)" }} />
+            <div style={{ padding: "10px 16px 12px", display: "flex", alignItems: "flex-start", position: "relative" }}>
+              <div style={{ position: "absolute", top: "18px", left: "28px", right: "28px", height: "1px", background: "rgba(255,255,255,0.07)" }} />
               {regimeHist.map(({ label, regime: r, isToday }) => {
                 const dotColor  = r === "BULL" ? color.green : r === "BEAR" ? color.red : "rgba(255,255,255,0.2)";
                 const dotShadow = r === "BULL" ? "0 0 6px rgba(106,170,122,0.5)" : r === "BEAR" ? "0 0 6px rgba(201,36,53,0.5)" : undefined;
@@ -398,45 +431,12 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
           </div>
 
           <div style={S.card}>
-            <div style={S.hdr}>
-              <span style={S.title}>Top Smart Money Movers</span>
-              <span style={{ ...S.link, cursor: "default" }}>24h</span>
-            </div>
-            <div style={{ padding: "12px 20px 16px", display: "flex", flexDirection: "column" }}>
-              {topMovers.length > 0 ? topMovers.map(({ coin, count, direction }, i, arr) => {
-                const isLong = direction === "LONG";
-                const dirColor = isLong ? color.green : color.red;
-                return (
-                  <div key={coin} style={{
-                    display: "flex", alignItems: "center", gap: "10px",
-                    padding: "10px 0",
-                    borderBottom: i < arr.length - 1 ? `1px solid ${color.divider}` : undefined,
-                  }}>
-                    <span style={{ fontSize: "13px", fontWeight: 700, color: color.text, minWidth: "38px" }}>{coin}</span>
-                    <span style={{
-                      ...T.sigDir,
-                      background: isLong ? color.longBg : color.shortBg,
-                      color: dirColor,
-                      border: `1px solid ${isLong ? color.longBorder : color.shortBorder}`,
-                    }}>{direction}</span>
-                    <span style={{ marginLeft: "auto", fontSize: "11px", color: color.textMuted, fontVariantNumeric: "tabular-nums" }}>
-                      {count} signal{count !== 1 ? "s" : ""}
-                    </span>
-                  </div>
-                );
-              }) : (
-                <div style={{ ...S.muted, paddingTop: "8px" }}>No signal data yet</div>
-              )}
-            </div>
-          </div>
-
-          <div style={S.card}>
-            <div style={S.hdr}>
+            <div style={{ ...S.hdr, padding: "10px 16px" }}>
               <span style={S.title}>Smart Money Exposure</span>
               <span style={{ ...S.link, cursor: "default" }}>by position size</span>
             </div>
-            <div style={{ padding: "12px 20px 18px", display: "flex", flexDirection: "column", gap: "11px" }}>
-              {coinExposure.length > 0 ? coinExposure.map(({ coin, pct }) => (
+            <div style={{ padding: "8px 12px 10px", display: "flex", flexDirection: "column", gap: "8px" }}>
+              {coinExposure.length > 0 ? coinExposure.slice(0, 4).map(({ coin, pct }) => (
                 <div key={coin} style={{ display: "grid", gridTemplateColumns: "38px 1fr 40px", alignItems: "center", gap: "10px" }}>
                   <span style={{ fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.5)", letterSpacing: "0.06em" }}>{coin}</span>
                   <div style={{ height: "4px", background: "rgba(255,255,255,0.06)", borderRadius: "2px", overflow: "hidden" }}>

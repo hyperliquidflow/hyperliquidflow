@@ -1,7 +1,7 @@
 // components/page-header.tsx
 "use client";
 
-import { color } from "@/lib/design-tokens";
+import { pageHeader as PH } from "@/lib/design-tokens";
 
 interface PageHeaderProps {
   title: string;
@@ -12,15 +12,9 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, subtitle }: PageHeaderProps) {
   return (
-    <div style={{ padding: "28px 32px 0" }}>
-      <h1 style={{ fontSize: "26px", fontWeight: 700, color: color.text, margin: 0 }}>
-        {title}
-      </h1>
-      {subtitle && (
-        <p style={{ fontSize: "13px", color: "rgba(255,255,255,0.38)", marginTop: "4px" }}>
-          {subtitle}
-        </p>
-      )}
+    <div style={PH.container}>
+      <h1 style={PH.title}>{title}</h1>
+      {subtitle && <p style={PH.subtitle}>{subtitle}</p>}
     </div>
   );
 }

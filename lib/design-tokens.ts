@@ -16,6 +16,41 @@
  *   import { color, type, space, radius, shadow, effect, layout, anim, card, row } from "@/lib/design-tokens";
  *
  *   style={{ background: color.card, borderRadius: radius.card, ...shadow.card }}
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * BRAND IDENTITY RULES
+ * These rules live here because this file is read before any visual output.
+ * They are inviolable. Violating them has caused multiple regressions.
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * 1. WORDMARK IS ALWAYS MONOCHROME
+ *    HYPERLIQUIDFLOW renders in color.text (#f0f0f0) on dark backgrounds only.
+ *    Never split-color. Never apply color.accent, color.green, color.red, or
+ *    any semantic token to any letter, syllable, or portion of the wordmark.
+ *    "FLOW" is not a live-state indicator. It is part of the wordmark. No color.
+ *    No <span> wrappers. No gradient text. One color. Always #f0f0f0.
+ *
+ * 2. NO DECORATIVE LINES OR RULES
+ *    No gradient rules, teal dividers, glow strokes, or underlines adjacent to
+ *    the wordmark or section headers. These patterns come from training data,
+ *    not this brand. They do not exist here. If a separator is needed anywhere
+ *    in the layout, use `1px solid color.border` or `1px solid color.borderFaint`.
+ *    That is all that is permitted.
+ *
+ * 3. color.accent SCOPE — strictly limited to:
+ *    Active nav left-border + background tint | Pulsing live indicator dot |
+ *    KV/online status badges | Cron-status chips | Code highlight borders in
+ *    print documents.
+ *    color.accent is NOT a brand highlight for headings, logos, or decorative
+ *    geometry. Before using color.accent for anything outside the list above,
+ *    stop and ask the user.
+ *
+ * 4. PDF / PRINT BACKGROUND RENDERING
+ *    Use puppeteer with printBackground: true (scripts/generate-whitepaper-pdf.mjs).
+ *    The Chrome --print-to-pdf CLI flag does not reliably respect
+ *    print-color-adjust: exact and strips dark backgrounds, producing broken
+ *    cover pages. Never use the CLI flag for final PDF output.
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 
 // COLOR
@@ -142,7 +177,7 @@ export const type = {
     letterSpacing: "0.12em", textTransform: "uppercase" as const,
     color: "rgba(255,255,255,0.22)", padding: "20px 20px 6px",
   },
-  navItem:   { fontSize: "16px", fontWeight: 500, color: "rgba(255,255,255,0.42)" },
+  navItem:   { fontSize: "13px", fontWeight: 500, color: "rgba(255,255,255,0.42)" },
   navActive: { color: color.text },
 
   // Market ticker strip
@@ -343,6 +378,22 @@ export const anim = {
 
 // COMPOSITE HELPERS
 // Commonly combined token sets, use spread to apply.
+
+// Page header — consistent top spacing across all pages.
+// Every page must use this composite for its header container.
+// The overview and other fixed-height layouts rely on this value being stable.
+export const pageHeader = {
+  container: {
+    padding: `${space.pagePaddingTop} ${space.pagePaddingX} 0`,
+  },
+  title: {
+    ...type.pageTitle,
+    margin: 0,
+  },
+  subtitle: {
+    ...type.pageSubtitle,
+  },
+} as const;
 
 export const card = {
   base: {

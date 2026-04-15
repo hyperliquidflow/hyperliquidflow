@@ -1,6 +1,6 @@
 // lib/recipe-meta.ts
 // Single source of truth for signal recipe labels and descriptions.
-// Used by: app/page.tsx, app/signals/page.tsx, app/edge/page.tsx
+// Used by: app/page.tsx, app/signals/page.tsx, app/performance/page.tsx
 
 export const RECIPE_META: Record<string, { label: string; desc: string }> = {
   momentum_stack:       { label: "Whale Convergence",      desc: "8+ wallets add $500K+ same direction in under 5 min" },
