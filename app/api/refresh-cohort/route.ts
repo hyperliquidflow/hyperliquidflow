@@ -371,7 +371,11 @@ async function updateIntradayRecipePerformance(): Promise<void> {
     .select("recipe_id, ev_score")
     .gte("detected_at", since);
 
-  if (error || !rows || rows.length === 0) {
+  if (error) {
+    console.error("[recipe-perf] intraday query error:", error.message);
+    return;
+  }
+  if (!rows || rows.length === 0) {
     console.log("[recipe-perf] no intraday signal history to aggregate, skipping");
     return;
   }
