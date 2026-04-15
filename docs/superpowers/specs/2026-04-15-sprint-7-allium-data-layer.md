@@ -37,7 +37,9 @@ Split the 90-day fill history by detected regime per day (BULL/BEAR/RANGING base
 
 ### 4. Divergence flag
 
-`divergence_score` = abs(sharpe_30d - sharpe_90d). If > 0.4, the wallet's recent performance diverges significantly from their longer-term baseline. Could mean they've found a new edge (positive) or are deteriorating (negative). Surfaced as a flag on the wallet page — not a scoring penalty.
+`divergence_score` = abs(score_30d - score_90d). If > 0.15, the wallet's recent performance diverges significantly from their longer-term baseline. Could mean they've found a new edge (positive) or are deteriorating (negative). Surfaced as a flag on the wallet page — not a scoring penalty.
+
+Note: divergence is score-based, not Sharpe-based. Both `score_30d` and `score_90d` must be computed before this can be derived.
 
 ---
 
@@ -48,12 +50,18 @@ Split the 90-day fill history by detected regime per day (BULL/BEAR/RANGING base
 ```sql
 ALTER TABLE user_pnl_backtest
   ADD COLUMN IF NOT EXISTS daily_pnls_90d      FLOAT[]  DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS score_30d           FLOAT    DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS score_90d           FLOAT    DEFAULT NULL,
   ADD COLUMN IF NOT EXISTS liquidation_rate    FLOAT    DEFAULT NULL,
   ADD COLUMN IF NOT EXISTS regime_performance  JSONB    DEFAULT NULL,
   ADD COLUMN IF NOT EXISTS divergence_score    FLOAT    DEFAULT NULL,
   ADD COLUMN IF NOT EXISTS backtest_source     TEXT     DEFAULT 'native'
     CHECK (backtest_source IN ('native', 'allium'));
 ```
+
+`score_30d` — `overall_score` computed using only `daily_pnls` (30-element window). Always set when Allium data is present so the 30d vs 90d comparison is available.
+
+`score_90d` — `overall_score` computed using `daily_pnls_90d` (90-element window) with the liquidation penalty applied. This becomes the primary `overall_score` in the leaderboard for Allium-enriched wallets.
 
 `regime_performance` shape:
 ```json
@@ -130,9 +138,13 @@ export function buildDailyPnlSeries(fills: AlliumFill[], windowDays: number): nu
 export function computeLiquidationRate(fills: AlliumFill[]): number
 export function computeRegimePerformance(
   fills: AlliumFill[],
-  dailyRegimes: Map<string, 'BULL' | 'BEAR' | 'RANGING'>  // date string → regime
+  dailyRegimes: Map<string, 'BULL' | 'BEAR' | 'RANGING'>  // date string (YYYY-MM-DD) → regime
 ): RegimePerformance
 ```
+
+**String encoding note:** The native Hyperliquid API returns financial fields (`closedPnl`, `px`, `sz`) as string-encoded numbers. Verify whether Allium's Developer API does the same before using `parseFloat()` — do not assume. Check the actual API response shape against the Allium docs before finalising `AlliumFill`.
+
+**`pollQueryResult` must implement a timeout:** Max 300 poll attempts at 1-second intervals (5 minutes total). Throw `AlliumApiError` if the query has not completed by then.
 
 ---
 
@@ -163,7 +175,7 @@ export function computeCohortScores(
 ```
 
 `CohortScores` gains two new output fields:
-- `divergence_score: number | null` — abs(sharpe_30d - sharpe_90d), null if no 90d data
+- `divergence_score: number | null` — abs(score_30d - score_90d), null if no 90d data
 - `liquidation_penalty_applied: boolean`
 
 ---
@@ -173,13 +185,16 @@ export function computeCohortScores(
 **Before modifying, read the full file.** Phase 7 runs after Phase 6 (identity enrichment).
 
 For the top 100 wallets by `overall_score` (not all 1,200 — stays within free tier):
-1. Call `fetchWalletFills90d(address)` for each via Allium Developer API
-2. Compute `daily_pnls_90d`, `liquidation_rate`, `regime_performance`, `divergence_score`
-3. Upsert into `user_pnl_backtest` with `backtest_source = 'allium'`
+
+1. **Identify top 100:** Use the `walletScores` map built in Phase 3 of the same scan run to sort by `overall_score` and take the top 100. Do not make an extra DB query.
+2. **Fetch BTC 90-day candles once** (shared across all wallets): call `fetchCandleSnapshot('BTC', '1d', Date.now() - 90 * 86400 * 1000, Date.now())` from `lib/hyperliquid-api-client.ts`. Build a `dailyRegimes: Map<string, 'BULL' | 'BEAR' | 'RANGING'>` keyed by `YYYY-MM-DD` date string using the same `detectRegime` thresholds from `lib/cohort-engine.ts` (read that file to confirm threshold values — do not hardcode them here).
+3. **Per wallet:** Call `fetchWalletFills90d(address)` via Allium Developer API. Add 100ms delay between requests.
+4. **Compute:** `daily_pnls_90d`, `liquidation_rate`, `regime_performance` (using `dailyRegimes`), `score_30d` (run `computeCohortScores` with existing `daily_pnls` only), `score_90d` (run `computeCohortScores` with `dailyPnls90d` + `liquidationRate`), `divergence_score` = abs(score_30d - score_90d).
+5. **Upsert** all fields into `user_pnl_backtest` with `backtest_source = 'allium'`.
+
+**Scoring clarification:** When Allium data is present, `score_90d` becomes the wallet's primary quality score. `score_30d` is stored separately as a comparison signal. For wallets without Allium data, `score_30d` and `score_90d` remain null — `overall_score` from `cohort_snapshots` is still the 30-day native score and is unaffected.
 
 For wallets with no Allium data: leave existing `backtest_source = 'native'` unchanged.
-
-Rate limit note: Allium Developer API has no published per-second rate limit, but add a 100ms delay between wallet requests as a courtesy.
 
 ---
 
@@ -196,7 +211,9 @@ WHERE user IN (<wallet_addresses>)
 ORDER BY user, time
 ```
 
-Submit query → poll for completion → process results → upsert all wallets in batch.
+**Batching required:** If wallet count exceeds 500, split into batches of 500 addresses per query and merge results before processing. A single IN clause with 1,200 addresses produces a ~60KB SQL string that may hit query size limits.
+
+Submit query → poll for completion (max 5 minutes per `pollQueryResult`) → process results → upsert all wallets in batch.
 
 **Note on Explorer Units:** This query will consume multiple Explorer Units from the 100-unit free tier. Run once to establish baseline, then rely on the daily Developer API updates.
 

@@ -66,7 +66,9 @@ function sortWallets(
 
 ### Null State
 
-For wallets without Allium data (`score_30d = null` / `score_90d = null`), the score column shows a dash "—" in muted text instead of a number. A small info tooltip: "90-day data not yet available for this wallet."
+For wallets without Allium data (`score_30d = null` / `score_90d = null`), the score column shows `"N/A"` in muted text instead of a number (no em dashes — project rule). Tooltips differ by sort mode:
+- In "Hot Right Now" (30d) mode: "Extended scoring data not yet available for this wallet."
+- In "Proven Edge" (90d) mode: "90-day track record not yet available for this wallet."
 
 ---
 
@@ -163,8 +165,8 @@ Before adding a new API call, check here to confirm the right source for your da
 
 **Free tier constraints:**
 - 100 Explorer Units (SQL batch): use for one-time backfills only
-- 20,000 Developer API Units: covers ~20 wallets/day ongoing (1,000 units/wallet/month at daily cadence)
-- Full 1,200-wallet daily coverage requires a paid plan
+- 20,000 Developer API Units/month: exact per-call cost unconfirmed — verify against actual API usage before projecting capacity. Do not hardcode throughput estimates. Contact Allium to clarify before scaling past prototype.
+- Full 1,200-wallet daily coverage likely requires a paid plan
 
 **What it does NOT provide:**
 - Real-time positions (use Hyperliquid native API for live data)

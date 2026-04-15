@@ -29,6 +29,12 @@ Replace the inline wallet panel in the Discovery page with a dedicated `/wallets
 
 File: `app/wallets/[address]/page.tsx` — async server component. Fetches wallet data server-side for first paint (no skeleton needed).
 
+Add at the top of the file:
+```typescript
+export const dynamic = 'force-dynamic';
+```
+Wallet data changes every 60 seconds. Without this, Next.js may statically cache the page and serve stale data.
+
 **URL format:** `/wallets/0xabc123...def456`
 
 The Discovery page inline panel is replaced with a link: clicking a wallet address navigates to `/wallets/{address}` instead of opening the panel. The panel component can be removed once the page is live.
@@ -40,6 +46,10 @@ The Discovery page inline panel is replaced with a link: clicking a wallet addre
 **Before modifying this route, read its current implementation in full.**
 
 Extend the response to include the new Allium-backed fields when available. Existing fields must not change shape (backwards-compatible).
+
+Read `score_30d`, `score_90d`, `divergence_score`, `liquidation_rate`, `regime_performance`, and `backtest_source` from `user_pnl_backtest` by `wallet_id`. These columns are added in Sprint 7's migration (`006_allium_backtest.sql`). All are nullable — wallets without Allium coverage return null for all five.
+
+Limit `fill_history` in the response to the 50 most recent fills. A 90-day window can contain hundreds of records; fetching all of them blocks first paint. Pagination can be added in a future sprint if needed.
 
 New fields added to response (all nullable — wallets without Allium data return null):
 
@@ -85,7 +95,7 @@ New fields added to response (all nullable — wallets without Allium data retur
 - Copy-to-clipboard button
 - Equity tier badge (use existing tier badge component or pattern — read how it's done in `LeaderboardClient.tsx` first)
 - Overall score pill
-- "Follow" button — disabled/greyed out with tooltip "Coming in a future update" (stub for Sprint 5)
+- "Follow" button — disabled/greyed out with tooltip "Coming in a future update" (stub for Sprint 5). The `onClick` handler must be a no-op — no localStorage reads, no modals. Sprint 5 replaces the stub with the full implementation directly in this component.
 
 ### Score Comparison Card
 
@@ -151,14 +161,19 @@ No new nav entry needed — the wallet detail page is accessed via links from Di
 ## Acceptance Criteria
 
 - [ ] `/wallets/[address]` route renders server-side for any valid address
+- [ ] `export const dynamic = 'force-dynamic'` present on the page
 - [ ] Invalid / unknown address shows a clean "Wallet not found" state, no crash
 - [ ] `/api/wallet-profile` returns new fields (nullable) without breaking existing shape
+- [ ] `fill_history` in response is capped at 50 most recent fills
 - [ ] Score comparison card renders correctly when `score_90d` is non-null, hidden when null
 - [ ] Regime performance card renders correctly with correct tint colors
 - [ ] Liquidation rate indicator shows correct color tier
 - [ ] "L" badge appears on liquidated fills only
-- [ ] Discovery page wallet links navigate to `/wallets/{address}` correctly
-- [ ] Follow button renders as disabled with tooltip (stub for Sprint 5)
+- [ ] Discovery page wallet addresses navigate to `/wallets/{address}` (inline panel removed)
+- [ ] Leaderboard page wallet addresses navigate to `/wallets/{address}`
+- [ ] In Position page wallet addresses navigate to `/wallets/{address}`
+- [ ] Inline wallet panel code removed from `DiscoveryClient.tsx`
+- [ ] Follow button renders as disabled with no-op onClick and tooltip
 - [ ] Copy address button works
 - [ ] All colors from design tokens — no hardcoded hex values
 - [ ] No em dashes in any rendered text
