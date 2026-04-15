@@ -39,6 +39,15 @@ const SIGNAL_TYPE_LABEL: Record<string, string> = {
   SCALE_OUT: "SCALE OUT",
 };
 
+// These recipes are always cohort-level; never attribute to a single wallet address
+const COHORT_RECIPES = new Set([
+  "divergence_squeeze",
+  "liq_rebound",
+  "concentration_risk",
+  "funding_divergence",
+  "funding_trend",
+]);
+
 function SignalRow({ sig }: { sig: Signal }) {
   const meta       = RECIPE_META[sig.recipe_id];
   const typeColor  = SIGNAL_TYPE_COLORS[sig.signal_type] ?? color.neutral;
@@ -65,8 +74,10 @@ function SignalRow({ sig }: { sig: Signal }) {
         </div>
         <div style={{ ...S.muted, marginTop: "3px" }}>
           {meta?.desc} · {
-            Number(sig.metadata?.wallet_count) > 1
-              ? <span>{sig.metadata.wallet_count as number} smart money wallets</span>
+            COHORT_RECIPES.has(sig.recipe_id)
+              ? Number(sig.metadata?.wallet_count) > 1
+                ? <span>{sig.metadata.wallet_count as number} smart money wallets</span>
+                : <span>smart money signal</span>
               : sig.wallet_id
                 ? <a href={`/wallets/discovery?address=${sig.wallet_id}`} style={{ color: "inherit", textDecoration: "underline", textDecorationColor: "rgba(255,255,255,0.25)", textUnderlineOffset: "3px" }}>{truncateAddress(sig.wallet_id)}</a>
                 : <span>smart money signal</span>

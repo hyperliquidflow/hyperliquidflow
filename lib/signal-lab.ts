@@ -162,13 +162,13 @@ async function recipe2(
   pairs: SnapshotPair[],
   candles5m: Map<string, HlCandle[]>   // coin -> recent 5m candles
 ): Promise<SignalEvent[]> {
-  const LIQ_BUFFER_THRESHOLD = 0.10;
+  const LIQ_BUFFER_THRESHOLD = 0.08;   // truly thin margin only
   const PRICE_FLAT_PCT       = 0.005;  // <0.5% move in last 30 min
-  const MIN_NOTIONAL_DELTA   = 25_000;
-  const MIN_WALLET_SCORE     = 0.60;
+  const MIN_NOTIONAL_DELTA   = 75_000; // per wallet; $75K each to qualify
+  const MIN_WALLET_SCORE     = 0.65;   // high-conviction wallets only
   const PRICE_FLAT_CANDLES   = 6;      // 6 x 5m = 30 min
-  const MIN_WALLETS          = 2;      // require coordinated loading
-  const COOLDOWN_SEC         = 1200;   // 20-min cooldown keyed per coin
+  const MIN_WALLETS          = 3;      // require 3 coordinating wallets
+  const COOLDOWN_SEC         = 3600;   // 60-min cooldown per coin
 
   // Pass 1: collect wallets qualifying per coin
   type QualifiedWallet = {
