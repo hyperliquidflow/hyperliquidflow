@@ -1,7 +1,7 @@
 // app/api/measure-outcomes/route.ts
-import { NextResponse } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, HYPERLIQUID_API_URL } from "@/lib/env";
+import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, HYPERLIQUID_API_URL, CRON_SECRET } from "@/lib/env";
 import { computeOutcome, computeMovePct } from "@/lib/outcome-helpers";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -9,8 +9,16 @@ const CHUNK_SIZE = 100;
 // 26h = 24h window + 2h buffer for hourly cron granularity
 const HORIZON_MS = 26 * 60 * 60 * 1000;
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   const startMs = Date.now();
+
+  // Optional: verify Vercel Cron secret header to prevent unauthorised calls
+  if (CRON_SECRET) {
+    const authHeader = req.headers.get("authorization");
+    if (authHeader !== `Bearer ${CRON_SECRET}`) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
 
   // 1. Fetch pending rows: missing price_24h and within resolution horizon
   const horizon = new Date(Date.now() - HORIZON_MS).toISOString();
@@ -36,6 +44,10 @@ export async function GET(): Promise<NextResponse> {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type: "allMids" }),
     });
+    if (!res.ok) {
+      console.error("[measure-outcomes] allMids non-200:", res.status);
+      return NextResponse.json({ ok: false, error: `allMids HTTP ${res.status}` }, { status: 502 });
+    }
     allMids = await res.json() as Record<string, string>;
   } catch (err) {
     console.error("[measure-outcomes] allMids fetch failed:", err);
@@ -82,12 +94,18 @@ export async function GET(): Promise<NextResponse> {
   let resolved = 0;
   for (let i = 0; i < updates.length; i += CHUNK_SIZE) {
     const chunk = updates.slice(i, i + CHUNK_SIZE);
-    await Promise.all(
+    const results = await Promise.all(
       chunk.map(({ id, patch }) =>
         supabase.from("signal_outcomes").update(patch).eq("id", id)
       )
     );
-    resolved += chunk.length;
+    for (const { error: uErr } of results) {
+      if (uErr) {
+        console.error("[measure-outcomes] update error:", uErr.message);
+      } else {
+        resolved++;
+      }
+    }
   }
 
   console.log(
