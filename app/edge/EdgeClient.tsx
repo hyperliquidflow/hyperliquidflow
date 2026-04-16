@@ -33,7 +33,7 @@ type Window = "7d" | "30d";
 
 const S = {
   page:     { padding: space.pagePaddingX },
-  grid:     { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px", marginBottom: "24px" },
+  grid:     { display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: space.statGap, marginBottom: "24px" },
   heroRow:  { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1px", background: color.borderFaint, borderBottom: `1px solid ${color.borderFaint}` },
   heroCel:  { padding: "16px 20px", background: color.card, textAlign: "center" as const },
   heroVal:  { ...T.statValue, fontFamily: T.mono },
@@ -73,7 +73,7 @@ export function EdgeClient({ initialData }: { initialData: RecipeStats[] | null 
         title="Performance"
         subtitle="Directional accuracy by recipe. % of signals where price moved the predicted direction. Not realized profit."
       />
-      <div style={{ ...S.page, paddingTop: "20px" }}>
+      <div style={{ ...S.page, paddingTop: space.contentPaddingTop }}>
         <div style={S.grid}>
           {allRecipes.map(({ id, label, desc, perf }) => {
             const resolved  = win === "7d" ? (perf?.resolved_7d ?? 0) : (perf?.resolved_30d ?? 0);
