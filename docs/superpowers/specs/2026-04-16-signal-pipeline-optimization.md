@@ -163,7 +163,7 @@ The `largeMult` and `smallMult` params are passed in from `agent_config` so the 
 
 | Recipe (display name) | Parameter | Old | New | Rationale |
 |---|---|---|---|---|
-| `momentum_stack` (Whale Convergence) | MIN_WALLETS | 3 | 5 | 3 was too low (false conviction); 8 from description was aspirational. 5 is honest. |
+| `momentum_stack` (Whale Convergence) | MIN_WALLETS | 3 | 3 | No change — keep at 3 until we see real signal volume. Description corrected to match. |
 | `streak_continuation` (Hot Streak) | MIN_STREAK | 5 | 3 | With only 3.5 days of data, no wallet has been tracked long enough to build a 5-streak. Lower to 3 initially; raise after 30 days. |
 | `anti_whale_trap` (Smart Exit Signal) | REDUCTION_PCT | 0.30 | 0.20 | 30% reduction is rare even among high-conviction exits. 20% catches real de-risking. |
 | `position_aging` (Patience Trap) | (new) COOLDOWN_HOURS | — | 4 | See Layer 1b. |
@@ -182,7 +182,7 @@ All other recipe defaults are unchanged for now. The learning agent will tune th
 ```ts
 momentum_stack: {
   label: "Whale Convergence",
-  desc:  "5+ wallets add $500K+ (BTC/ETH) | $250K+ (SOL/HYPE) | $100K+ (alts) same direction in under 5 min"
+  desc:  "3+ wallets add $500K+ (BTC/ETH) | $250K+ (SOL/HYPE) | $100K+ (alts) same direction in under 5 min"
 },
 divergence_squeeze: {
   label: "Silent Loading",
@@ -227,8 +227,7 @@ Entries not listed above are already accurate and unchanged.
 One migration handles all agent_config updates atomically:
 
 ```sql
--- Update existing thresholds
-UPDATE agent_config SET param_value = 5    WHERE recipe_id = 'momentum_stack'    AND param_name = 'MIN_WALLETS';
+-- Update existing thresholds (momentum_stack MIN_WALLETS stays at 3 — no change)
 UPDATE agent_config SET param_value = 3    WHERE recipe_id = 'streak_continuation' AND param_name = 'MIN_STREAK';
 UPDATE agent_config SET param_value = 0.20 WHERE recipe_id = 'anti_whale_trap'    AND param_name = 'REDUCTION_PCT';
 
@@ -255,7 +254,7 @@ KV cache invalidation: after running the migration, invalidate KV cache for all 
 |--------|--------|-------|
 | position_aging | ~600/day | ~30–60/day (4h cooldown) |
 | divergence_squeeze | ~400/day | ~100–200/day (tier scaling opens alts) |
-| momentum_stack | 0 | 5–20/day (MIN_WALLETS 3→5, alts tier opens) |
+| momentum_stack | 0 | 5–20/day (alts tier opens $100K bar) |
 | accumulation_reentry | 0 | 10–40/day (no change, just needs right market) |
 | rotation_carry | 0 | 5–15/day (bootstrap fix) |
 | streak_continuation | 0 | 5–20/day (MIN_STREAK 5→3) |
@@ -268,14 +267,59 @@ Target: a balanced, diverse feed where no single recipe dominates.
 
 ---
 
+## Layer 6: Naming Surface Audit Fixes
+
+Three display-layer fixes uncovered by the code audit.
+
+### 6a. Wire `wallet_churn` (R12) to `getRecipeConfig`
+
+R12 uses hardcoded `WALLET_THRESHOLD = 3` and `COMBINED_NOTIONAL = 500_000` — it never reads from `agent_config`. The tier scaling params added in migration 008 would be silently ignored without this wire-up.
+
+Fix: replace hardcoded constants with `getRecipeConfig("wallet_churn")` at the top of recipe12, then read `COMBINED_NOTIONAL`, `NOTIONAL_LARGE_MULT`, `NOTIONAL_SMALL_MULT` from the config object. Add base params to migration 008:
+
+```sql
+INSERT INTO agent_config (recipe_id, param_name, param_value) VALUES
+  ('wallet_churn', 'WALLET_THRESHOLD',   3),
+  ('wallet_churn', 'COMBINED_NOTIONAL',  500000),
+  ('wallet_churn', 'WINDOW_MS',          300000)
+ON CONFLICT DO NOTHING;
+```
+
+Also add `"wallet_churn"` to the `recipeIds` snapshot list in `refresh-cohort/route.ts` (line 259–263) so its active config is snapshotted at signal fire time.
+
+### 6b. Remove unimplemented recipes from Feed sidebar
+
+`bridge_inflow` and `twap_accumulation` are in `RECIPE_GROUPS` in `FeedClient.tsx` but have no implementation in `signal-lab.ts`. They show permanent dim dots — users see two signals that never fire with no explanation.
+
+Fix: remove them from `RECIPE_GROUPS`. They stay in `recipe-meta.ts` for when they're built; the sidebar should only show recipes that can actually fire.
+
+### 6c. Harden the raw recipe_id fallback
+
+`FeedClient.tsx:315` and `OverviewClient.tsx:333` both render `meta?.label ?? sig.recipe_id`. If a recipe fires with an unrecognised ID, the raw snake_case string shows to users.
+
+Fix: replace the fallback with a stable placeholder string:
+
+```ts
+// FeedClient.tsx:315
+<span style={S.sigName}>{meta?.label ?? "Signal"}</span>
+
+// OverviewClient.tsx:333
+{RECIPE_META[sig.recipe_id]?.label ?? "Signal"}
+```
+
+---
+
 ## Files Touched
 
 | File | Action |
 |------|--------|
 | `lib/token-tiers.ts` | NEW — coin tier utility |
-| `lib/signal-lab.ts` | R1 tier scaling, R2 tier scaling, R5 tier scaling, R12 tier scaling, R4 bootstrap fix, R10 cooldown, signal_outcomes diagnostic + fix |
+| `lib/signal-lab.ts` | R1 tier scaling, R2 tier scaling, R5 tier scaling, R12 getRecipeConfig wire + tier scaling, R4 bootstrap fix, R10 cooldown, signal_outcomes diagnostic + fix |
 | `lib/recipe-meta.ts` | All descriptions updated to match thresholds |
-| `supabase/migrations/008_recipe_calibration.sql` | NEW — threshold + tier param updates |
+| `app/signals/feed/FeedClient.tsx` | Remove bridge_inflow/twap_accumulation from RECIPE_GROUPS; harden recipe_id fallback |
+| `app/OverviewClient.tsx` | Harden recipe_id fallback |
+| `app/api/refresh-cohort/route.ts` | Add wallet_churn to recipeIds snapshot list |
+| `supabase/migrations/008_recipe_calibration.sql` | NEW — threshold + tier param updates + wallet_churn base config |
 | `lib/__tests__/token-tiers.test.ts` | NEW — tier classification + scaling tests |
 | `lib/__tests__/outcome-helpers.test.ts` | Add logging assertion for empty-allMids case |
 
@@ -283,7 +327,7 @@ Target: a balanced, diverse feed where no single recipe dominates.
 
 ## Out of Scope
 
-- `bridge_inflow` and `twap_accumulation` recipes: listed in recipe-meta.ts but not yet implemented in signal-lab.ts. Not touched here.
+- `bridge_inflow` and `twap_accumulation` implementation — not in this sprint.
 - WebSocket-based `liq_rebound` upgrade (tagged Phase 3) — approximation remains.
-- Signal display UI — feed redesign already implemented in prior sprint.
+- `concentration_risk` (R11) agent_config wire-up — hardcoded thresholds are stable; no tuning needed yet.
 - Learning agent tuning — will self-activate once `signal_outcomes` is populated.
