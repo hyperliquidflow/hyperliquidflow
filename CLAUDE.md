@@ -62,9 +62,9 @@ Browser (React)
 | `/wallets/inposition` | Wallets with open positions right now |
 | `/signals/feed` | Live signal event feed |
 | `/signals/divergence` | Contrarian/divergence signals |
-| `/edge` | Signal recipe performance analytics |
+| `/signals/performance` | Signal recipe performance analytics — 24h directional accuracy ranked |
 
-Old routes (`/scanner`, `/stalker`, `/contrarian`, `/imbalance`, `/recipes`) redirect to their current equivalents.
+Old routes (`/scanner`, `/stalker`, `/contrarian`, `/imbalance`, `/recipes`, `/edge`, `/performance`) redirect to their current equivalents.
 
 ### API Routes (`app/api/`)
 
