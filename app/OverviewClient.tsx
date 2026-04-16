@@ -330,7 +330,7 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
                 }}>
                   <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.2)", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{i + 1}</span>
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", minWidth: 0 }}>
-                    <span style={{ fontSize: "13px", fontWeight: 600, color: color.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{RECIPE_META[sig.recipe_id]?.label ?? sig.recipe_id}</span>
+                    <span style={{ fontSize: "13px", fontWeight: 600, color: color.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{RECIPE_META[sig.recipe_id]?.label ?? "Signal"}</span>
                     <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.25)", flexShrink: 0 }}>{timeAgo(sig.detected_at)}</span>
                   </div>
                   <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)", textAlign: "right", width: "36px", fontVariantNumeric: "tabular-nums" }}>
