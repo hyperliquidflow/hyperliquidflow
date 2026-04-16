@@ -230,7 +230,7 @@ const STATIC_COINS = ["BTC", "ETH", "SOL", "HYPE", "XMR"];
 
 const RECIPE_GROUPS: Array<{ label: string; ids: string[] }> = [
   { label: "Momentum",       ids: ["momentum_stack", "accumulation_reentry", "streak_continuation", "whale_validated"] },
-  { label: "Smart Money",    ids: ["divergence_squeeze", "anti_whale_trap", "wallet_churn", "bridge_inflow", "twap_accumulation"] },
+  { label: "Smart Money",     ids: ["divergence_squeeze", "anti_whale_trap", "wallet_churn"] },
   { label: "Risk",           ids: ["liq_rebound", "position_aging", "concentration_risk"] },
   { label: "Carry & Funding",ids: ["rotation_carry", "funding_divergence", "funding_trend"] },
 ];
@@ -312,7 +312,7 @@ function SignalRow({ sig }: { sig: Signal }) {
       {/* Col 2: body */}
       <div style={{ minWidth: 0 }}>
         <div style={S.sigTopRow}>
-          <span style={S.sigName}>{meta?.label ?? sig.recipe_id}</span>
+          <span style={S.sigName}>{meta?.label ?? "Signal"}</span>
           <span style={S.coinTag}>{sig.coin}</span>
           {dirStyle && sig.direction && (
             <span style={{ ...S.dirPill, ...dirStyle }}>{sig.direction}</span>
