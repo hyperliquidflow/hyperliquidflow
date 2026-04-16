@@ -44,9 +44,9 @@ const DELAY_BETWEEN_MS        = 600; // ms delay per slot before firing -- keeps
 // Applied to leaderboard data before any fills API calls. Collapses 33k wallets
 // to high-signal candidates using data already present in the leaderboard response.
 // Tune these; currently targets roughly the top 5-10% of leaderboard by performance.
-const PRE_QUALIFY_MIN_MONTH_ROI   = 0.05;  // >=5% monthly ROI (raised from 3% to cut Dust-tier entrants)
-const PRE_QUALIFY_MIN_MONTH_PNL   = 10_000; // >=$10k monthly realized PnL (raised from $5k)
-const PRE_QUALIFY_MIN_ALLTIME_ROI = 0.02;  // >=2% all-time ROI (raised from 0 to exclude net-flat wallets)
+const PRE_QUALIFY_MIN_MONTH_ROI   = 0.00;  // no ROI floor -- big wallets run low ROI on large capital
+const PRE_QUALIFY_MIN_MONTH_PNL   = 10_000; // >=$10k monthly realized PnL (absolute size filter)
+const PRE_QUALIFY_MIN_ALLTIME_ROI = 0.00;  // no all-time ROI floor -- PnL threshold is sufficient
 
 // -- In-process semaphore (valid here -- long-running Node.js process, not serverless) --
 class Semaphore {
@@ -151,14 +151,9 @@ async function hlPost<T>(body: unknown, timeoutMs = 15_000): Promise<T> {
 function leaderboardPreQualifies(row: Record<string, unknown>): boolean {
   const perfs = row.windowPerformances as Array<[string, Record<string, string>]> | undefined;
   if (!perfs) return false;
-  const month   = perfs.find(([w]) => w === "month")?.[1];
-  const allTime = perfs.find(([w]) => w === "allTime")?.[1];
-  if (!month || !allTime) return false;
-  return (
-    parseFloat(month.roi   ?? "0") >= PRE_QUALIFY_MIN_MONTH_ROI &&
-    parseFloat(month.pnl   ?? "0") >= PRE_QUALIFY_MIN_MONTH_PNL &&
-    parseFloat(allTime.roi ?? "0") >= PRE_QUALIFY_MIN_ALLTIME_ROI
-  );
+  const month = perfs.find(([w]) => w === "month")?.[1];
+  if (!month) return false;
+  return parseFloat(month.pnl ?? "0") >= PRE_QUALIFY_MIN_MONTH_PNL;
 }
 
 // -- Discovery: primary path (stats-data leaderboard GET) ----------------------
@@ -549,7 +544,7 @@ async function saveBacktestRow(
     win_rate:            result.win_rate,
     avg_win_usd:         result.avg_win_usd,
     avg_loss_usd:        result.avg_loss_usd,
-    profit_factor:       isFinite(result.profit_factor) ? result.profit_factor : 999,
+    profit_factor:       Math.min(9999, isFinite(result.profit_factor) ? result.profit_factor : 9999),
     total_trades:        result.trade_count_30d,
     total_pnl_usd:       result.realized_pnl_30d,
     max_drawdown_pct:    result.max_drawdown_pct,
@@ -733,20 +728,6 @@ async function main(): Promise<void> {
   } else {
     console.warn("[discovery] no new addresses, will rescore from database");
     summary.discovery_source = "database_rescore";
-  }
-
-  // Step 2b: Secondary fills-based discovery
-  try {
-    const fillsAddresses = await discoverFromFills();
-    if (fillsAddresses.length > 0) {
-      const newFromFills = await upsertAddresses(fillsAddresses, "fills_discovery");
-      summary.new_wallets += newFromFills;
-      console.log(`[discovery-fills] upserted ${fillsAddresses.length} addresses (${newFromFills} new)`);
-    }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    summary.errors.push(`fills_discovery: ${msg}`);
-    console.warn("[discovery-fills] secondary discovery failed:", msg);
   }
 
   // Step 3: Build the score batch
