@@ -343,6 +343,7 @@ export const layout = {
     navBackdrop: 99,   // mobile nav overlay backdrop
     navRail:     100,  // mobile nav slide-in rail
     hamburger:   200,  // mobile hamburger button (must clear nav rail)
+    popup:       1000, // portal popups / tooltips rendered at document.body
   },
 
   statCols:     "repeat(4, 1fr)",
