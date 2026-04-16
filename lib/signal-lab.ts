@@ -96,10 +96,12 @@ function sign(szi: string): "LONG" | "SHORT" | "FLAT" {
 
 async function recipe1(pairs: SnapshotPair[]): Promise<SignalEvent[]> {
   const cfg = await getRecipeConfig("momentum_stack");
-  const MIN_WALLETS         = cfg["MIN_WALLETS"] ?? 3;
+  const MIN_WALLETS         = cfg["MIN_WALLETS"]         ?? 3;
   const WALLET_THRESHOLD    = MIN_WALLETS;
-  const COMBINED_NOTIONAL   = cfg["COMBINED_NOTIONAL"] ?? 500_000;
-  const WINDOW_MS           = cfg["WINDOW_MS"] ?? 300_000;
+  const COMBINED_NOTIONAL   = cfg["COMBINED_NOTIONAL"]   ?? 500_000;
+  const WINDOW_MS           = cfg["WINDOW_MS"]            ?? 300_000;
+  const LARGE_MULT          = cfg["NOTIONAL_LARGE_MULT"]  ?? 0.5;
+  const SMALL_MULT          = cfg["NOTIONAL_SMALL_MULT"]  ?? 0.2;
 
   // Coin → direction → { walletIds, totalDelta }
   const buckets = new Map<string, { LONG: { ids: string[]; delta: number }; SHORT: { ids: string[]; delta: number } }>();
@@ -135,7 +137,7 @@ async function recipe1(pairs: SnapshotPair[]): Promise<SignalEvent[]> {
   for (const [coin, sides] of buckets) {
     for (const direction of ["LONG", "SHORT"] as const) {
       const { ids, delta } = sides[direction];
-      if (ids.length >= WALLET_THRESHOLD && delta >= COMBINED_NOTIONAL) {
+      if (ids.length >= WALLET_THRESHOLD && delta >= tieredNotional(COMBINED_NOTIONAL, coin, LARGE_MULT, SMALL_MULT)) {
         events.push({
           wallet_id:   ids[0],
           recipe_id:   "momentum_stack",
