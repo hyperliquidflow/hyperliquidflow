@@ -260,6 +260,7 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       "momentum_stack", "divergence_squeeze", "accumulation_reentry",
       "rotation_carry", "liq_rebound", "streak_continuation",
       "funding_divergence", "whale_validated", "anti_whale_trap", "global",
+      "wallet_churn",
     ];
     const activeConfigs = await snapshotAllConfigs(recipeIds);
 
