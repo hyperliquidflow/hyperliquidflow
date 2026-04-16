@@ -1138,10 +1138,23 @@ export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalEvent
       // Capture price at signal fire time for outcome tracking
       if (inserted && inserted.length > 0) {
         const outcomeRows = buildOutcomeRows(inserted, allMids);
+        // Diagnostic: surface why outcome rows may be empty
+        if (outcomeRows.length === 0) {
+          const missingCoins = [...new Set(inserted.map((s) => s.coin))].filter((c) => !allMids[c]);
+          console.warn(
+            `[signal-lab] 0 outcome rows built from ${inserted.length} signals. allMids keys: ${Object.keys(allMids).length}, coins missing from allMids:`,
+            missingCoins,
+          );
+        }
         if (outcomeRows.length > 0) {
-          void supabase.from("signal_outcomes").insert(outcomeRows).then(({ error: oErr }) => {
-            if (oErr) console.error("[signal-lab] signal_outcomes insert error:", oErr.message);
-          });
+          const { error: oErr } = await supabase.from("signal_outcomes").insert(outcomeRows);
+          if (oErr) {
+            console.error("[signal-lab] signal_outcomes insert FAILED:", oErr.message, {
+              sampleCoin: outcomeRows[0]?.coin,
+            });
+          } else {
+            console.log(`[signal-lab] inserted ${outcomeRows.length} outcome seed rows`);
+          }
         }
       }
     }
