@@ -15,6 +15,27 @@ import {
 
 type Signal = CohortCachePayload["recent_signals"][number];
 
+// ─── Read-state persistence ────────────────────────────────────────────────────
+
+const FEED_READ_KEY = "hlf:feed:readAt";
+
+function loadReadAt(): Map<string, number> {
+  if (typeof window === "undefined") return new Map();
+  try {
+    const raw = localStorage.getItem(FEED_READ_KEY);
+    if (!raw) return new Map();
+    return new Map(JSON.parse(raw) as [string, number][]);
+  } catch {
+    return new Map();
+  }
+}
+
+function saveReadAt(map: Map<string, number>): void {
+  try {
+    localStorage.setItem(FEED_READ_KEY, JSON.stringify([...map]));
+  } catch {}
+}
+
 const S = {
   page:   { padding: `0 ${space.pagePaddingX} ${space.contentPaddingBot}` },
   body:   { display: "flex", gap: space.cardGap, alignItems: "flex-start" },
@@ -447,7 +468,7 @@ export function FeedClient({ initialData }: { initialData: CohortCachePayload | 
   const sentinelRef  = useRef<HTMLDivElement>(null);
 
   // readAt: recipe_id → timestamp of the most recent signal when user last clicked that recipe
-  const [readAt, setReadAt] = useState<Map<string, number>>(() => new Map());
+  const [readAt, setReadAt] = useState<Map<string, number>>(() => loadReadAt());
 
   const toggleRecipe = useCallback((id: string) => {
     setSelectedRecipes((prev) => {
@@ -460,7 +481,11 @@ export function FeedClient({ initialData }: { initialData: CohortCachePayload | 
       .filter((s) => s.recipe_id === id)
       .reduce((max, s) => Math.max(max, new Date(s.detected_at).getTime()), 0);
     if (latest > 0) {
-      setReadAt((prev) => new Map(prev).set(id, latest));
+      setReadAt((prev) => {
+        const next = new Map(prev).set(id, latest);
+        saveReadAt(next);
+        return next;
+      });
     }
   }, [data]);
 
