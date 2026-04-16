@@ -288,6 +288,11 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       .limit(500);
 
     // ── Step 11: Write cohort payload to Vercel KV ────────────────────────────
+    // Build a UUID → address map from the active wallets already in scope
+    const walletAddressMap = new Map<string, string>(
+      wallets.map((w) => [w.id, w.address] as [string, string])
+    );
+
     const payload: CohortCachePayload = {
       updated_at:           new Date().toISOString(),
       wallet_count:         cohortSummary.length,
@@ -298,14 +303,15 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
         .sort((a, b) => b.overall_score - a.overall_score)
         .slice(0, 200),
       recent_signals: (recentSignals ?? []).map((s) => ({
-        recipe_id:     s.recipe_id,
-        coin:          s.coin,
-        signal_type:   s.signal_type,
-        direction:     s.direction,
-        detected_at:   s.detected_at,
-        ev_score:      s.ev_score,
-        wallet_id:     s.wallet_id,
-        metadata:      s.metadata,
+        recipe_id:      s.recipe_id,
+        coin:           s.coin,
+        signal_type:    s.signal_type,
+        direction:      s.direction,
+        detected_at:    s.detected_at,
+        ev_score:       s.ev_score,
+        wallet_id:      s.wallet_id,
+        wallet_address: s.wallet_id ? (walletAddressMap.get(s.wallet_id) ?? null) : null,
+        metadata:       s.metadata,
       })),
     };
 
@@ -525,13 +531,14 @@ export interface CohortCachePayload {
   btc_return_24h:        number;
   top_wallets:           CohortWalletSummary[];
   recent_signals: Array<{
-    recipe_id:   string;
-    coin:        string;
-    signal_type: string;
-    direction:   string | null;
-    detected_at: string;
-    ev_score:    number | null;
-    wallet_id:   string;
-    metadata:    Record<string, unknown>;
+    recipe_id:      string;
+    coin:           string;
+    signal_type:    string;
+    direction:      string | null;
+    detected_at:    string;
+    ev_score:       number | null;
+    wallet_id:      string;
+    wallet_address: string | null;   // on-chain 0x address; null for cohort-level signals
+    metadata:       Record<string, unknown>;
   }>;
 }

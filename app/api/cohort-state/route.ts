@@ -100,6 +100,11 @@ export async function GET(): Promise<NextResponse> {
       .order("detected_at", { ascending: false })
       .limit(500);
 
+    // Build a UUID → address map from the wallets already fetched
+    const walletAddressMap = new Map<string, string>(
+      (wallets ?? []).map((w) => [w.id, w.address] as [string, string])
+    );
+
     // Count total active wallets for accurate display (fallback path queries up to 200)
     const { count: totalActiveCount } = await supabase
       .from("wallets")
@@ -128,14 +133,15 @@ export async function GET(): Promise<NextResponse> {
         };
       }),
       recent_signals: (recentSignals ?? []).map((s) => ({
-        recipe_id:   s.recipe_id,
-        coin:        s.coin,
-        signal_type: s.signal_type,
-        direction:   s.direction,
-        detected_at: s.detected_at,
-        ev_score:    s.ev_score,
-        wallet_id:   s.wallet_id,
-        metadata:    s.metadata,
+        recipe_id:      s.recipe_id,
+        coin:           s.coin,
+        signal_type:    s.signal_type,
+        direction:      s.direction,
+        detected_at:    s.detected_at,
+        ev_score:       s.ev_score,
+        wallet_id:      s.wallet_id,
+        wallet_address: s.wallet_id ? (walletAddressMap.get(s.wallet_id) ?? null) : null,
+        metadata:       s.metadata,
       })),
     };
 
