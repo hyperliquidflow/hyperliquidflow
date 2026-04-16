@@ -12,6 +12,7 @@ import { computeEv, estimateTradeCost } from "@/lib/risk-engine";
 import type { HlL2Book, HlCandle, HlAssetCtx } from "@/lib/hyperliquid-api-client";
 import { getRecipeConfig } from "@/lib/recipe-config";
 import { buildOutcomeRows } from "@/lib/outcome-helpers";
+import { tieredNotional } from "@/lib/token-tiers";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -881,10 +882,13 @@ function recipe11(pairs: SnapshotPair[]): SignalEvent[] {
 // 3+ wallets simultaneously reducing/closing positions on the same coin,
 // combined notional reduction >= $500K within the snapshot window.
 
-function recipe12(pairs: SnapshotPair[]): SignalEvent[] {
-  const WALLET_THRESHOLD  = 3;
-  const COMBINED_NOTIONAL = 500_000;
-  const WINDOW_MS         = 5 * 60 * 1000;
+async function recipe12(pairs: SnapshotPair[]): Promise<SignalEvent[]> {
+  const cfg               = await getRecipeConfig("wallet_churn");
+  const WALLET_THRESHOLD  = cfg["WALLET_THRESHOLD"]   ?? 3;
+  const COMBINED_NOTIONAL = cfg["COMBINED_NOTIONAL"]  ?? 500_000;
+  const WINDOW_MS         = cfg["WINDOW_MS"]           ?? 300_000;
+  const LARGE_MULT        = cfg["NOTIONAL_LARGE_MULT"] ?? 0.5;
+  const SMALL_MULT        = cfg["NOTIONAL_SMALL_MULT"] ?? 0.2;
 
   // Coin → { walletIds, totalReduction, direction }
   const buckets = new Map<string, { ids: string[]; delta: number; direction: "LONG" | "SHORT" | null }>();
@@ -918,7 +922,8 @@ function recipe12(pairs: SnapshotPair[]): SignalEvent[] {
 
   const events: SignalEvent[] = [];
   for (const [coin, { ids, delta, direction }] of buckets) {
-    if (ids.length >= WALLET_THRESHOLD && Math.abs(delta) >= COMBINED_NOTIONAL) {
+    const threshold = tieredNotional(COMBINED_NOTIONAL, coin, LARGE_MULT, SMALL_MULT);
+    if (ids.length >= WALLET_THRESHOLD && Math.abs(delta) >= threshold) {
       events.push({
         wallet_id:   ids[0],
         recipe_id:   "wallet_churn",
