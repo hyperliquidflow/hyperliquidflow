@@ -205,7 +205,7 @@ const DIR_COLORS = {
 const EV_COLOR = (score: number) =>
   score > 0.6 ? color.green : score > 0.3 ? color.amber : color.neutral;
 
-const COINS = ["BTC", "ETH", "SOL", "HYPE", "ARB", "AVAX", "DOGE", "SUI"];
+const STATIC_COINS = ["BTC", "ETH", "SOL", "HYPE", "XMR"];
 
 const RECIPE_GROUPS: Array<{ label: string; ids: string[] }> = [
   { label: "Momentum",       ids: ["momentum_stack", "accumulation_reentry", "streak_continuation", "whale_validated"] },
@@ -418,6 +418,18 @@ export function FeedClient({ initialData }: { initialData: CohortCachePayload | 
     refetchInterval: 60_000,
   });
 
+  const { data: topMarkets } = useQuery<string[]>({
+    queryKey:  ["top-markets"],
+    queryFn:   () => fetch("/api/top-markets?n=10").then((r) => r.json()),
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Static coins + top 2 by 24h volume not already in the static list
+  const coins = [
+    ...STATIC_COINS,
+    ...(topMarkets ?? []).filter((c) => !STATIC_COINS.includes(c)).slice(0, 2),
+  ];
+
   // Filters
   const [selectedRecipes, setSelectedRecipes] = useState<Set<string>>(new Set());
   const [filterDir,  setFilterDir]  = useState<string>("all");
@@ -546,7 +558,7 @@ export function FeedClient({ initialData }: { initialData: CohortCachePayload | 
               {/* Header: coin chips + search + seg control */}
               <div style={S.feedHeader}>
                 <div style={S.chipRow}>
-                  {COINS.map((coin) => (
+                  {coins.map((coin) => (
                     <button
                       key={coin}
                       className="glow-btn"
