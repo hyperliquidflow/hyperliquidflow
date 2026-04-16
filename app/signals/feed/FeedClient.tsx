@@ -387,7 +387,7 @@ function RecipeSidebar({
                   onMouseEnter={(e) => handleMouseEnter(id, meta.label, meta.desc, e)}
                   onMouseLeave={handleMouseLeave}
                 >
-                  <span style={{ fontSize: "11px", color: firedToday.has(id) ? color.amber : color.borderHover }}>●</span>
+                  <span style={{ fontSize: "11px", color: firedToday.has(id) && !selected.has(id) ? color.amber : color.borderHover }}>●</span>
                   <span style={{ fontSize: "13px", color: isSelected ? color.text : color.textMuted }}>
                     {meta.label}
                   </span>
