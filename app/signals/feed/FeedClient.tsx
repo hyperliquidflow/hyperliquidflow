@@ -344,11 +344,11 @@ function SignalRow({ sig }: { sig: Signal }) {
 function RecipeSidebar({
   selected,
   onToggle,
-  firedToday,
+  unreadRecipes,
 }: {
   selected: Set<string>;
   onToggle: (id: string) => void;
-  firedToday: Set<string>;
+  unreadRecipes: Set<string>;
 }) {
   const [popup, setPopup] = useState<{
     id: string; label: string; desc: string; rect: DOMRect;
@@ -387,7 +387,7 @@ function RecipeSidebar({
                   onMouseEnter={(e) => handleMouseEnter(id, meta.label, meta.desc, e)}
                   onMouseLeave={handleMouseLeave}
                 >
-                  <span style={{ fontSize: "11px", color: firedToday.has(id) && !selected.has(id) ? color.amber : color.borderHover }}>●</span>
+                  <span style={{ fontSize: "11px", color: unreadRecipes.has(id) ? color.amber : color.borderHover }}>●</span>
                   <span style={{ fontSize: "13px", color: isSelected ? color.text : color.textMuted }}>
                     {meta.label}
                   </span>
@@ -446,13 +446,23 @@ export function FeedClient({ initialData }: { initialData: CohortCachePayload | 
   const fetchingRef  = useRef(false);
   const sentinelRef  = useRef<HTMLDivElement>(null);
 
+  // readAt: recipe_id → timestamp of the most recent signal when user last clicked that recipe
+  const [readAt, setReadAt] = useState<Map<string, number>>(() => new Map());
+
   const toggleRecipe = useCallback((id: string) => {
     setSelectedRecipes((prev) => {
       const next = new Set(prev);
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
-  }, []);
+    // Mark as read: record the latest signal time for this recipe at click time
+    const latest = (data?.recent_signals ?? [])
+      .filter((s) => s.recipe_id === id)
+      .reduce((max, s) => Math.max(max, new Date(s.detected_at).getTime()), 0);
+    if (latest > 0) {
+      setReadAt((prev) => new Map(prev).set(id, latest));
+    }
+  }, [data]);
 
   // Reset pagination when filters change
   const prevFilters = useRef({ selectedRecipes, filterDir, activeCoin, filterCoin });
@@ -528,9 +538,15 @@ export function FeedClient({ initialData }: { initialData: CohortCachePayload | 
 
   const allSignals: Signal[] = [...(data?.recent_signals ?? []), ...extra];
 
-  const firedToday = new Set(
+  // unreadRecipes: fired in last 24h AND no read timestamp, or has a signal newer than last read
+  const unreadRecipes = new Set(
     (data?.recent_signals ?? [])
-      .filter((s) => Date.now() - new Date(s.detected_at).getTime() < 24 * 60 * 60 * 1000)
+      .filter((s) => {
+        const age = Date.now() - new Date(s.detected_at).getTime();
+        if (age >= 24 * 60 * 60 * 1000) return false;
+        const readTime = readAt.get(s.recipe_id);
+        return readTime === undefined || new Date(s.detected_at).getTime() > readTime;
+      })
       .map((s) => s.recipe_id)
   );
 
@@ -549,7 +565,7 @@ export function FeedClient({ initialData }: { initialData: CohortCachePayload | 
         <div style={S.body}>
 
           {/* Sidebar */}
-          <RecipeSidebar selected={selectedRecipes} onToggle={toggleRecipe} firedToday={firedToday} />
+          <RecipeSidebar selected={selectedRecipes} onToggle={toggleRecipe} unreadRecipes={unreadRecipes} />
 
           {/* Feed panel */}
           <div style={S.feedPanel}>
