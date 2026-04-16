@@ -34,7 +34,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 // -- Qualification thresholds --------------------------------------------------
 const WIN_RATE_THRESHOLD = 0.52;
 const MIN_TRADES_30D     = 30;
-const MAX_WALLETS_TO_SCORE    = 3000; // cap at ~22 min budget (3000 wallets x 1.1s / 3 concurrent)
+const MAX_WALLETS_TO_SCORE    = 3000; // cap at ~55 min budget (3000 wallets x 1.1s sequential-effective)
 const RESCORE_STALE_DAYS      = 2;   // only re-score inactive wallets not scanned in the last N days
 const MIN_CANDIDATE_PNL_30D   = 1_000; // skip already-scanned wallets with <$1k 30d PnL (Dust-quality)
 const CONCURRENCY             = 3;   // 3 concurrent -> ~3.3 req/s, within Hyperliquid public limits
@@ -471,7 +471,7 @@ async function scoreWallet(address: string): Promise<ScoringResult> {
     }
   }
 
-  const qualifies = win_rate >= WIN_RATE_THRESHOLD && trade_count_30d >= MIN_TRADES_30D && realized_pnl_30d > 0;
+  const qualifies = win_rate >= WIN_RATE_THRESHOLD && trade_count_30d >= MIN_TRADES_30D && realized_pnl_30d >= MIN_CANDIDATE_PNL_30D;
 
   return {
     address,

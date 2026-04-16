@@ -23,13 +23,14 @@ Live data audit (Apr 12–15, 1,750 signals):
 
 ## Scope
 
-Five layers, implemented in this order:
+Six layers, implemented in this order:
 
 1. **Foundation bugs** — fix signal_outcomes, position_aging cooldown, rotation_carry
 2. **Token tier system** — MAJOR/LARGE/SMALL coin classification with scaled thresholds
 3. **Recipe calibration** — honest threshold values that can actually fire
 4. **Description consistency** — recipe-meta.ts matches code exactly, always
 5. **agent_config migration** — Supabase rows updated atomically with code
+6. **Naming surface audit** — R12 wired to agent_config, unimplemented recipes removed from sidebar, raw ID fallback hardened
 
 ---
 

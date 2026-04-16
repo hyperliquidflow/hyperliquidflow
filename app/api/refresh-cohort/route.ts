@@ -351,6 +351,9 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
         pruneUnderperformers().catch((err) =>
           console.error("[refresh-cohort] pruneUnderperformers error:", err)
         ),
+        deactivateDustWallets(cohortSummary).catch((err) =>
+          console.error("[refresh-cohort] deactivateDustWallets error:", err)
+        ),
         runBridgeInflowEnrichment(wallets.map((w) => ({ id: w.id, address: w.address }))).catch((err) =>
           console.error("[refresh-cohort] bridgeInflowEnrichment error:", err)
         ),
@@ -455,6 +458,29 @@ async function updateIntradayRecipePerformance(): Promise<void> {
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
+
+/** Deactivate wallets whose live account equity is below $1K (Dust tier). */
+async function deactivateDustWallets(
+  summary: CohortWalletSummary[]
+): Promise<void> {
+  const DUST_THRESHOLD = 1_000;
+  const dustIds = summary
+    .filter((w) => w.account_value < DUST_THRESHOLD)
+    .map((w) => w.wallet_id);
+
+  if (dustIds.length === 0) return;
+
+  const { error } = await supabase
+    .from("wallets")
+    .update({ is_active: false })
+    .in("id", dustIds);
+
+  if (error) {
+    console.error("[refresh-cohort] deactivateDustWallets error:", error.message);
+  } else {
+    console.log(`[refresh-cohort] deactivated ${dustIds.length} dust wallets (equity < $${DUST_THRESHOLD})`);
+  }
+}
 
 function computeLiqBuffer(state: HlClearinghouseState): number | null {
   const av = parseFloat(state.marginSummary.accountValue);

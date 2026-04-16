@@ -12,6 +12,9 @@ npm run typecheck    # tsc --noEmit
 npm run test         # Vitest (single run, node env, no live services needed)
 npm run test:watch   # Vitest in watch mode
 
+# Run a single test file
+npx vitest run lib/__tests__/cohort-engine.test.ts
+
 # Scripts (require env vars)
 npx tsx scripts/daily-wallet-scan.ts        # Full 1200-wallet cohort scan (GitHub Actions runs this)
 npx tsx scripts/validate-scoring-weights.ts # Correlate wallet scores vs EV scores over 30 days
@@ -98,6 +101,39 @@ The `after()` Next.js API is used for fire-and-forget background work (e.g., tri
 ### Regime Detection
 
 BTC 24h return → BULL (>1%) / BEAR (<-1%) / RANGING. Feeds `regime_fit` factor in scoring. Thresholds are defined in `lib/cohort-engine.ts:detectRegime`.
+
+### KV Cache Keys
+
+| Key | Content | TTL |
+|-----|---------|-----|
+| `cohort:active` | Main cohort snapshot (scores + signals) | ~120s |
+| `cohort:active:fallback` | Backup stale snapshot | longer |
+| `cohort:cycle_offset` | Rotating window offset for partial cron cycles | persistent |
+| `market-ticker:v4` | Live price/change data | short |
+| `contrarian:latest` | Contrarian signal cache | ~120s |
+
+Fallback chain on cache miss: primary key → fallback key → Supabase query.
+
+### GitHub Actions
+
+Two daily workflows run in sequence:
+
+- **`daily-wallet-scan.yml`** — `0 0 * * *` UTC. Scores all 1200 wallets, runs full backtests, writes Supabase + uploads `scan-summary.json` artifact (7d retention). 25-minute timeout.
+- **`signal-learning.yml`** — `0 1 * * *` UTC (after scan finishes). Runs `scripts/signal-learning.ts` to update outcome stats. 20-minute timeout. Uploads `learning-summary.json` (14d retention).
+
+Both support `workflow_dispatch` for manual runs.
+
+### Tests
+
+Tests live in `lib/__tests__/*.test.ts`. The setup file (`lib/__tests__/setup.ts`) injects placeholder env vars — no real Supabase or KV credentials needed. Coverage exists for: `cohort-engine`, `utils`, `recipe-config`, `signal-learning`, `signal-persistence`, `outcome-helpers`, `token-tiers`. API routes and React components are not unit-tested.
+
+Mocking pattern uses `vi.mock()` for `@vercel/kv`, `@supabase/supabase-js`, and `@/lib/env`.
+
+### API Auth
+
+No OAuth on data routes. Auth relies on:
+- `SUPABASE_SERVICE_ROLE_KEY` for all server-side reads/writes (backend only — never sent to browser)
+- Optional `CRON_SECRET` header check in `refresh-cohort` to restrict the cron endpoint to Vercel's scheduler
 
 ### Adding Signal Recipes
 

@@ -23,6 +23,7 @@ Last worked on: 2026-04-15
 | 4 | Market Radar | NOT STARTED | [spec](../superpowers/specs/2026-04-13-sprint-4-market-radar.md) | pending |
 | 5 | Wallet Alerts + Paper Copy Trading | NOT STARTED | [spec](../superpowers/specs/2026-04-13-sprint-5-alerts-paper-trading.md) | pending |
 | 6 | Auth System | PLANNED (future) | [spec](../superpowers/specs/2026-04-13-sprint-6-auth.md) | not yet |
+| 7 | Signal Intelligence Agent | BLOCKED (data gate: 100+ signal_outcomes, 30d history) | [spec](../superpowers/specs/2026-04-15-signal-intelligence-agent-design.md) | not yet |
 
 ---
 
