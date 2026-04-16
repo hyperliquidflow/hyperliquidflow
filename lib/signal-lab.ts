@@ -430,10 +430,13 @@ async function recipe5(
   priorAllMids: Record<string, string> | null
 ): Promise<SignalEvent[]> {
   const cfg = await getRecipeConfig("liq_rebound");
-  const POSITION_SHRINK_PCT      = cfg["POSITION_SHRINK_PCT"] ?? 0.05;   // cohort net notional drops >5%
+  const POSITION_SHRINK_PCT      = cfg["POSITION_SHRINK_PCT"]   ?? 0.05;   // cohort net notional drops >5%
   const PRICE_SPIKE_PCT_MAJOR    = cfg["PRICE_SPIKE_PCT_MAJOR"] ?? 0.015;  // BTC/ETH: cascade-level only (was 0.02 flat)
-  const PRICE_SPIKE_PCT_ALT      = cfg["PRICE_SPIKE_PCT_ALT"] ?? 0.035;  // alts: filter routine volatility
-  const MAJOR_COINS              = new Set(["BTC", "ETH"]);
+  const PRICE_SPIKE_PCT_ALT      = cfg["PRICE_SPIKE_PCT_ALT"]   ?? 0.035;  // alts: filter routine volatility
+  const MIN_BEFORE_NOTIONAL      = cfg["MIN_BEFORE_NOTIONAL"]   ?? 1_000_000;
+  const LARGE_MULT               = cfg["NOTIONAL_LARGE_MULT"]   ?? 0.5;
+  const SMALL_MULT               = cfg["NOTIONAL_SMALL_MULT"]   ?? 0.2;
+  const MAJOR_COINS_R5           = new Set(["BTC", "ETH"]);
   const events: SignalEvent[] = [];
 
   // Without prior mids we cannot confirm price movement — skip to avoid false fires
@@ -456,7 +459,7 @@ async function recipe5(
   }
 
   for (const [coin, { before, after }] of coinDelta) {
-    if (before < 1_000_000) continue; // too small to matter
+    if (before < tieredNotional(MIN_BEFORE_NOTIONAL, coin, LARGE_MULT, SMALL_MULT)) continue;
     const shrink = (before - after) / before;
     if (shrink < POSITION_SHRINK_PCT) continue;
 
@@ -472,7 +475,7 @@ async function recipe5(
     // stress vs routine de-risking. Threshold is lower for majors (cascade-only)
     // and higher for alts (filters routine volatility).
     const priceMove     = Math.abs(currentMid - priorMid) / priorMid;
-    const PRICE_SPIKE_PCT = MAJOR_COINS.has(coin) ? PRICE_SPIKE_PCT_MAJOR : PRICE_SPIKE_PCT_ALT;
+    const PRICE_SPIKE_PCT = MAJOR_COINS_R5.has(coin) ? PRICE_SPIKE_PCT_MAJOR : PRICE_SPIKE_PCT_ALT;
     if (priceMove < PRICE_SPIKE_PCT) continue;
 
     // Rebound direction: if price dropped → longs got liquidated → LONG rebound
