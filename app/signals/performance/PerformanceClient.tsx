@@ -62,15 +62,28 @@ export function PerformanceClient({ initialData }: { initialData: RecipeStats[] 
   const allRecipes = Object.keys(RECIPE_META).map((id) => {
     const perf = stats?.find((s) => s.recipe_id === id);
     return { id, ...RECIPE_META[id], perf };
+  }).sort((a, b) => {
+    const accA = win === "7d" ? (a.perf?.accuracy_24h_7d ?? null) : (a.perf?.accuracy_24h_30d ?? null);
+    const accB = win === "7d" ? (b.perf?.accuracy_24h_7d ?? null) : (b.perf?.accuracy_24h_30d ?? null);
+    if (accA == null && accB == null) return 0;
+    if (accA == null) return 1;
+    if (accB == null) return -1;
+    return accB - accA;
   });
 
   return (
     <div className="page-enter">
       <PageHeader
         title="Performance"
-        subtitle="Directional accuracy by recipe. % of signals where price moved the predicted direction within 24h. Not realized profit."
+        subtitle="Which signals have real edge. Ranked by 24h directional accuracy over the selected window."
       />
       <div style={{ ...S.page, paddingTop: space.contentPaddingTop }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
+          <div style={S.tog}>
+            <button style={{ ...S.togBtn, ...(win === "7d" ? S.togBtnOn : {}) }} onClick={() => setWin("7d")}>7d</button>
+            <button style={{ ...S.togBtn, ...(win === "30d" ? S.togBtnOn : {}) }} onClick={() => setWin("30d")}>30d</button>
+          </div>
+        </div>
         <div style={S.grid}>
           {allRecipes.map(({ id, label, desc, perf }) => {
             const resolved = win === "7d" ? (perf?.resolved_7d ?? 0) : (perf?.resolved_30d ?? 0);
@@ -86,23 +99,11 @@ export function PerformanceClient({ initialData }: { initialData: RecipeStats[] 
                 {/* Header */}
                 <div style={{ ...C.header, justifyContent: "space-between" }}>
                   <span style={T.cardTitle}>{label}</span>
-                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                    <div style={S.tog}>
-                      <button
-                        style={{ ...S.togBtn, ...(win === "7d" ? S.togBtnOn : {}) }}
-                        onClick={() => setWin("7d")}
-                      >7d</button>
-                      <button
-                        style={{ ...S.togBtn, ...(win === "30d" ? S.togBtnOn : {}) }}
-                        onClick={() => setWin("30d")}
-                      >30d</button>
-                    </div>
-                    {signals > 0 && (
-                      <span style={{ fontSize: "11px", fontWeight: 700, padding: "2px 8px", borderRadius: radius.dirPill, background: color.tagBg, border: `1px solid ${color.borderFaint}`, color: color.textMuted, fontVariantNumeric: "tabular-nums" }}>
-                        {signals}
-                      </span>
-                    )}
-                  </div>
+                  {signals > 0 && (
+                    <span style={{ fontSize: "11px", fontWeight: 700, padding: "2px 8px", borderRadius: radius.dirPill, background: color.tagBg, border: `1px solid ${color.borderFaint}`, color: color.textMuted, fontVariantNumeric: "tabular-nums" }}>
+                      {signals}
+                    </span>
+                  )}
                 </div>
 
                 {/* Fallback: no outcome data yet */}
