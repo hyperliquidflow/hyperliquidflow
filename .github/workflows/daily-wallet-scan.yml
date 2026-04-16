@@ -8,7 +8,7 @@ on:
 jobs:
   scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 35    # hard stop — normal run completes in ~22 min (1200 wallets × ~1.1s)
+    timeout-minutes: 25    # hard stop: 3000 wallets x 1.1s / concurrency=3 = ~18 min + overhead
 
     steps:
       - name: Checkout repository

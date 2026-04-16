@@ -34,17 +34,19 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 // -- Qualification thresholds --------------------------------------------------
 const WIN_RATE_THRESHOLD = 0.52;
 const MIN_TRADES_30D     = 30;
-const MAX_WALLETS_TO_SCORE = 5000; // ceiling -- pre-filter brings actual pool to ~6k, 2-run cycle
-const CONCURRENCY          = 3;   // 3 concurrent -> ~3.3 req/s, within Hyperliquid public limits
-const DELAY_BETWEEN_MS     = 600; // ms delay per slot before firing -- keeps bursts smooth
+const MAX_WALLETS_TO_SCORE    = 3000; // cap at ~22 min budget (3000 wallets x 1.1s / 3 concurrent)
+const RESCORE_STALE_DAYS      = 2;   // only re-score inactive wallets not scanned in the last N days
+const MIN_CANDIDATE_PNL_30D   = 1_000; // skip already-scanned wallets with <$1k 30d PnL (Dust-quality)
+const CONCURRENCY             = 3;   // 3 concurrent -> ~3.3 req/s, within Hyperliquid public limits
+const DELAY_BETWEEN_MS        = 600; // ms delay per slot before firing -- keeps bursts smooth
 
 // -- Leaderboard pre-filter ----------------------------------------------------
 // Applied to leaderboard data before any fills API calls. Collapses 33k wallets
 // to high-signal candidates using data already present in the leaderboard response.
 // Tune these; currently targets roughly the top 5-10% of leaderboard by performance.
-const PRE_QUALIFY_MIN_MONTH_ROI   = 0.03;  // >=3% monthly ROI
-const PRE_QUALIFY_MIN_MONTH_PNL   = 5_000; // >=$5k monthly realized PnL
-const PRE_QUALIFY_MIN_ALLTIME_ROI = 0.0;   // net-positive all-time (filters out lucky months)
+const PRE_QUALIFY_MIN_MONTH_ROI   = 0.05;  // >=5% monthly ROI (raised from 3% to cut Dust-tier entrants)
+const PRE_QUALIFY_MIN_MONTH_PNL   = 10_000; // >=$10k monthly realized PnL (raised from $5k)
+const PRE_QUALIFY_MIN_ALLTIME_ROI = 0.02;  // >=2% all-time ROI (raised from 0 to exclude net-flat wallets)
 
 // -- In-process semaphore (valid here -- long-running Node.js process, not serverless) --
 class Semaphore {
@@ -757,10 +759,18 @@ async function main(): Promise<void> {
 
   const activeAddresses = new Set((activeRows ?? []).map((w) => w.address));
 
+  const staleCutoff = new Date(Date.now() - RESCORE_STALE_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  // Include a wallet if:
+  //   - never scanned (new candidate), OR
+  //   - stale AND earned >= MIN_CANDIDATE_PNL_30D last time (skip known Dust-quality)
   const { data: candidateRows } = await supabase
     .from("wallets")
     .select("address")
     .eq("is_active", false)
+    .or(
+      `last_scanned_at.is.null,` +
+      `and(last_scanned_at.lt.${staleCutoff},realized_pnl_30d.gte.${MIN_CANDIDATE_PNL_30D})`
+    )
     .order("last_scanned_at", { ascending: true, nullsFirst: true })
     .limit(MAX_WALLETS_TO_SCORE - activeAddresses.size);
 
@@ -846,26 +856,34 @@ async function main(): Promise<void> {
       let labeled = 0;
       let deactivated = 0;
 
+      // Collect updates, then batch upsert to avoid N individual DB roundtrips
+      const toUpdate: Array<{
+        id: string;
+        entity_type: EntityType;
+        entity_label: string | null;
+        is_active?: boolean;
+      }> = [];
+
       for (const wallet of allWallets) {
         const { entity_type, entity_label } = resolveEntityType(wallet.address, aliases);
-        const shouldDeactivate =
-          wallet.is_active && (entity_type === "cex" || entity_type === "deployer");
-
-        const updatePayload: Record<string, unknown> = { entity_type, entity_label };
-        if (shouldDeactivate) {
-          updatePayload.is_active = false;
+        if (entity_type === "unknown") continue;
+        labeled++;
+        const entry: (typeof toUpdate)[number] = { id: wallet.id, entity_type, entity_label };
+        if (wallet.is_active && (entity_type === "cex" || entity_type === "deployer")) {
+          entry.is_active = false;
           deactivated++;
         }
+        toUpdate.push(entry);
+      }
 
-        const { error: updateErr } = await supabase
+      const ID_CHUNK = 200;
+      for (let i = 0; i < toUpdate.length; i += ID_CHUNK) {
+        const chunk = toUpdate.slice(i, i + ID_CHUNK);
+        const { error: upsertErr } = await supabase
           .from("wallets")
-          .update(updatePayload)
-          .eq("id", wallet.id);
-
-        if (updateErr) {
-          console.warn(`[identity] update failed for ${wallet.address}: ${updateErr.message}`);
-        } else if (entity_type !== "unknown") {
-          labeled++;
+          .upsert(chunk, { onConflict: "id" });
+        if (upsertErr) {
+          console.warn(`[identity] batch upsert error (chunk ${i}):`, upsertErr.message);
         }
       }
 
