@@ -384,12 +384,12 @@ async function recipe4(
 
       // Check historical follow-through for this recipe.
       // recipeWinRates keys are recipe IDs only (e.g. "rotation_carry"), not "recipe:coin".
-      // Disable during bootstrap: wait for at least 10 historical signals before
-      // applying the win-rate filter; prevents free-firing for weeks on the 0.65 default.
-      const histWinRate = recipeWinRates.get("rotation_carry");
-      const histCount   = recipeSignalCounts.get("rotation_carry") ?? 0;
-      if (histCount < 10) continue;
-      if ((histWinRate ?? 0) < MIN_HISTORICAL_WINRATE) continue;
+      // Bootstrap: fire freely until we have 10 historical signals.
+      // After bootstrap, apply the win-rate filter — prevents tuning on zero data.
+      const histWinRate  = recipeWinRates.get("rotation_carry");
+      const histCount    = recipeSignalCounts.get("rotation_carry") ?? 0;
+      const bootstrapped = histCount >= 10;
+      if (bootstrapped && (histWinRate ?? 1) < MIN_HISTORICAL_WINRATE) continue;
 
       events.push({
         wallet_id:   walletId,
