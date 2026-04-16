@@ -88,7 +88,7 @@ const S = {
   sigFooter: { marginTop: "4px" },
   sigAddr: {
     fontFamily: T.mono, fontSize: "11px",
-    color: `${color.neutral}88`,
+    color: `${color.neutral}59`,
     textDecoration: "underline",
     textDecorationColor: `${color.neutral}33`,
     textUnderlineOffset: "3px",
@@ -191,9 +191,9 @@ const PILL_COLORS: Record<string, { bg: string; color: string; border: string }>
   ENTRY:     { bg: `${signal.entry}14`,    color: signal.entry,    border: `${signal.entry}38` },
   EXIT:      { bg: `${signal.exit}14`,     color: signal.exit,     border: `${signal.exit}38` },
   ALERT:     { bg: `${signal.alert}14`,    color: signal.alert,    border: `${signal.alert}38` },
-  SCALE_IN:  { bg: `${signal.scaleIn}14`,  color: signal.scaleIn,  border: `${signal.scaleIn}30` },
-  SCALE_OUT: { bg: `${signal.scaleOut}14`, color: signal.scaleOut, border: `${signal.scaleOut}30` },
-  FLIP:      { bg: `${signal.flip}14`,     color: signal.flip,     border: `${signal.flip}30` },
+  SCALE_IN:  { bg: `${signal.scaleIn}14`,  color: signal.scaleIn,  border: `${signal.scaleIn}38` },
+  SCALE_OUT: { bg: `${signal.scaleOut}14`, color: signal.scaleOut, border: `${signal.scaleOut}38` },
+  FLIP:      { bg: `${signal.flip}14`,     color: signal.flip,     border: `${signal.flip}38` },
 };
 
 const DIR_COLORS = {
@@ -235,7 +235,7 @@ function RecipePopup({ label, desc, rect }: { label: string; desc: string; rect:
       fontFamily: T.sans,
     }}>
       <div style={{ fontSize: "13px", fontWeight: 700, color: color.text, marginBottom: "6px" }}>{label}</div>
-      <div style={{ fontSize: "13px", color: color.textMuted, lineHeight: 1.45 }}>{desc}</div>
+      <div style={{ fontSize: "16px", color: color.textMuted, lineHeight: 1.45 }}>{desc}</div>
     </div>
   );
 }
@@ -344,9 +344,11 @@ function SignalRow({ sig }: { sig: Signal }) {
 function RecipeSidebar({
   selected,
   onToggle,
+  firedToday,
 }: {
   selected: Set<string>;
   onToggle: (id: string) => void;
+  firedToday: Set<string>;
 }) {
   const [popup, setPopup] = useState<{
     id: string; label: string; desc: string; rect: DOMRect;
@@ -385,7 +387,7 @@ function RecipeSidebar({
                   onMouseEnter={(e) => handleMouseEnter(id, meta.label, meta.desc, e)}
                   onMouseLeave={handleMouseLeave}
                 >
-                  <span style={{ fontSize: "11px", color: color.amber }}>●</span>
+                  <span style={{ fontSize: "11px", color: firedToday.has(id) ? color.amber : color.borderHover }}>●</span>
                   <span style={{ fontSize: "13px", color: isSelected ? color.text : color.textMuted }}>
                     {meta.label}
                   </span>
@@ -510,6 +512,12 @@ export function FeedClient({ initialData }: { initialData: CohortCachePayload | 
 
   const allSignals: Signal[] = [...(data?.recent_signals ?? []), ...extra];
 
+  const firedToday = new Set(
+    (data?.recent_signals ?? [])
+      .filter((s) => Date.now() - new Date(s.detected_at).getTime() < 24 * 60 * 60 * 1000)
+      .map((s) => s.recipe_id)
+  );
+
   const filtered = allSignals.filter((s) => {
     if (selectedRecipes.size > 0 && !selectedRecipes.has(s.recipe_id)) return false;
     if (filterDir !== "all" && s.direction !== filterDir) return false;
@@ -525,7 +533,7 @@ export function FeedClient({ initialData }: { initialData: CohortCachePayload | 
         <div style={S.body}>
 
           {/* Sidebar */}
-          <RecipeSidebar selected={selectedRecipes} onToggle={toggleRecipe} />
+          <RecipeSidebar selected={selectedRecipes} onToggle={toggleRecipe} firedToday={firedToday} />
 
           {/* Feed panel */}
           <div style={S.feedPanel}>
@@ -633,7 +641,7 @@ export function FeedClient({ initialData }: { initialData: CohortCachePayload | 
                 {/* Infinite scroll sentinel */}
                 {data && filtered.length > 0 && (
                   <div ref={sentinelRef} style={S.scrollFooter}>
-                    {isFetching ? "loading more..." : hasMore ? " " : "all signals loaded"}
+                    {isFetching ? "scroll for more" : hasMore ? " " : "all signals loaded"}
                   </div>
                 )}
               </div>
