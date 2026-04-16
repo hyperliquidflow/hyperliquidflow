@@ -170,12 +170,14 @@ async function recipe2(
   candles5m: Map<string, HlCandle[]>   // coin -> recent 5m candles
 ): Promise<SignalEvent[]> {
   const cfg = await getRecipeConfig("divergence_squeeze");
-  const LIQ_BUFFER_THRESHOLD = cfg["LIQ_BUFFER_THRESHOLD"] ?? 0.08;   // truly thin margin only
-  const PRICE_FLAT_PCT       = cfg["PRICE_FLAT_PCT"] ?? 0.005;  // <0.5% move in last 30 min
-  const MIN_NOTIONAL_DELTA   = cfg["MIN_NOTIONAL_DELTA"] ?? 75_000; // per wallet; $75K each to qualify
-  const MIN_WALLET_SCORE     = cfg["MIN_WALLET_SCORE"] ?? 0.65;   // high-conviction wallets only
+  const LIQ_BUFFER_THRESHOLD = cfg["LIQ_BUFFER_THRESHOLD"]  ?? 0.08;   // truly thin margin only
+  const PRICE_FLAT_PCT       = cfg["PRICE_FLAT_PCT"]          ?? 0.005;  // <0.5% move in last 30 min
+  const MIN_NOTIONAL_DELTA   = cfg["MIN_NOTIONAL_DELTA"]      ?? 75_000; // per wallet; $75K each to qualify
+  const MIN_WALLET_SCORE     = cfg["MIN_WALLET_SCORE"]        ?? 0.65;   // high-conviction wallets only
   const PRICE_FLAT_CANDLES   = 6;      // 6 x 5m = 30 min
-  const MIN_WALLETS          = cfg["MIN_WALLETS"] ?? 3;      // require 3 coordinating wallets
+  const MIN_WALLETS          = cfg["MIN_WALLETS"]             ?? 3;      // require 3 coordinating wallets
+  const LARGE_MULT           = cfg["NOTIONAL_LARGE_MULT"]     ?? 0.5;
+  const SMALL_MULT           = cfg["NOTIONAL_SMALL_MULT"]     ?? 0.2;
 
   // Pass 1: collect wallets qualifying per coin
   type QualifiedWallet = {
@@ -203,7 +205,7 @@ async function recipe2(
       const delta = parseFloat(p.positionValue) - (pp ? parseFloat(pp.positionValue) : 0);
       if (delta > maxCoinDelta) { maxCoinDelta = delta; targetCoin = c; }
     }
-    if (!targetCoin || maxCoinDelta < MIN_NOTIONAL_DELTA) continue;
+    if (!targetCoin || maxCoinDelta < tieredNotional(MIN_NOTIONAL_DELTA, targetCoin, LARGE_MULT, SMALL_MULT)) continue;
 
     const notionalDelta = maxCoinDelta;
     const targetPos     = currPos.get(targetCoin)!;
