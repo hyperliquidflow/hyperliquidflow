@@ -737,11 +737,16 @@ async function recipe9(
 // without reducing size — patience trap alert.
 
 async function recipe10(pairs: SnapshotPair[]): Promise<SignalEvent[]> {
-  const HIGH_SCORE = 0.65;
+  const HIGH_SCORE           = 0.65;
   const LOSS_RATIO_THRESHOLD = -0.05;
+  const COOLDOWN_MS          = 4 * 3600 * 1000; // 4 hours
   const events: SignalEvent[] = [];
 
-  const underwaterCounts = (await kv.get<Record<string, number>>("cohort:underwater_counts")) ?? {};
+  const [underwaterCounts, alertHistory] = await Promise.all([
+    kv.get<Record<string, number>>("cohort:underwater_counts").then((v) => v ?? {}),
+    kv.get<Record<string, number>>("cohort:aging_last_alert").then((v) => v ?? {}),
+  ]);
+  const now = Date.now();
 
   for (const { walletId, overallScore, curr, prev } of pairs) {
     if (overallScore < HIGH_SCORE) continue;
@@ -760,12 +765,16 @@ async function recipe10(pairs: SnapshotPair[]): Promise<SignalEvent[]> {
       const prevSzi = prevPosEntry ? Math.abs(parseFloat(prevPosEntry.szi)) : 0;
 
       const isUnderwater = ratio <= LOSS_RATIO_THRESHOLD;
-      const notReducing = currSzi >= prevSzi * 0.95;
+      const notReducing  = currSzi >= prevSzi * 0.95;
 
       if (isUnderwater && notReducing) {
         underwaterCounts[key] = (underwaterCounts[key] ?? 0) + 1;
         const count = underwaterCounts[key];
         if (count >= 2) {
+          // Cooldown: only re-alert once per 4-hour window per wallet+coin pair
+          if (now - (alertHistory[key] ?? 0) < COOLDOWN_MS) continue;
+          alertHistory[key] = now;
+
           const dir = sign(pos.szi);
           events.push({
             wallet_id:   walletId,
@@ -796,6 +805,7 @@ async function recipe10(pairs: SnapshotPair[]): Promise<SignalEvent[]> {
   }
 
   kv.set("cohort:underwater_counts", underwaterCounts, { ex: 25 * 3600 }).catch(() => {});
+  kv.set("cohort:aging_last_alert",  alertHistory,     { ex: 25 * 3600 }).catch(() => {});
 
   return events;
 }
