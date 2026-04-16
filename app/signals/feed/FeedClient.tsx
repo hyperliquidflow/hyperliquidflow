@@ -9,7 +9,7 @@ import { RECIPE_META } from "@/lib/recipe-meta";
 import { truncateAddress, formatSignalTime } from "@/lib/utils";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 import {
-  color, type as T, space, radius, shadow, effect,
+  color, type as T, space, radius,
   layout, anim, card, signal, selectable,
 } from "@/lib/design-tokens";
 
@@ -446,11 +446,15 @@ export function FeedClient({ initialData }: { initialData: CohortCachePayload | 
   const prevFilters = useRef({ selectedRecipes, filterDir, activeCoin, filterCoin });
   useEffect(() => {
     const prev = prevFilters.current;
+    const recipesChanged =
+      prev.selectedRecipes.size !== selectedRecipes.size ||
+      [...selectedRecipes].some((id) => !prev.selectedRecipes.has(id));
+
     if (
-      prev.filterDir        !== filterDir   ||
-      prev.activeCoin       !== activeCoin  ||
-      prev.filterCoin       !== filterCoin  ||
-      prev.selectedRecipes  !== selectedRecipes
+      prev.filterDir  !== filterDir  ||
+      prev.activeCoin !== activeCoin ||
+      prev.filterCoin !== filterCoin ||
+      recipesChanged
     ) {
       prevFilters.current = { selectedRecipes, filterDir, activeCoin, filterCoin };
       setExtra([]);
@@ -548,8 +552,9 @@ export function FeedClient({ initialData }: { initialData: CohortCachePayload | 
                       className="glow-btn"
                       style={{
                         ...S.chip,
+                        border: "none",
                         ...(activeCoin === coin ? S.chipActive : {}),
-                        border: "none", fontFamily: T.sans,
+                        fontFamily: T.sans,
                       }}
                       onClick={() => setActiveCoin((prev) => prev === coin ? "" : coin)}
                     >
