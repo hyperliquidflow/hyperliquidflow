@@ -288,9 +288,9 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       .limit(500);
 
     // ── Step 11: Write cohort payload to Vercel KV ────────────────────────────
-    // Build a UUID → address map from the active wallets already in scope
+    // Build a UUID → address map from the full active cohort (not cycle slice)
     const walletAddressMap = new Map<string, string>(
-      wallets.map((w) => [w.id, w.address] as [string, string])
+      allActive.map((w) => [w.id, w.address] as [string, string])
     );
 
     const payload: CohortCachePayload = {
