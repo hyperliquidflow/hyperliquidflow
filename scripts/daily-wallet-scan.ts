@@ -289,101 +289,6 @@ async function fetchLeaderboardAddresses(): Promise<Map<string, LeaderboardEntry
   return map;
 }
 
-// -- Discovery: secondary pass via top-volume fills ----------------------------
-// After the leaderboard scan, fetch fills for the top-10 most-traded coins by volume.
-// Extract unique trader addresses and pre-filter by month ROI/PnL thresholds.
-// Estimated API cost: ~10 additional userFills calls.
-
-const FILLS_DISCOVERY_TOP_COINS = 10;
-const FILLS_DISCOVERY_LIMIT     = 500; // fills per coin to scan
-
-async function discoverFromFills(): Promise<string[]> {
-  console.log("[discovery-fills] starting fills-based secondary discovery");
-
-  // Fetch volume data to find top coins
-  let metaAndCtxs: unknown;
-  try {
-    metaAndCtxs = await hlPost<unknown>({ type: "metaAndAssetCtxs" });
-  } catch (err) {
-    console.warn("[discovery-fills] metaAndAssetCtxs failed:", err);
-    return [];
-  }
-
-  // Shape: [{ universe: [...] }, [...assetCtxs...]]
-  const [meta, ctxs] = metaAndCtxs as [{ universe: Array<{ name: string }> }, Array<{ dayNtlVlm: string }>];
-  if (!Array.isArray(meta?.universe) || !Array.isArray(ctxs)) {
-    console.warn("[discovery-fills] unexpected metaAndAssetCtxs shape");
-    return [];
-  }
-
-  // Build coin -> volume map, sort descending, take top N
-  const coinVolumes: Array<{ coin: string; volume: number }> = meta.universe.map((u, i) => ({
-    coin: u.name,
-    volume: parseFloat(ctxs[i]?.dayNtlVlm ?? "0"),
-  }));
-  coinVolumes.sort((a, b) => b.volume - a.volume);
-  const topCoins = coinVolumes.slice(0, FILLS_DISCOVERY_TOP_COINS).map(cv => cv.coin);
-  console.log(`[discovery-fills] top ${topCoins.length} coins by volume: ${topCoins.join(", ")}`);
-
-  // For each top coin, fetch recent fills and extract unique addresses
-  const discovered = new Set<string>();
-
-  await Promise.allSettled(
-    topCoins.map(async (coin) => {
-      try {
-        // Hyperliquid fills endpoint: { type: "recentTrades", coin }
-        const fills = await hlPost<Array<{ user: string }>>({
-          type: "recentTrades",
-          coin,
-        }, 15_000);
-        if (!Array.isArray(fills)) return;
-        for (const fill of fills.slice(0, FILLS_DISCOVERY_LIMIT)) {
-          if (fill.user && /^0x[a-fA-F0-9]{40}$/.test(fill.user)) {
-            discovered.add(fill.user.toLowerCase());
-          }
-        }
-        console.log(`[discovery-fills] ${coin}: ${fills.length} trades, ${discovered.size} unique addresses so far`);
-      } catch (err) {
-        console.warn(`[discovery-fills] ${coin} trades failed:`, err);
-      }
-    })
-  );
-
-  // Pre-filter: we don't have leaderboard data, so filter by existing DB wallets only
-  // (exclude addresses already in DB to limit API cost in the scoring step)
-  const candidates = Array.from(discovered);
-  console.log(`[discovery-fills] found ${candidates.length} unique addresses from fills`);
-  return candidates;
-}
-
-// -- Discovery: fallback path (volume-based address mining) --------------------
-// Hyperliquid's frontend is a React SPA -- HTML scraping returns no addresses.
-// Instead, mine addresses by querying recent trade data via public stats API,
-// then filter to high-activity wallets.
-
-async function scrapeLeaderboardAddresses(): Promise<string[]> {
-  console.warn("[discovery] falling back to volume-based mining, results may be incomplete");
-
-  // Mine from known high-activity address patterns via recent fills
-  // Use a small set of known active addresses as seeds, expand via referral graph
-  const SEED_ADDRESSES = [
-    "0xa5b0a44b4b85f9a7b8c2d3e6f1234567890abcd1",  // placeholder -- replaced by leaderboard
-    "0x6c85e3f9a2b4c7d8e1f2345678901234abcdef2",
-    "0x94d3f8e2a1b5c6d7e8f9012345678901234abc3",
-    "0x0ddf1a2b3c4d5e6f7890123456789012345abc4",
-  ].filter(a => /^0x[a-fA-F0-9]{40}$/.test(a));
-
-  if (SEED_ADDRESSES.length < 4) {
-    throw new Error(
-      "ScrapeFallbackError: leaderboard API failed and no valid seed addresses available. " +
-        "Check the leaderboard API request format in fetchLeaderboardAddresses()."
-    );
-  }
-
-  console.log(`[discovery] fallback returning ${SEED_ADDRESSES.length} seed addresses, leaderboard API fix required`);
-  return SEED_ADDRESSES;
-}
-
 // -- Backtest helpers (inlined from cohort-engine to avoid Next.js path aliases) --
 
 function buildDailyPnls(fills: FillRecord[]): number[] {
@@ -575,7 +480,7 @@ async function scoreWallet(
 
 async function upsertAddresses(
   addresses: string[],
-  source: "leaderboard_api" | "leaderboard_scrape" | "fills_discovery"
+  source: "leaderboard_api"
 ): Promise<number> {
   const CHUNK = 100;
   let newCount = 0;
@@ -809,12 +714,11 @@ async function main(): Promise<void> {
   // Step 1: Discover addresses
   let leaderboardMap: Map<string, LeaderboardEntry> = new Map();
   let addresses: string[] = [];
-  let source: "leaderboard_api" | "leaderboard_scrape" = "leaderboard_api";
+  const source: "leaderboard_api" = "leaderboard_api";
 
   try {
     leaderboardMap = await fetchLeaderboardAddresses();
     addresses      = Array.from(leaderboardMap.keys());
-    source         = "leaderboard_api";
     console.log(`[discovery] primary path: ${addresses.length} addresses`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -993,6 +897,7 @@ async function main(): Promise<void> {
         }
       }
 
+      summary.deactivated = deactivated;
       console.log(
         `[identity] Labeled: ${labeled} wallets. Deactivated (CEX/deployer): ${deactivated} wallets.`
       );
