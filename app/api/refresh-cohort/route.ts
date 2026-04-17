@@ -47,8 +47,14 @@ const MAX_WALLETS_PER_CYCLE = 100;
 /** KV key for the cohort cache, read by /api/cohort-state. */
 const KV_COHORT_KEY = "cohort:active";
 
-/** KV TTL in seconds (slightly longer than the cron interval). */
-const KV_TTL_SECONDS = 120;
+/** KV TTL in seconds. Must exceed the cron interval + drift budget.
+ *  Cron pings `/api/refresh-cohort` every 5 min via GitHub Actions, which can drift
+ *  several minutes under load — 600s (10 min) keeps the fast path warm through that. */
+const KV_TTL_SECONDS = 600;
+
+/** Prior-mids TTL for Recipe 5 cascade-vs-voluntary-exit check.
+ *  Kept short so price comparisons stay meaningful (don't compare to hour-old prices). */
+const PRIOR_MIDS_TTL_SECONDS = 900;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET handler — called by Vercel Cron (also accepts POST for manual trigger)
@@ -319,7 +325,7 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
     await Promise.all([
       kv.set(KV_COHORT_KEY, JSON.stringify(payload), { ex: KV_TTL_SECONDS }),
       // Store allMids for next cycle's Recipe 5 price-confirmation check
-      kv.set("market:prior_mids", allMids, { ex: KV_TTL_SECONDS * 5 }),
+      kv.set("market:prior_mids", allMids, { ex: PRIOR_MIDS_TTL_SECONDS }),
     ]);
     // Secondary fallback key: survives cron gaps up to 24h, prevents Supabase fallback on KV miss
     kv.set("cohort:active:fallback", JSON.stringify(payload), { ex: 24 * 3600 }).catch(() => {});

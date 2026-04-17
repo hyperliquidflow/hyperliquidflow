@@ -1,0 +1,36 @@
+name: Cohort Freshness Check
+
+# Fails (emailing repo admins) if the cohort snapshot is stale beyond the
+# acceptable window. Catches silent outages like the 17h gap on 2026-04-17.
+#
+# Runs every 15 min. Threshold is 20 min to absorb GitHub Actions cron drift.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Verify /api/cohort-state updated_at is recent
+        env:
+          TARGET_URL: https://hyperliquidflow.vercel.app/api/cohort-state
+          MAX_AGE_SECONDS: '1200'
+        run: |
+          set -euo pipefail
+          body=$(curl -sS -f "$TARGET_URL")
+          updated_at=$(echo "$body" | python3 -c "import json,sys; print(json.load(sys.stdin)['updated_at'])")
+          age=$(python3 -c "
+          from datetime import datetime, timezone
+          updated = datetime.fromisoformat('$updated_at'.replace('Z','+00:00'))
+          print(int((datetime.now(timezone.utc) - updated).total_seconds()))
+          ")
+          echo "updated_at: $updated_at"
+          echo "age: ${age}s (threshold: ${MAX_AGE_SECONDS}s)"
+          if [ "$age" -gt "$MAX_AGE_SECONDS" ]; then
+            echo "::error::Cohort snapshot is stale by ${age}s — refresh pipeline may be down"
+            exit 1
+          fi
