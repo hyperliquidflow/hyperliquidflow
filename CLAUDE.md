@@ -27,11 +27,11 @@ npx tsx scripts/validate-scoring-weights.ts # Correlate wallet scores vs EV scor
 ### Data Flow
 
 ```
-Vercel Cron (60s)            GitHub Actions (daily 00:00 UTC)
-  /api/refresh-cohort          scripts/daily-wallet-scan.ts
-  ├─ fetch up to 100 wallets   ├─ full 1200-wallet cohort
-  ├─ score wallets             ├─ backtests + full scoring
-  ├─ run 9 signal recipes      └─ writes Supabase + artifact
+GitHub Actions ping (*/5 min)   Vercel Cron (00:00 UTC daily)   GitHub Actions (daily 00:00 UTC)
+  /api/refresh-cohort             /api/refresh-cohort             scripts/daily-wallet-scan.ts
+  ├─ fetch up to 100 wallets      (seed-only, Hobby plan limit)   ├─ full 1200-wallet cohort
+  ├─ score wallets                                                ├─ backtests + full scoring
+  ├─ run 9 signal recipes                                         └─ writes Supabase + artifact
   ├─ write Supabase
   └─ cache snapshot → KV
 
@@ -41,7 +41,9 @@ Browser (React)
     └─ fallback to Supabase on KV miss
 ```
 
-**Cron budget:** `/api/refresh-cohort` must complete in ≤10s on Vercel free tier — that's why full cohort scoring lives in GitHub Actions, not the cron.
+**Why GitHub Actions for the 5-min ping:** Vercel Hobby plan limits cron to one run/day. The `.github/workflows/refresh-cohort-ping.yml` workflow pings `/api/refresh-cohort` every 5 minutes so signal detection runs 24/7 without Pro plan. Schedule may drift under GitHub Actions load; if true 60s cadence is required, upgrade Vercel to Pro and move the schedule back to `vercel.json`.
+
+**Cron budget:** `/api/refresh-cohort` must complete in ≤10s on Vercel free tier — that's why full cohort scoring lives in the daily GitHub Actions job, not the per-5-min ping.
 
 ### Core Engines (`lib/`)
 
