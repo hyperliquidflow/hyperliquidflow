@@ -39,11 +39,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 const SCORING_WINDOW_DAYS     = 60;
 const WIN_RATE_THRESHOLD      = 0.50; // was 0.52 -- tiny edge + high profit_factor > luck floor
 const MIN_TRADES_30D          = 60;   // scaled with window: >=1 closing trade/day equivalent
-const MAX_WALLETS_TO_SCORE    = 3000; // global cap across all tiers (sized for 50-min budget)
 const MAX_TIER1_LEADERBOARD   = 2000; // cap fresh leaderboard tier; sorted by monthly ROI, top N kept.
                                       // Top 2000 wallets are where signal concentrates; deeper ranks
                                       // are dominated by smaller accounts with higher noise.
-const RESCORE_STALE_DAYS      = 2;    // only re-score inactive wallets not scanned in the last N days
 const MIN_CANDIDATE_PNL_30D   = 1_000; // absolute USD floor, not time-normalised
 const CONCURRENCY             = 2;    // 2 concurrent -> ~2 req/s, under HL 429 threshold
 const DELAY_BETWEEN_MS        = 1000; // ms delay per slot before firing -- keeps bursts smooth
@@ -767,26 +765,10 @@ async function main(): Promise<void> {
   // a permissive market day from pushing the scoring set past the 50-min budget.
   const leaderboardAddresses = Array.from(leaderboardMap.keys()).slice(0, MAX_TIER1_LEADERBOARD);
 
-  const staleCutoff  = new Date(Date.now() - RESCORE_STALE_DAYS * 24 * 60 * 60 * 1000).toISOString();
-  // Tier 3 candidates: not active today, either never-scanned or stale+non-dust.
-  // Limit fills only the remaining cap after tiers 1+2.
-  const tier12Count  = new Set([
-    ...leaderboardAddresses.map((a) => a.toLowerCase()),
-    ...Array.from(activeAddresses).map((a) => a.toLowerCase()),
-  ]).size;
-  const remainingCap = Math.max(0, MAX_WALLETS_TO_SCORE - tier12Count);
-  const { data: candidateRows } = await supabase
-    .from("wallets")
-    .select("address")
-    .eq("is_active", false)
-    .or(
-      `last_scanned_at.is.null,` +
-      `and(last_scanned_at.lt.${staleCutoff},realized_pnl_30d.gte.${MIN_CANDIDATE_PNL_30D})`
-    )
-    .order("last_scanned_at", { ascending: true, nullsFirst: true })
-    .limit(remainingCap);
-
-  // Dedupe while preserving tier order: leaderboard > active > stale-DB.
+  // Tier 3 (stale-DB rescores) dropped: lowest-value tier, 25% of scan time for
+  // wallets that were previously rejected and will be picked up again via tier1
+  // if they re-enter the leaderboard. Observed per-slot cost ~2.6s means the
+  // 50-min budget only fits tier1+tier2 (~2200 wallets).
   const seen = new Set<string>();
   const rawScoreAddresses: string[] = [];
   const pushUnique = (addr: string) => {
@@ -795,9 +777,8 @@ async function main(): Promise<void> {
     seen.add(key);
     rawScoreAddresses.push(addr);
   };
-  for (const a of leaderboardAddresses)        pushUnique(a);
-  for (const a of activeAddresses)             pushUnique(a);
-  for (const r of candidateRows ?? [])         pushUnique(r.address);
+  for (const a of leaderboardAddresses) pushUnique(a);
+  for (const a of activeAddresses)      pushUnique(a);
   const excludedByEntity = rawScoreAddresses.filter((a) => isExcludedEntity(a, aliases));
   const scoreAddresses   = rawScoreAddresses.filter((a) => !isExcludedEntity(a, aliases));
   summary.rejection_breakdown.entity_excluded = excludedByEntity.length;
@@ -809,7 +790,6 @@ async function main(): Promise<void> {
     `[scan] scoring ${scoreAddresses.length} wallets ` +
     `(tier1 leaderboard: ${leaderboardAddresses.length}, ` +
     `tier2 active: ${activeAddresses.size}, ` +
-    `tier3 stale-DB: ${(candidateRows ?? []).length}, ` +
     `concurrency: ${CONCURRENCY})`
   );
 
