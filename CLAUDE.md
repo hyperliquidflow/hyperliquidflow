@@ -127,7 +127,7 @@ Both support `workflow_dispatch` for manual runs.
 
 ### Tests
 
-Tests live in `lib/__tests__/*.test.ts`. The setup file (`lib/__tests__/setup.ts`) injects placeholder env vars — no real Supabase or KV credentials needed. Coverage exists for: `cohort-engine`, `utils`, `recipe-config`, `signal-learning`, `signal-persistence`, `outcome-helpers`, `token-tiers`. API routes and React components are not unit-tested.
+Tests live in `lib/__tests__/*.test.ts`. The setup file (`lib/__tests__/setup.ts`) injects placeholder env vars — no real Supabase or KV credentials needed. Coverage exists for: `cohort-engine`, `utils`, `recipe-config`, `signal-learning`, `outcome-helpers`, `token-tiers`. API routes and React components are not unit-tested.
 
 Mocking pattern uses `vi.mock()` for `@vercel/kv`, `@supabase/supabase-js`, and `@/lib/env`.
 
