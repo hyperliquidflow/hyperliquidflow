@@ -11,10 +11,13 @@ import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 
 const STALE_AFTER_MS = 5 * 60 * 1000; // 5 minutes
 
-/** Fire-and-forget background refresh so the next poll gets fresh data. */
+/** Fire-and-forget background refresh so the next poll gets fresh data.
+ *  Must target the public production alias. VERCEL_URL points to the unique
+ *  deployment URL, which Deployment Protection gates behind an SSO 401. */
 function triggerBackgroundRefresh(): void {
-  const base = process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
+  const prodHost = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  const base = prodHost
+    ? `https://${prodHost}`
     : "http://localhost:3000";
   after(
     fetch(`${base}/api/refresh-cohort`, { method: "GET" }).catch((e) =>
