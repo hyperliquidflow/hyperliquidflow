@@ -32,19 +32,24 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 // -- Qualification thresholds --------------------------------------------------
-const WIN_RATE_THRESHOLD = 0.52;
-const MIN_TRADES_30D     = 30;
-const MAX_WALLETS_TO_SCORE    = 3000; // cap at ~55 min budget (3000 wallets x 1.1s sequential-effective)
-const RESCORE_STALE_DAYS      = 2;   // only re-score inactive wallets not scanned in the last N days
-const MIN_CANDIDATE_PNL_30D   = 1_000; // skip already-scanned wallets with <$1k 30d PnL (Dust-quality)
-const CONCURRENCY             = 3;   // 3 concurrent -> ~3.3 req/s, within Hyperliquid public limits
-const DELAY_BETWEEN_MS        = 600; // ms delay per slot before firing -- keeps bursts smooth
+// Window widened from 30d to 60d: halves variance on win_rate / Sharpe, lets
+// profit_factor carry the quality gate instead of relying on a thin-sample
+// win rate cutoff. Column names keep "_30d" suffix as a legacy label; treat
+// them as "scoring window" going forward.
+const SCORING_WINDOW_DAYS     = 60;
+const WIN_RATE_THRESHOLD      = 0.50; // was 0.52 -- tiny edge + high profit_factor > luck floor
+const MIN_TRADES_30D          = 60;   // scaled with window: >=1 closing trade/day equivalent
+const MAX_WALLETS_TO_SCORE    = 5000; // up from 3000 -- prior run used 18m of 65m budget
+const RESCORE_STALE_DAYS      = 2;    // only re-score inactive wallets not scanned in the last N days
+const MIN_CANDIDATE_PNL_30D   = 1_000; // absolute USD floor, not time-normalised
+const CONCURRENCY             = 3;    // 3 concurrent -> ~3.3 req/s, within Hyperliquid public limits
+const DELAY_BETWEEN_MS        = 600;  // ms delay per slot before firing -- keeps bursts smooth
 
 // -- Smart-money quality gates (applied at activation, not pre-filter) ---------
 const MIN_EQUITY_FOR_ACTIVATION    = 10_000; // $10k minimum live equity (smart money has capital)
 const MIN_PROFIT_FACTOR            = 1.3;    // gross wins / gross losses -- excludes barely-profitable
 const MAX_DRAWDOWN_FOR_ACTIVATION  = 0.40;   // reject wallets with >40% 30d drawdown
-const MAX_TRADES_30D               = 500;    // >500 trades/mo flagged as wash-trading / farming
+const MAX_TRADES_30D               = 1000;   // scaled to 60d window (>1000 = ~17 trades/day = wash/farm)
 const MIN_HISTORY_VOLUME_RATIO     = 0.95;   // monthVlm/allTimeVlm <= this => >=5% volume predates this month
 
 // -- Leaderboard pre-filter ----------------------------------------------------
@@ -139,23 +144,34 @@ async function fetchHypurrscanAliases(): Promise<Record<string, string>> {
 // -- HTTP helper ---------------------------------------------------------------
 
 async function hlPost<T>(body: unknown, timeoutMs = 15_000): Promise<T> {
-  await new Promise((r) => setTimeout(r, DELAY_BETWEEN_MS));
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(HYPERLIQUID_API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
-    return res.json() as Promise<T>;
-  } catch (err) {
-    clearTimeout(timer);
-    throw err;
+  // One retry on 429 with 5s backoff, then give up — ~30% of scored wallets hit 429s
+  // at 3 req/s in the previous run; a single retry after a brief pause recovers most
+  // without killing the budget.
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await new Promise((r) => setTimeout(r, DELAY_BETWEEN_MS));
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(HYPERLIQUID_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (res.status === 429 && attempt === 0) {
+        await new Promise((r) => setTimeout(r, 5000));
+        continue;
+      }
+      if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+      return res.json() as Promise<T>;
+    } catch (err) {
+      clearTimeout(timer);
+      if (attempt === 0) continue;
+      throw err;
+    }
   }
+  throw new Error("hlPost: exhausted retries");
 }
 
 // -- Leaderboard pre-qualification ---------------------------------------------
@@ -298,14 +314,14 @@ function buildDailyPnls(fills: FillRecord[]): number[] {
     byDay.set(day, (byDay.get(day) ?? 0) + parseFloat(f.closedPnl));
   }
 
-  const daily_pnls: number[] = new Array(30).fill(0);
+  const daily_pnls: number[] = new Array(SCORING_WINDOW_DAYS).fill(0);
   const today = new Date();
   for (const [day, pnl] of byDay) {
     const daysAgo = Math.floor(
       (today.getTime() - new Date(day).getTime()) / 86_400_000
     );
-    if (daysAgo >= 0 && daysAgo < 30) {
-      daily_pnls[29 - daysAgo] = pnl;
+    if (daysAgo >= 0 && daysAgo < SCORING_WINDOW_DAYS) {
+      daily_pnls[SCORING_WINDOW_DAYS - 1 - daysAgo] = pnl;
     }
   }
   return daily_pnls;
@@ -365,20 +381,35 @@ interface ScoringResult {
   error?: string;
 }
 
-let feeSampleLogged = false;
-
 async function scoreWallet(
   address:          string,
   leaderboardEntry: LeaderboardEntry | null,
 ): Promise<ScoringResult> {
-  const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const windowStart = Date.now() - SCORING_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 
   const fills = await hlPost<FillRecord[]>({
     type: "userFillsByTime",
     user: address,
-    startTime: thirtyDaysAgo,
+    startTime: windowStart,
     endTime: Date.now(),
   });
+
+  // For DB re-scores with no leaderboard metadata today, fetch live equity so the
+  // $10K equity gate applies uniformly. Leaderboard entries already have accountValue.
+  let liveEquity: number | null = leaderboardEntry?.accountValue ?? null;
+  if (liveEquity === null) {
+    try {
+      const cs = await hlPost<{ marginSummary?: { accountValue?: string } }>({
+        type: "clearinghouseState",
+        user: address,
+      });
+      liveEquity = parseFloat(cs?.marginSummary?.accountValue ?? "0");
+    } catch {
+      // If equity lookup fails, leave null -- gate falls through and the wallet
+      // is evaluated on performance alone. Not worth failing the whole wallet.
+      liveEquity = null;
+    }
+  }
 
   // Only closing fills carry realized PnL (opening fills have closedPnl = "0")
   const closingFills = fills.filter((f) => parseFloat(f.closedPnl) !== 0);
@@ -388,14 +419,6 @@ async function scoreWallet(
   const lossFills       = closingFills.filter((f) => parseFloat(f.closedPnl) < 0);
 
   const win_rate = trade_count_30d > 0 ? winFills.length / trade_count_30d : 0;
-
-  // First-scan verification: log one fee sample so the sign convention is visible
-  if (!feeSampleLogged && fills.length > 0 && fills[0].fee !== undefined) {
-    console.log(
-      `[fee-check] first fill sample: closedPnl=${fills[0].closedPnl} fee=${fills[0].fee}`
-    );
-    feeSampleLogged = true;
-  }
 
   const total_fees_30d         = fills.reduce((s, f) => s + parseFloat(f.fee ?? "0"), 0);
   const realized_pnl_30d_gross = closingFills.reduce((s, f) => s + parseFloat(f.closedPnl), 0);
@@ -443,7 +466,7 @@ async function scoreWallet(
   else if (realized_pnl_30d < MIN_CANDIDATE_PNL_30D)      rejection_reason = "low_net_pnl";
   else if (profit_factor < MIN_PROFIT_FACTOR)             rejection_reason = "low_profit_factor";
   else if (max_drawdown_pct > MAX_DRAWDOWN_FOR_ACTIVATION) rejection_reason = "high_drawdown";
-  else if (leaderboardEntry && leaderboardEntry.accountValue < MIN_EQUITY_FOR_ACTIVATION)
+  else if (liveEquity !== null && liveEquity < MIN_EQUITY_FOR_ACTIVATION)
                                                           rejection_reason = "low_equity";
   else if (leaderboardEntry && leaderboardEntry.allTimePnl < PRE_QUALIFY_MIN_ALLTIME_PNL)
                                                           rejection_reason = "negative_alltime";
@@ -738,20 +761,26 @@ async function main(): Promise<void> {
     summary.discovery_source = "database_rescore";
   }
 
-  // Step 3: Build the score batch
-  // Tier 1 -- always rescan currently-active wallets to keep recommendations fresh.
-  // Tier 2 -- pre-filtered leaderboard candidates not yet in tier 1, stalest first.
+  // Step 3: Build the score batch with tiered priority.
+  //   Tier 1 -- today's leaderboard candidates (fresh, pre-filtered smart money)
+  //   Tier 2 -- currently-active wallets (keep recommendations fresh)
+  //   Tier 3 -- stale DB re-scores (stalest first, with prior PnL above dust floor)
   const { data: activeRows } = await supabase
     .from("wallets")
     .select("address")
     .eq("is_active", true);
 
-  const activeAddresses = new Set((activeRows ?? []).map((w) => w.address));
+  const activeAddresses      = new Set((activeRows ?? []).map((w) => w.address));
+  const leaderboardAddresses = Array.from(leaderboardMap.keys());
 
-  const staleCutoff = new Date(Date.now() - RESCORE_STALE_DAYS * 24 * 60 * 60 * 1000).toISOString();
-  // Include a wallet if:
-  //   - never scanned (new candidate), OR
-  //   - stale AND earned >= MIN_CANDIDATE_PNL_30D last time (skip known Dust-quality)
+  const staleCutoff  = new Date(Date.now() - RESCORE_STALE_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  // Tier 3 candidates: not active today, either never-scanned or stale+non-dust.
+  // Limit fills only the remaining cap after tiers 1+2.
+  const tier12Count  = new Set([
+    ...leaderboardAddresses.map((a) => a.toLowerCase()),
+    ...Array.from(activeAddresses).map((a) => a.toLowerCase()),
+  ]).size;
+  const remainingCap = Math.max(0, MAX_WALLETS_TO_SCORE - tier12Count);
   const { data: candidateRows } = await supabase
     .from("wallets")
     .select("address")
@@ -761,12 +790,20 @@ async function main(): Promise<void> {
       `and(last_scanned_at.lt.${staleCutoff},realized_pnl_30d.gte.${MIN_CANDIDATE_PNL_30D})`
     )
     .order("last_scanned_at", { ascending: true, nullsFirst: true })
-    .limit(MAX_WALLETS_TO_SCORE - activeAddresses.size);
+    .limit(remainingCap);
 
-  const rawScoreAddresses = [
-    ...Array.from(activeAddresses),
-    ...(candidateRows ?? []).map((w) => w.address),
-  ];
+  // Dedupe while preserving tier order: leaderboard > active > stale-DB
+  const seen = new Set<string>();
+  const rawScoreAddresses: string[] = [];
+  const pushUnique = (addr: string) => {
+    const key = addr.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    rawScoreAddresses.push(addr);
+  };
+  for (const a of leaderboardAddresses)        pushUnique(a);
+  for (const a of activeAddresses)             pushUnique(a);
+  for (const r of candidateRows ?? [])         pushUnique(r.address);
   const excludedByEntity = rawScoreAddresses.filter((a) => isExcludedEntity(a, aliases));
   const scoreAddresses   = rawScoreAddresses.filter((a) => !isExcludedEntity(a, aliases));
   summary.rejection_breakdown.entity_excluded = excludedByEntity.length;
@@ -776,7 +813,9 @@ async function main(): Promise<void> {
   );
   console.log(
     `[scan] scoring ${scoreAddresses.length} wallets ` +
-    `(${activeAddresses.size} active + ${scoreAddresses.length - activeAddresses.size} candidates, ` +
+    `(tier1 leaderboard: ${leaderboardAddresses.length}, ` +
+    `tier2 active: ${activeAddresses.size}, ` +
+    `tier3 stale-DB: ${(candidateRows ?? []).length}, ` +
     `concurrency: ${CONCURRENCY})`
   );
 
@@ -886,14 +925,18 @@ async function main(): Promise<void> {
         toUpdate.push(entry);
       }
 
-      const ID_CHUNK = 200;
-      for (let i = 0; i < toUpdate.length; i += ID_CHUNK) {
-        const chunk = toUpdate.slice(i, i + ID_CHUNK);
-        const { error: upsertErr } = await supabase
+      // .upsert with onConflict:"id" sends INSERT-on-miss, which fails NOT NULL
+      // on the "address" column. These are known-existing rows, so use .update
+      // keyed on id. Runs per-row but the row count here is tiny (~17) so the
+      // N roundtrips are cheap.
+      for (const entry of toUpdate) {
+        const { id, ...patch } = entry;
+        const { error: updateErr } = await supabase
           .from("wallets")
-          .upsert(chunk, { onConflict: "id" });
-        if (upsertErr) {
-          console.warn(`[identity] batch upsert error (chunk ${i}):`, upsertErr.message);
+          .update(patch)
+          .eq("id", id);
+        if (updateErr) {
+          console.warn(`[identity] update error for ${id}:`, updateErr.message);
         }
       }
 

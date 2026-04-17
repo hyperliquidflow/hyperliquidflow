@@ -8,7 +8,7 @@ on:
 jobs:
   scan:
     runs-on: ubuntu-latest
-    timeout-minutes: 65    # hard stop: 3000 wallets x 1.1s (sequential-effective) = ~55 min + overhead
+    timeout-minutes: 50    # hard stop: budget target ~40-45 min, finishes before signal-learning cron at 01:00 UTC
 
     steps:
       - name: Checkout repository
