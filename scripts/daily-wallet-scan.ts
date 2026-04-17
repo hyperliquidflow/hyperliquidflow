@@ -39,10 +39,10 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 const SCORING_WINDOW_DAYS     = 60;
 const WIN_RATE_THRESHOLD      = 0.50; // was 0.52 -- tiny edge + high profit_factor > luck floor
 const MIN_TRADES_30D          = 60;   // scaled with window: >=1 closing trade/day equivalent
-const MAX_WALLETS_TO_SCORE    = 5000; // global cap across all tiers
-const MAX_TIER1_LEADERBOARD   = 3500; // cap fresh leaderboard tier; sorted by monthly ROI, top N kept.
-                                      // Prevents a permissive market day (5k+ qualifying wallets) from
-                                      // blowing the 50-min budget. Beyond top 3500 is diminishing returns.
+const MAX_WALLETS_TO_SCORE    = 3000; // global cap across all tiers (sized for 50-min budget)
+const MAX_TIER1_LEADERBOARD   = 2000; // cap fresh leaderboard tier; sorted by monthly ROI, top N kept.
+                                      // Top 2000 wallets are where signal concentrates; deeper ranks
+                                      // are dominated by smaller accounts with higher noise.
 const RESCORE_STALE_DAYS      = 2;    // only re-score inactive wallets not scanned in the last N days
 const MIN_CANDIDATE_PNL_30D   = 1_000; // absolute USD floor, not time-normalised
 const CONCURRENCY             = 2;    // 2 concurrent -> ~2 req/s, under HL 429 threshold
@@ -841,10 +841,14 @@ async function main(): Promise<void> {
         const result           = await scoreWallet(address, leaderboardEntry);
         await updateWalletMetrics(result);
 
-        // Save full backtest including daily_pnls for real-time scoring
-        const walletId = addressToId.get(address);
-        if (walletId) {
-          await saveBacktestRow(walletId, result);
+        // Save backtest only for qualifying wallets -- the cron's real-time scoring
+        // only reads daily_pnls for active wallets. Rejected wallets get re-scored
+        // from fresh fills on the next scan anyway. Cuts ~70% of DB writes.
+        if (result.qualifies) {
+          const walletId = addressToId.get(address);
+          if (walletId) {
+            await saveBacktestRow(walletId, result);
+          }
         }
 
         if (result.qualifies) summary.activated++;
