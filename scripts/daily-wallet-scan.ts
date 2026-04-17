@@ -40,13 +40,18 @@ const MIN_CANDIDATE_PNL_30D   = 1_000; // skip already-scanned wallets with <$1k
 const CONCURRENCY             = 3;   // 3 concurrent -> ~3.3 req/s, within Hyperliquid public limits
 const DELAY_BETWEEN_MS        = 600; // ms delay per slot before firing -- keeps bursts smooth
 
+// -- Smart-money quality gates (applied at activation, not pre-filter) ---------
+const MIN_EQUITY_FOR_ACTIVATION    = 10_000; // $10k minimum live equity (smart money has capital)
+const MIN_PROFIT_FACTOR            = 1.3;    // gross wins / gross losses -- excludes barely-profitable
+const MAX_DRAWDOWN_FOR_ACTIVATION  = 0.40;   // reject wallets with >40% 30d drawdown
+const MAX_TRADES_30D               = 500;    // >500 trades/mo flagged as wash-trading / farming
+const MIN_HISTORY_VOLUME_RATIO     = 0.95;   // monthVlm/allTimeVlm <= this => >=5% volume predates this month
+
 // -- Leaderboard pre-filter ----------------------------------------------------
 // Applied to leaderboard data before any fills API calls. Collapses 33k wallets
 // to high-signal candidates using data already present in the leaderboard response.
-// Tune these; currently targets roughly the top 5-10% of leaderboard by performance.
-const PRE_QUALIFY_MIN_MONTH_ROI   = 0.00;  // no ROI floor -- big wallets run low ROI on large capital
 const PRE_QUALIFY_MIN_MONTH_PNL   = 10_000; // >=$10k monthly realized PnL (absolute size filter)
-const PRE_QUALIFY_MIN_ALLTIME_ROI = 0.00;  // no all-time ROI floor -- PnL threshold is sufficient
+const PRE_QUALIFY_MIN_ALLTIME_PNL = 0;      // >=$0 all-time PnL (no net-losers -- kills survivorship bias)
 
 // -- In-process semaphore (valid here -- long-running Node.js process, not serverless) --
 class Semaphore {
@@ -106,6 +111,13 @@ function resolveEntityType(
   return { entity_type: classifyEntityLabel(label), entity_label: label };
 }
 
+const EXCLUDED_ENTITY_TYPES: readonly EntityType[] = ["cex", "deployer", "protocol", "gambling"];
+
+function isExcludedEntity(address: string, aliasMap: Record<string, string>): boolean {
+  const { entity_type } = resolveEntityType(address, aliasMap);
+  return (EXCLUDED_ENTITY_TYPES as readonly string[]).includes(entity_type);
+}
+
 async function fetchHypurrscanAliases(): Promise<Record<string, string>> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15_000);
@@ -151,9 +163,13 @@ async function hlPost<T>(body: unknown, timeoutMs = 15_000): Promise<T> {
 function leaderboardPreQualifies(row: Record<string, unknown>): boolean {
   const perfs = row.windowPerformances as Array<[string, Record<string, string>]> | undefined;
   if (!perfs) return false;
-  const month = perfs.find(([w]) => w === "month")?.[1];
-  if (!month) return false;
-  return parseFloat(month.pnl ?? "0") >= PRE_QUALIFY_MIN_MONTH_PNL;
+  const month   = perfs.find(([w]) => w === "month")?.[1];
+  const allTime = perfs.find(([w]) => w === "allTime")?.[1];
+  if (!month || !allTime) return false;
+  return (
+    parseFloat(month.pnl ?? "0")   >= PRE_QUALIFY_MIN_MONTH_PNL &&
+    parseFloat(allTime.pnl ?? "0") >= PRE_QUALIFY_MIN_ALLTIME_PNL
+  );
 }
 
 // -- Discovery: primary path (stats-data leaderboard GET) ----------------------
@@ -162,7 +178,16 @@ function leaderboardPreQualifies(row: Record<string, unknown>): boolean {
 
 const STATS_LEADERBOARD_URL = "https://stats-data.hyperliquid.xyz/Mainnet/leaderboard";
 
-async function fetchLeaderboardAddresses(): Promise<string[]> {
+interface LeaderboardEntry {
+  address:      string;
+  accountValue: number;
+  monthPnl:     number;
+  allTimePnl:   number;
+  monthVlm:     number;
+  allTimeVlm:   number;
+}
+
+async function fetchLeaderboardAddresses(): Promise<Map<string, LeaderboardEntry>> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 30_000);
 
@@ -241,12 +266,27 @@ async function fetchLeaderboardAddresses(): Promise<string[]> {
   const preQualified = typedRows.filter(leaderboardPreQualifies);
   console.log(
     `[discovery] pre-filter: ${preQualified.length}/${typedRows.length} wallets pass ` +
-    `(ROI>=${PRE_QUALIFY_MIN_MONTH_ROI * 100}%, PnL>=$${PRE_QUALIFY_MIN_MONTH_PNL}, allTimeROI>=0)`
+    `(monthPnl>=$${PRE_QUALIFY_MIN_MONTH_PNL}, allTimePnl>=$${PRE_QUALIFY_MIN_ALLTIME_PNL})`
   );
 
-  return preQualified
-    .map((e) => e[addressField] as string)
-    .filter((a) => /^0x[a-fA-F0-9]{40}$/.test(a));
+  const map = new Map<string, LeaderboardEntry>();
+  for (const row of preQualified) {
+    const raw = row[addressField] as string;
+    if (!/^0x[a-fA-F0-9]{40}$/.test(raw)) continue;
+    const address = raw.toLowerCase();
+    const perfs   = row.windowPerformances as Array<[string, Record<string, string>]>;
+    const month   = perfs.find(([w]) => w === "month")?.[1]   ?? {};
+    const allTime = perfs.find(([w]) => w === "allTime")?.[1] ?? {};
+    map.set(address, {
+      address,
+      accountValue: parseFloat((row.accountValue as string) ?? "0"),
+      monthPnl:     parseFloat(month.pnl ?? "0"),
+      allTimePnl:   parseFloat(allTime.pnl ?? "0"),
+      monthVlm:     parseFloat(month.vlm ?? "0"),
+      allTimeVlm:   parseFloat(allTime.vlm ?? "0"),
+    });
+  }
+  return map;
 }
 
 // -- Discovery: secondary pass via top-volume fills ----------------------------
@@ -395,28 +435,37 @@ function computeDrawdownScore(dailyPnls: number[]): number {
 
 interface FillRecord {
   closedPnl: string;
-  time: number;
+  time:      number;
+  fee:       string;
 }
 
 interface ScoringResult {
-  address:             string;
-  win_rate:            number;
-  trade_count_30d:     number;
-  realized_pnl_30d:    number;
-  qualifies:           boolean;
-  daily_pnls:          number[];
-  avg_win_usd:         number;
-  avg_loss_usd:        number;
-  profit_factor:       number;
-  max_drawdown_pct:    number;
-  sharpe_ratio:        number;
-  current_win_streak:  number;
-  current_loss_streak: number;
-  max_win_streak:      number;
+  address:                string;
+  win_rate:               number;
+  trade_count_30d:        number;
+  realized_pnl_30d:       number;
+  realized_pnl_30d_gross: number;
+  total_fees_30d:         number;
+  qualifies:              boolean;
+  rejection_reason:       string | null;
+  daily_pnls:             number[];
+  avg_win_usd:            number;
+  avg_loss_usd:           number;
+  profit_factor:          number;
+  max_drawdown_pct:       number;
+  sharpe_ratio:           number;
+  current_win_streak:     number;
+  current_loss_streak:    number;
+  max_win_streak:         number;
   error?: string;
 }
 
-async function scoreWallet(address: string): Promise<ScoringResult> {
+let feeSampleLogged = false;
+
+async function scoreWallet(
+  address:          string,
+  leaderboardEntry: LeaderboardEntry | null,
+): Promise<ScoringResult> {
   const thirtyDaysAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
 
   const fills = await hlPost<FillRecord[]>({
@@ -433,8 +482,20 @@ async function scoreWallet(address: string): Promise<ScoringResult> {
   const winFills        = closingFills.filter((f) => parseFloat(f.closedPnl) > 0);
   const lossFills       = closingFills.filter((f) => parseFloat(f.closedPnl) < 0);
 
-  const win_rate         = trade_count_30d > 0 ? winFills.length / trade_count_30d : 0;
-  const realized_pnl_30d = closingFills.reduce((s, f) => s + parseFloat(f.closedPnl), 0);
+  const win_rate = trade_count_30d > 0 ? winFills.length / trade_count_30d : 0;
+
+  // First-scan verification: log one fee sample so the sign convention is visible
+  if (!feeSampleLogged && fills.length > 0 && fills[0].fee !== undefined) {
+    console.log(
+      `[fee-check] first fill sample: closedPnl=${fills[0].closedPnl} fee=${fills[0].fee}`
+    );
+    feeSampleLogged = true;
+  }
+
+  const total_fees_30d         = fills.reduce((s, f) => s + parseFloat(f.fee ?? "0"), 0);
+  const realized_pnl_30d_gross = closingFills.reduce((s, f) => s + parseFloat(f.closedPnl), 0);
+  // Hyperliquid returns fee as positive USD paid by trader; subtract to get net
+  const realized_pnl_30d       = realized_pnl_30d_gross - total_fees_30d;
 
   const avg_win_usd  = winFills.length > 0
     ? winFills.reduce((s, f) => s + parseFloat(f.closedPnl), 0) / winFills.length
@@ -466,14 +527,38 @@ async function scoreWallet(address: string): Promise<ScoringResult> {
     }
   }
 
-  const qualifies = win_rate >= WIN_RATE_THRESHOLD && trade_count_30d >= MIN_TRADES_30D && realized_pnl_30d >= MIN_CANDIDATE_PNL_30D;
+  // Quality gate: cheap checks first, leaderboard-dependent checks last so DB-only
+  // re-scores (no leaderboard entry today) can still activate on performance alone —
+  // their equity is gated by the cron dust-deactivation path instead.
+  let rejection_reason: string | null = null;
+
+  if      (win_rate < WIN_RATE_THRESHOLD)                 rejection_reason = "low_win_rate";
+  else if (trade_count_30d < MIN_TRADES_30D)              rejection_reason = "low_trade_count";
+  else if (trade_count_30d > MAX_TRADES_30D)              rejection_reason = "too_many_trades";
+  else if (realized_pnl_30d < MIN_CANDIDATE_PNL_30D)      rejection_reason = "low_net_pnl";
+  else if (profit_factor < MIN_PROFIT_FACTOR)             rejection_reason = "low_profit_factor";
+  else if (max_drawdown_pct > MAX_DRAWDOWN_FOR_ACTIVATION) rejection_reason = "high_drawdown";
+  else if (leaderboardEntry && leaderboardEntry.accountValue < MIN_EQUITY_FOR_ACTIVATION)
+                                                          rejection_reason = "low_equity";
+  else if (leaderboardEntry && leaderboardEntry.allTimePnl < PRE_QUALIFY_MIN_ALLTIME_PNL)
+                                                          rejection_reason = "negative_alltime";
+  else if (
+    leaderboardEntry &&
+    leaderboardEntry.allTimeVlm > 0 &&
+    (leaderboardEntry.monthVlm / leaderboardEntry.allTimeVlm) > MIN_HISTORY_VOLUME_RATIO
+  )                                                        rejection_reason = "suspiciously_fresh";
+
+  const qualifies = rejection_reason === null;
 
   return {
     address,
     win_rate,
     trade_count_30d,
     realized_pnl_30d,
+    realized_pnl_30d_gross,
+    total_fees_30d,
     qualifies,
+    rejection_reason,
     daily_pnls,
     avg_win_usd,
     avg_loss_usd,
@@ -702,15 +787,34 @@ async function main(): Promise<void> {
     duration_ms:  0,
     discovery_source: "" as string,
     errors:       [] as string[],
+    rejection_breakdown: {
+      low_win_rate:        0,
+      low_trade_count:     0,
+      too_many_trades:     0,
+      low_net_pnl:         0,
+      low_profit_factor:   0,
+      high_drawdown:       0,
+      low_equity:          0,
+      negative_alltime:    0,
+      suspiciously_fresh:  0,
+      entity_excluded:     0,
+    } as Record<string, number>,
   };
 
+  // Phase 0: Pre-fetch Hypurrscan aliases — used both for pre-filter and end-of-scan enrichment
+  console.log("[Phase 0] Pre-fetching Hypurrscan aliases...");
+  const aliases = await fetchHypurrscanAliases();
+  console.log(`[identity] loaded ${Object.keys(aliases).length} aliases`);
+
   // Step 1: Discover addresses
+  let leaderboardMap: Map<string, LeaderboardEntry> = new Map();
   let addresses: string[] = [];
   let source: "leaderboard_api" | "leaderboard_scrape" = "leaderboard_api";
 
   try {
-    addresses = await fetchLeaderboardAddresses();
-    source = "leaderboard_api";
+    leaderboardMap = await fetchLeaderboardAddresses();
+    addresses      = Array.from(leaderboardMap.keys());
+    source         = "leaderboard_api";
     console.log(`[discovery] primary path: ${addresses.length} addresses`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -755,10 +859,17 @@ async function main(): Promise<void> {
     .order("last_scanned_at", { ascending: true, nullsFirst: true })
     .limit(MAX_WALLETS_TO_SCORE - activeAddresses.size);
 
-  const scoreAddresses = [
+  const rawScoreAddresses = [
     ...Array.from(activeAddresses),
     ...(candidateRows ?? []).map((w) => w.address),
   ];
+  const excludedByEntity = rawScoreAddresses.filter((a) => isExcludedEntity(a, aliases));
+  const scoreAddresses   = rawScoreAddresses.filter((a) => !isExcludedEntity(a, aliases));
+  summary.rejection_breakdown.entity_excluded = excludedByEntity.length;
+  console.log(
+    `[scan] entity pre-filter: excluded ${excludedByEntity.length} non-trader addresses ` +
+    `(cex/deployer/protocol/gambling)`
+  );
   console.log(
     `[scan] scoring ${scoreAddresses.length} wallets ` +
     `(${activeAddresses.size} active + ${scoreAddresses.length - activeAddresses.size} candidates, ` +
@@ -784,7 +895,8 @@ async function main(): Promise<void> {
     scoreAddresses.map(async (address) => {
       await sem.acquire();
       try {
-        const result = await scoreWallet(address);
+        const leaderboardEntry = leaderboardMap.get(address.toLowerCase()) ?? null;
+        const result           = await scoreWallet(address, leaderboardEntry);
         await updateWalletMetrics(result);
 
         // Save full backtest including daily_pnls for real-time scoring
@@ -809,6 +921,11 @@ async function main(): Promise<void> {
       if (summary.errors.length < 20) {
         summary.errors.push(String(r.reason).slice(0, 200));
       }
+    } else if (r.value.rejection_reason) {
+      const reason = r.value.rejection_reason;
+      if (summary.rejection_breakdown[reason] !== undefined) {
+        summary.rejection_breakdown[reason]++;
+      }
     }
   }
 
@@ -817,14 +934,22 @@ async function main(): Promise<void> {
 
   summary.duration_ms = Date.now() - startMs;
 
+  const total_rejected = Object.values(summary.rejection_breakdown).reduce((a, b) => a + b, 0);
+  console.log("\n[cohort-quality] Activation results:");
+  console.log(`  activated:   ${summary.activated}`);
+  console.log(`  rejected:    ${total_rejected}`);
+  console.log(`  scan errors: ${summary.scan_errors}`);
+  console.log("[cohort-quality] Rejection breakdown:");
+  for (const [reason, count] of Object.entries(summary.rejection_breakdown)) {
+    if (count > 0) console.log(`    ${reason.padEnd(22)} ${count}`);
+  }
+
   console.log("[scan] Complete:", JSON.stringify(summary, null, 2));
   await fs.writeFile("scan-summary.json", JSON.stringify(summary, null, 2));
 
-  // ── Phase 6: Identity enrichment via Hypurrscan ───────────────────────────
-  console.log("\n[Phase 6] Fetching Hypurrscan global aliases...");
-  const aliases = await fetchHypurrscanAliases();
+  // ── Phase 6: Identity enrichment using aliases pre-fetched in Phase 0 ─────
+  console.log("\n[Phase 6] Enrichment pass using pre-fetched aliases...");
   const aliasCount = Object.keys(aliases).length;
-  console.log(`[identity] Loaded ${aliasCount} aliases from Hypurrscan.`);
 
   if (aliasCount > 0) {
     const { data: allWallets, error: walletFetchErr } = await supabase
