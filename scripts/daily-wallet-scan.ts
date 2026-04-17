@@ -45,8 +45,8 @@ const MAX_TIER1_LEADERBOARD   = 3500; // cap fresh leaderboard tier; sorted by m
                                       // blowing the 50-min budget. Beyond top 3500 is diminishing returns.
 const RESCORE_STALE_DAYS      = 2;    // only re-score inactive wallets not scanned in the last N days
 const MIN_CANDIDATE_PNL_30D   = 1_000; // absolute USD floor, not time-normalised
-const CONCURRENCY             = 3;    // 3 concurrent -> ~3.3 req/s, within Hyperliquid public limits
-const DELAY_BETWEEN_MS        = 600;  // ms delay per slot before firing -- keeps bursts smooth
+const CONCURRENCY             = 2;    // 2 concurrent -> ~2 req/s, under HL 429 threshold
+const DELAY_BETWEEN_MS        = 1000; // ms delay per slot before firing -- keeps bursts smooth
 
 // -- Smart-money quality gates (applied at activation, not pre-filter) ---------
 const MIN_EQUITY_FOR_ACTIVATION    = 10_000; // $10k minimum live equity (smart money has capital)
@@ -387,7 +387,6 @@ interface ScoringResult {
 async function scoreWallet(
   address:          string,
   leaderboardEntry: LeaderboardEntry | null,
-  fetchLiveEquity:  boolean,
 ): Promise<ScoringResult> {
   const windowStart = Date.now() - SCORING_WINDOW_DAYS * 24 * 60 * 60 * 1000;
 
@@ -398,22 +397,11 @@ async function scoreWallet(
     endTime: Date.now(),
   });
 
-  // Leaderboard entries already carry accountValue. For tier2 active wallets missing
-  // it, fetch clearinghouseState to gate equity. Tier3 stale-DB re-scores skip this —
-  // the cron dust-deactivation path handles their equity check and the extra API call
-  // roughly doubled the scoring budget, causing the 50-min timeout.
-  let liveEquity: number | null = leaderboardEntry?.accountValue ?? null;
-  if (liveEquity === null && fetchLiveEquity) {
-    try {
-      const cs = await hlPost<{ marginSummary?: { accountValue?: string } }>({
-        type: "clearinghouseState",
-        user: address,
-      });
-      liveEquity = parseFloat(cs?.marginSummary?.accountValue ?? "0");
-    } catch {
-      liveEquity = null;
-    }
-  }
+  // Live equity comes from the leaderboard snapshot for tier1. For tier2/tier3
+  // (not on today's leaderboard) we defer equity gating to the cron dust-check —
+  // firing clearinghouseState here roughly doubled API calls and pushed the scan
+  // past its 50-min budget.
+  const liveEquity: number | null = leaderboardEntry?.accountValue ?? null;
 
   // Only closing fills carry realized PnL (opening fills have closedPnl = "0")
   const closingFills = fills.filter((f) => parseFloat(f.closedPnl) !== 0);
@@ -799,21 +787,17 @@ async function main(): Promise<void> {
     .limit(remainingCap);
 
   // Dedupe while preserving tier order: leaderboard > active > stale-DB.
-  // Track tier3 addresses separately so scoreWallet can skip the clearinghouseState
-  // equity fetch for them (cron dust-check covers their equity gate).
   const seen = new Set<string>();
   const rawScoreAddresses: string[] = [];
-  const tier3StaleAddresses = new Set<string>();
-  const pushUnique = (addr: string, tier3 = false) => {
+  const pushUnique = (addr: string) => {
     const key = addr.toLowerCase();
     if (seen.has(key)) return;
     seen.add(key);
     rawScoreAddresses.push(addr);
-    if (tier3) tier3StaleAddresses.add(key);
   };
   for (const a of leaderboardAddresses)        pushUnique(a);
   for (const a of activeAddresses)             pushUnique(a);
-  for (const r of candidateRows ?? [])         pushUnique(r.address, true);
+  for (const r of candidateRows ?? [])         pushUnique(r.address);
   const excludedByEntity = rawScoreAddresses.filter((a) => isExcludedEntity(a, aliases));
   const scoreAddresses   = rawScoreAddresses.filter((a) => !isExcludedEntity(a, aliases));
   summary.rejection_breakdown.entity_excluded = excludedByEntity.length;
@@ -844,13 +828,17 @@ async function main(): Promise<void> {
     }
   }
 
+  const scoringStart = Date.now();
+  let completed = 0;
+  let errors    = 0;
+  const PROGRESS_EVERY = 250;
+
   const results = await Promise.allSettled(
     scoreAddresses.map(async (address) => {
       await sem.acquire();
       try {
         const leaderboardEntry = leaderboardMap.get(address.toLowerCase()) ?? null;
-        const fetchLiveEquity  = !tier3StaleAddresses.has(address.toLowerCase());
-        const result           = await scoreWallet(address, leaderboardEntry, fetchLiveEquity);
+        const result           = await scoreWallet(address, leaderboardEntry);
         await updateWalletMetrics(result);
 
         // Save full backtest including daily_pnls for real-time scoring
@@ -863,7 +851,22 @@ async function main(): Promise<void> {
         if (result.win_rate > summary.top_win_rate) summary.top_win_rate = result.win_rate;
 
         return result;
+      } catch (err) {
+        errors++;
+        throw err;
       } finally {
+        completed++;
+        if (completed % PROGRESS_EVERY === 0 || completed === scoreAddresses.length) {
+          const elapsedMin = (Date.now() - scoringStart) / 60_000;
+          const rate       = completed / Math.max(elapsedMin, 0.01);
+          const remaining  = scoreAddresses.length - completed;
+          const etaMin     = remaining / Math.max(rate, 0.01);
+          console.log(
+            `[scoring] ${completed}/${scoreAddresses.length} done, ` +
+            `elapsed ${elapsedMin.toFixed(1)}m, rate ${rate.toFixed(1)}/min, ` +
+            `errors ${errors}, eta ${etaMin.toFixed(1)}m`
+          );
+        }
         sem.release();
       }
     })
