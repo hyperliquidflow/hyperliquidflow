@@ -5,6 +5,7 @@
 // IMPORTANT: Snapshot deltas measure CHANGES IN OPEN POSITIONS, not realized PnL.
 // Realized PnL comes exclusively from userFills.closedPnl — never conflate these.
 
+import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { kv } from "@vercel/kv";
 import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from "@/lib/env";
@@ -1147,36 +1148,34 @@ export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalEvent
     }))
     .filter((e) => e.wallet_id.length > 0);
 
-  const rows = [...toInsert, ...cohortEvents];
-  if (rows.length > 0) {
-    const { data: inserted, error } = await supabase
-      .from("signals_history")
-      .insert(rows)
-      .select("id, recipe_id, coin, direction");
+  // Assign UUIDs client-side so the outcome write does not depend on PostgREST
+  // returning the inserted rows. Under load .insert().select() has been observed
+  // to return empty arrays even when rows land — silently skipping outcomes.
+  const rowsWithIds = [...toInsert, ...cohortEvents].map((r) => ({
+    ...r,
+    id: randomUUID(),
+  }));
+  if (rowsWithIds.length > 0) {
+    const { error } = await supabase.from("signals_history").insert(rowsWithIds);
     if (error) {
       console.error("[signal-lab] insert error:", error.message);
     } else {
-      console.log(`[signal-lab] inserted ${inserted?.length ?? 0} signal events`);
-      // Capture price at signal fire time for outcome tracking
-      if (inserted && inserted.length > 0) {
-        const outcomeRows = buildOutcomeRows(inserted, allMids);
-        // Diagnostic: surface why outcome rows may be empty
-        if (outcomeRows.length === 0) {
-          const missingCoins = [...new Set(inserted.map((s) => s.coin))].filter((c) => !allMids[c]);
-          console.warn(
-            `[signal-lab] 0 outcome rows built from ${inserted.length} signals. allMids keys: ${Object.keys(allMids).length}, coins missing from allMids:`,
-            missingCoins,
-          );
-        }
-        if (outcomeRows.length > 0) {
-          const { error: oErr } = await supabase.from("signal_outcomes").insert(outcomeRows);
-          if (oErr) {
-            console.error("[signal-lab] signal_outcomes insert FAILED:", oErr.message, {
-              sampleCoin: outcomeRows[0]?.coin,
-            });
-          } else {
-            console.log(`[signal-lab] inserted ${outcomeRows.length} outcome seed rows`);
-          }
+      console.log(`[signal-lab] inserted ${rowsWithIds.length} signal events`);
+      const outcomeRows = buildOutcomeRows(rowsWithIds, allMids);
+      if (outcomeRows.length === 0) {
+        const missingCoins = [...new Set(rowsWithIds.map((s) => s.coin))].filter((c) => !allMids[c]);
+        console.warn(
+          `[signal-lab] 0 outcome rows built from ${rowsWithIds.length} signals. allMids keys: ${Object.keys(allMids).length}, coins missing from allMids:`,
+          missingCoins,
+        );
+      } else {
+        const { error: oErr } = await supabase.from("signal_outcomes").insert(outcomeRows);
+        if (oErr) {
+          console.error("[signal-lab] signal_outcomes insert FAILED:", oErr.message, {
+            sampleCoin: outcomeRows[0]?.coin,
+          });
+        } else {
+          console.log(`[signal-lab] inserted ${outcomeRows.length} outcome seed rows`);
         }
       }
     }
