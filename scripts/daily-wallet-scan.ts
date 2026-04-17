@@ -39,7 +39,10 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 const SCORING_WINDOW_DAYS     = 60;
 const WIN_RATE_THRESHOLD      = 0.50; // was 0.52 -- tiny edge + high profit_factor > luck floor
 const MIN_TRADES_30D          = 60;   // scaled with window: >=1 closing trade/day equivalent
-const MAX_WALLETS_TO_SCORE    = 5000; // up from 3000 -- prior run used 18m of 65m budget
+const MAX_WALLETS_TO_SCORE    = 5000; // global cap across all tiers
+const MAX_TIER1_LEADERBOARD   = 3500; // cap fresh leaderboard tier; sorted by monthly ROI, top N kept.
+                                      // Prevents a permissive market day (5k+ qualifying wallets) from
+                                      // blowing the 50-min budget. Beyond top 3500 is diminishing returns.
 const RESCORE_STALE_DAYS      = 2;    // only re-score inactive wallets not scanned in the last N days
 const MIN_CANDIDATE_PNL_30D   = 1_000; // absolute USD floor, not time-normalised
 const CONCURRENCY             = 3;    // 3 concurrent -> ~3.3 req/s, within Hyperliquid public limits
@@ -772,7 +775,9 @@ async function main(): Promise<void> {
     .eq("is_active", true);
 
   const activeAddresses      = new Set((activeRows ?? []).map((w) => w.address));
-  const leaderboardAddresses = Array.from(leaderboardMap.keys());
+  // Cap tier1 at top N by monthly ROI (leaderboardMap is already sorted). Prevents
+  // a permissive market day from pushing the scoring set past the 50-min budget.
+  const leaderboardAddresses = Array.from(leaderboardMap.keys()).slice(0, MAX_TIER1_LEADERBOARD);
 
   const staleCutoff  = new Date(Date.now() - RESCORE_STALE_DAYS * 24 * 60 * 60 * 1000).toISOString();
   // Tier 3 candidates: not active today, either never-scanned or stale+non-dust.
