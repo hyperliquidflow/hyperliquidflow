@@ -29,6 +29,18 @@ interface ScannerStats {
   tier_breakdown: Array<{ tier: string; count: number }>;
 }
 
+interface StoredProfile {
+  trading_style:     string | null;
+  pnl_consistency:   number | null;
+  bull_daily_pnl:    number | null;
+  bear_daily_pnl:    number | null;
+  ranging_daily_pnl: number | null;
+  regime_edge:       number | null;
+  current_coins:     string[];
+  regime_day_counts: { BULL: number; BEAR: number; RANGING: number } | null;
+  computed_at:       string | null;
+}
+
 interface WalletProfile {
   address: string;
   state: { accountValue: string; totalNtlPos: string; totalMarginUsed: string; withdrawable: string };
@@ -37,12 +49,84 @@ interface WalletProfile {
   stats: { win_rate: number; trade_count: number; total_pnl: number; avg_win: number; avg_loss: number; profit_factor: number; current_streak: number; is_win_streak: boolean };
   verdict: string;
   verdict_color: string;
+  stored_profile: StoredProfile | null;
 }
 
 async function fetchWalletProfile(address: string): Promise<WalletProfile> {
   const res = await fetch(`/api/wallet-profile?address=${address}`);
   if (!res.ok) throw new Error(await res.text());
   return res.json();
+}
+
+const STYLE_LABEL: Record<string, string> = {
+  SCALPER: "Scalper",
+  SWING:   "Swing",
+  TREND:   "Trend",
+};
+
+const REGIME_EDGE_LABEL = (edge: number | null): string => {
+  if (edge === null) return "n/a";
+  if (edge > 0.6) return "Specialist";
+  if (edge > 0.3) return "Regime-sensitive";
+  return "Generalist";
+};
+
+function BehaviorProfileSection({ profile: p }: { profile: StoredProfile }) {
+  const regimePnls: Array<{ label: string; value: number | null }> = [
+    { label: "Bull avg/day",    value: p.bull_daily_pnl    },
+    { label: "Bear avg/day",    value: p.bear_daily_pnl    },
+    { label: "Ranging avg/day", value: p.ranging_daily_pnl },
+  ];
+  return (
+    <div style={{ ...S.card, padding: "20px" }}>
+      <div style={{ ...S.label, marginBottom: "16px" }}>Behavior Profile</div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+        <div>
+          <div style={{ ...S.muted, marginBottom: "10px", fontSize: "11px", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Trading behavior</div>
+          <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid rgba(255,255,255,0.04)` }}>
+            <span style={S.muted}>Style</span>
+            <span style={{ fontSize: "13px", fontWeight: 600 }}>{p.trading_style ? STYLE_LABEL[p.trading_style] ?? p.trading_style : "n/a"}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0", borderBottom: `1px solid rgba(255,255,255,0.04)` }}>
+            <span style={S.muted}>Consistency</span>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div style={{ width: "60px", height: "3px", background: "rgba(255,255,255,0.08)", borderRadius: "2px" }}>
+                <div style={{ width: `${(p.pnl_consistency ?? 0) * 100}%`, height: "100%", background: color.accent, borderRadius: "2px" }} />
+              </div>
+              <span style={{ fontSize: "12px", fontVariantNumeric: "tabular-nums" }}>{p.pnl_consistency != null ? p.pnl_consistency.toFixed(2) : "n/a"}</span>
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0" }}>
+            <span style={S.muted}>Regime edge</span>
+            <span style={{ fontSize: "13px" }}>{p.regime_edge != null ? p.regime_edge.toFixed(2) : "n/a"} <span style={{ ...S.muted, fontSize: "11px" }}>({REGIME_EDGE_LABEL(p.regime_edge)})</span></span>
+          </div>
+        </div>
+        <div>
+          <div style={{ ...S.muted, marginBottom: "10px", fontSize: "11px", textTransform: "uppercase" as const, letterSpacing: "0.06em" }}>Regime performance</div>
+          {regimePnls.map(({ label, value }) => (
+            <div key={label} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid rgba(255,255,255,0.04)` }}>
+              <span style={S.muted}>{label}</span>
+              <span style={{ fontSize: "13px", fontVariantNumeric: "tabular-nums", color: value == null ? "rgba(255,255,255,0.25)" : value >= 0 ? color.green : color.red }}>
+                {value != null ? formatUsd(value) : "n/a"}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+      {p.current_coins && p.current_coins.length > 0 && (
+        <div style={{ marginTop: "16px" }}>
+          <div style={{ ...S.muted, fontSize: "11px", marginBottom: "8px" }}>Open coins at last scan</div>
+          <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" as const }}>
+            {p.current_coins.map((coin) => (
+              <span key={coin} style={{ fontSize: "11px", fontWeight: 600, padding: "2px 8px", borderRadius: "3px", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.69)" }}>
+                {coin}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function WalletProfileCard({ profile }: { profile: WalletProfile }) {
@@ -84,6 +168,7 @@ function WalletProfileCard({ profile }: { profile: WalletProfile }) {
         ))}
       </div>
       <div style={{ ...S.muted, fontSize: "11px", textAlign: "right" as const, marginTop: "4px" }}>* as of last daily scan</div>
+      {profile.stored_profile && <BehaviorProfileSection profile={profile.stored_profile} />}
       <div style={S.card}>
         <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
           {(["overview", "positions", "trades"] as const).map((t) => (

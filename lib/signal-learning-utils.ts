@@ -84,6 +84,40 @@ export function computeWinRateByRegime(
   return result;
 }
 
+export interface RegimeFitBuckets {
+  high: { win_rate: number | null; sample: number };
+  mid:  { win_rate: number | null; sample: number };
+  low:  { win_rate: number | null; sample: number };
+}
+
+/**
+ * Stratify resolved outcomes by wallet_regime_fit stored in signal metadata.
+ * Thresholds: LOW < 0.33, MID 0.33-0.67, HIGH >= 0.67.
+ * win_rate is null for buckets with zero resolved outcomes.
+ */
+export function computeWinRateByRegimeFit(
+  outcomes: Array<{ is_win: boolean | null; regime_fit: number | null }>,
+): RegimeFitBuckets {
+  const resolved = outcomes.filter((o) => o.is_win !== null);
+
+  function bucket(lo: number, hi: number) {
+    const rows = resolved.filter((o) => {
+      if (o.regime_fit === null) return false;
+      return o.regime_fit >= lo && o.regime_fit < hi;
+    });
+    return {
+      win_rate: rows.length > 0 ? rows.filter((o) => o.is_win).length / rows.length : null,
+      sample:   rows.length,
+    };
+  }
+
+  return {
+    high: bucket(0.67, Infinity),
+    mid:  bucket(0.33, 0.67),
+    low:  bucket(0,    0.33),
+  };
+}
+
 export function dominantRegime(
   outcomes: (OutcomeRow & { regime_at_fire: string })[]
 ): string | null {

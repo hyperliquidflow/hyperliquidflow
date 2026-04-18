@@ -12,6 +12,7 @@ import {
   meetsMinSample,
   computeConfidence,
   computeWinRateByRegime,
+  computeWinRateByRegimeFit,
   dominantRegime,
 } from "../lib/signal-learning-utils";
 
@@ -79,6 +80,23 @@ async function runStatsEngine(): Promise<void> {
     return;
   }
 
+  // Fetch wallet_regime_fit from signals_history.metadata for each resolved outcome.
+  // signal_outcomes.signal_id is a FK to signals_history(id).
+  const signalIds = rows.map((r) => r.signal_id as string).filter(Boolean);
+  let regimeFitById = new Map<string, number | null>();
+  if (signalIds.length > 0) {
+    const { data: metaRows } = await supabase
+      .from("signals_history")
+      .select("id, metadata")
+      .in("id", signalIds);
+    regimeFitById = new Map(
+      (metaRows ?? []).map((m) => [
+        m.id as string,
+        ((m.metadata as Record<string, unknown>)?.wallet_regime_fit as number | null) ?? null,
+      ])
+    );
+  }
+
   const byRecipe = new Map<string, typeof rows>();
   for (const row of rows) {
     const event = Array.isArray(row.signal_events) ? row.signal_events[0] : row.signal_events;
@@ -119,6 +137,29 @@ async function runStatsEngine(): Promise<void> {
     const measuredEV    = computeMeasuredEV(win_rate_30d, avgWin, avgLoss);
     const winsByRegime  = computeWinRateByRegime(outcomes);
     const dominant      = dominantRegime(outcomes);
+
+    const regimeFitOutcomes = recipeRows.map((r) => ({
+      is_win:      (r.is_win ?? r.price_win) as boolean | null,
+      regime_fit:  regimeFitById.get(r.signal_id as string) ?? null,
+    }));
+    const fitBuckets = computeWinRateByRegimeFit(regimeFitOutcomes);
+
+    // Log a REGIME_FIT_SIGNAL finding when HIGH-fit signals outperform LOW-fit by >5pp
+    const highWr = fitBuckets.high.win_rate;
+    const lowWr  = fitBuckets.low.win_rate;
+    if (
+      highWr !== null && lowWr !== null &&
+      fitBuckets.high.sample >= 5 && fitBuckets.low.sample >= 5 &&
+      highWr - lowWr > 0.05
+    ) {
+      await writeAgentLog({
+        log_type: "REGIME_FIT_SIGNAL",
+        recipe_id: recipeId,
+        summary: `${recipeId}: HIGH-fit signals win at ${(highWr * 100).toFixed(1)}% vs LOW-fit ${(lowWr * 100).toFixed(1)}% (${fitBuckets.high.sample} vs ${fitBuckets.low.sample} samples)`,
+        content: JSON.stringify({ high: fitBuckets.high, mid: fitBuckets.mid, low: fitBuckets.low }),
+        agent_confidence: Math.min(fitBuckets.high.sample, fitBuckets.low.sample) >= 30 ? 0.8 : 0.5,
+      });
+    }
 
     let findingType = "STABLE";
     if (!meetsMinSample(sampleSize)) findingType = "INSUFFICIENT_DATA";

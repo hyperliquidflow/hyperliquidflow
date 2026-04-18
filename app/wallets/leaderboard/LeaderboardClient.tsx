@@ -26,6 +26,32 @@ function TierBadge({ tier }: { tier: string | null | undefined }) {
   );
 }
 
+const STYLE_COLORS: Record<string, string> = {
+  SCALPER: color.amber,
+  SWING:   "rgba(255,255,255,0.44)",
+  TREND:   color.accent,
+};
+
+function StyleBadge({ style }: { style: string | null | undefined }) {
+  if (!style) return null;
+  return (
+    <span style={{
+      fontSize: "10px",
+      fontWeight: 600,
+      letterSpacing: "0.06em",
+      textTransform: "uppercase" as const,
+      marginLeft: "5px",
+      padding: "2px 6px",
+      borderRadius: "3px",
+      border: `1px solid ${STYLE_COLORS[style] ?? "rgba(255,255,255,0.15)"}40`,
+      color: STYLE_COLORS[style] ?? "rgba(255,255,255,0.44)",
+      cursor: "default",
+    }}>
+      {style}
+    </span>
+  );
+}
+
 const S = {
   page:  { padding: space.pagePaddingX },
   card:  { ...C.base },
@@ -97,7 +123,7 @@ export function LeaderboardClient({ initialData }: { initialData: CohortCachePay
     <div className="page-enter">
       <PageHeader
         title="Leaderboard"
-        subtitle={data ? `Smart Money ranked by composite score · ${data.wallet_count} active` : "Smart Money ranked by composite score"}
+        subtitle={data ? `Smart Money ranked by composite score · ${data.total_active_wallets ?? data.wallet_count} active` : "Smart Money ranked by composite score"}
       />
       <div style={{ ...S.page, paddingTop: "20px" }}>
         <div style={{ display: "flex", gap: "6px", marginBottom: "12px", flexWrap: "wrap" as const }}>
@@ -173,12 +199,13 @@ export function LeaderboardClient({ initialData }: { initialData: CohortCachePay
                           {truncateAddress(w.address)}
                         </button>
                         <TierBadge tier={w.equity_tier} />
+                        <StyleBadge style={w.trading_style} />
                       </div>
                     </td>
                     <td style={S.td}>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                         <div style={{ width: "48px", height: "3px", background: "rgba(255,255,255,0.08)", borderRadius: "2px" }}>
-                          <div style={{ width: `${w.overall_score * 100}%`, height: "100%", background: w.overall_score >= 0.7 ? color.green : w.overall_score >= 0.5 ? color.neutral : color.red, borderRadius: "2px" }} />
+                          <div style={{ width: `${w.overall_score * 100}%`, height: "100%", background: color.neutral, borderRadius: "2px" }} />
                         </div>
                         <span style={{ fontSize: "11px", fontWeight: 600, color: color.text }}>{w.overall_score.toFixed(2)}</span>
                       </div>

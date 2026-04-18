@@ -2,20 +2,92 @@
 // app/wallets/inposition/InPositionClient.tsx
 
 import { useState } from "react";
+import type React from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { formatUsd, formatPct, truncateAddress } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
-import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
-import { color, card as C, type as T, space } from "@/lib/design-tokens";
+import type { CohortCachePayload, SpotlightWallet } from "@/app/api/refresh-cohort/route";
+import { color, card as C, type as T, space, radius } from "@/lib/design-tokens";
 
 const S = {
   page:  { padding: space.pagePaddingX },
   card:  { ...C.base },
-  label: { ...T.cardTitle },
   muted: { color: color.textMuted, fontSize: "13px" },
   mono:  { fontFamily: "'Geist Mono', monospace", fontSize: "13px" },
   td:    { fontSize: "13px", padding: "12px 16px", borderBottom: `1px solid ${color.divider}` },
+
+  // Spotlight grid
+  spotGrid: {
+    display: "grid", gridTemplateColumns: "1fr 1fr 1fr",
+    gap: space.cardGap, marginBottom: space.cardGap,
+  } as React.CSSProperties,
+
+  // Spotlight card: standard border, no color tint
+  spotCard: {
+    ...C.base,
+    padding: space.walletItemPadding,
+    cursor: "pointer",
+    transition: "border-color 0.2s, background 0.2s",
+  } as React.CSSProperties,
+
+  // Address: full string, CSS handles overflow (type.walletAddr)
+  spotAddr: {
+    ...T.walletAddr,
+    overflow: "hidden" as const,
+    textOverflow: "ellipsis" as const,
+    whiteSpace: "nowrap" as const,
+    marginTop: 0,
+  } as React.CSSProperties,
+
+  // Body row: PnL left, AUM + positions right
+  spotBody: {
+    display: "flex", justifyContent: "space-between",
+    alignItems: "flex-end", gap: "12px", marginTop: "10px",
+  } as React.CSSProperties,
+
+  // PnL at type.statValue size (32px)
+  spotPnl: {
+    fontSize: "32px", fontWeight: 700,
+    lineHeight: 1, fontVariantNumeric: "tabular-nums",
+  } as React.CSSProperties,
+
+  // AUM | positions inline right at 16px color.text
+  spotCtx: {
+    display: "flex", alignItems: "center",
+    flexShrink: 0, paddingBottom: "2px",
+    fontSize: "16px", color: color.text,
+    fontVariantNumeric: "tabular-nums",
+  } as React.CSSProperties,
+
+  spotCtxDivider: {
+    width: "1px", height: "14px",
+    background: color.border,
+    margin: "0 12px", flexShrink: 0,
+  } as React.CSSProperties,
+
+  // Score row: tertiary indicator below divider
+  spotScoreRow: {
+    display: "flex", alignItems: "center", gap: "8px",
+    marginTop: "12px", paddingTop: "10px",
+    borderTop: `1px solid ${color.divider}`,
+  } as React.CSSProperties,
+
+  spotBarTrack: {
+    flex: 1, height: "3px", borderRadius: radius.bar,
+    background: color.barBg, overflow: "hidden" as const,
+  } as React.CSSProperties,
+
+  spotBarFill: {
+    height: "100%", borderRadius: radius.bar,
+    background: color.neutral,
+  } as React.CSSProperties,
+
+  spotScoreNum: {
+    fontSize: "11px", fontWeight: 600,
+    color: color.textMuted, fontVariantNumeric: "tabular-nums",
+    flexShrink: 0,
+  } as React.CSSProperties,
 };
 
 const bone = (w: string | number, h = 9): React.CSSProperties => ({
@@ -56,6 +128,12 @@ export function InPositionClient({ initialData }: { initialData: CohortCachePayl
     else { setSort(key); setAsc(false); }
   }
 
+  const spotlightBase: SpotlightWallet[] | null = data?.spotlight_positions
+    ? [...data.spotlight_positions].sort((a, b) => b.unrealized_pnl - a.unrealized_pnl)
+    : null;
+  const topProfit = spotlightBase?.slice(0, 3) ?? null;
+  const topLoss   = spotlightBase ? [...spotlightBase].slice(-3).reverse() : null;
+
   const inPosition = data
     ? [...data.top_wallets]
         .filter((w) => w.position_count > 0)
@@ -77,6 +155,57 @@ export function InPositionClient({ initialData }: { initialData: CohortCachePayl
         subtitle={inPosition ? `${inPosition.length} wallets with open positions right now` : "Wallets with open positions right now"}
       />
       <div style={{ ...S.page, paddingTop: "20px" }}>
+
+        {/* Spotlight: top 3 profitable, top 3 underwater */}
+        {(["profit", "loss"] as const).map((variant) => {
+          const wallets  = variant === "profit" ? topProfit : topLoss;
+          const pnlColor = variant === "profit" ? color.green : color.red;
+          return (
+            <div key={variant} style={S.spotGrid}>
+              {wallets
+                ? wallets.map((w) => (
+                    <div key={w.wallet_id}
+                      style={S.spotCard}
+                      className="glow-btn"
+                      onClick={() => router.push(`/wallets/discovery?address=${w.address}`)}>
+                      <div style={S.spotAddr}>{w.address}</div>
+                      <div style={S.spotBody}>
+                        <div style={{ ...S.spotPnl, color: pnlColor }}>
+                          {variant === "profit" && w.unrealized_pnl > 0 ? "+" : ""}{formatUsd(w.unrealized_pnl)}
+                        </div>
+                        <div style={S.spotCtx}>
+                          <span>{formatUsd(w.account_value)} AUM</span>
+                          <div style={S.spotCtxDivider} />
+                          <span>{w.position_count} positions</span>
+                        </div>
+                      </div>
+                      <div style={S.spotScoreRow}>
+                        <div style={S.spotBarTrack}>
+                          <div style={{ ...S.spotBarFill, width: `${w.overall_score * 100}%` }} />
+                        </div>
+                        <span style={S.spotScoreNum}>{w.overall_score.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  ))
+                : Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} style={S.spotCard}>
+                      <div style={{ ...bone("80%", 11), ...ghost(i * 0.08) }} />
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: "10px" }}>
+                        <div style={{ ...bone(100, 26), ...ghost(i * 0.08) }} />
+                        <div style={{ display: "flex", flexDirection: "column", gap: "6px", alignItems: "flex-end" }}>
+                          <div style={{ ...bone(80, 13), ...ghost(i * 0.08) }} />
+                          <div style={{ ...bone(60, 13), ...ghost(i * 0.08) }} />
+                        </div>
+                      </div>
+                      <div style={{ marginTop: "12px", paddingTop: "10px", borderTop: `1px solid ${color.divider}` }}>
+                        <div style={{ ...bone("100%", 3), ...ghost(i * 0.08) }} />
+                      </div>
+                    </div>
+                  ))}
+            </div>
+          );
+        })}
+
         <div style={S.card}>
           {inPosition?.length === 0 ? (
             <div style={{ padding: "48px", textAlign: "center", ...S.muted }}>No wallets with open positions right now</div>
@@ -84,13 +213,13 @@ export function InPositionClient({ initialData }: { initialData: CohortCachePayl
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ background: color.bg }}>
-                  <th style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.5)", padding: "12px 16px", textAlign: "left", userSelect: "none", width: "40px" }}>#</th>
+                  <th style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: color.textMuted, padding: "12px 16px", textAlign: "left", userSelect: "none", width: "40px" }}>#</th>
                   {COLS.map(({ key, label }) => (
                     <th key={key} onClick={() => inPosition && handleSort(key)}
                       style={{
                         fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em",
                         textTransform: "uppercase" as const,
-                        color: sort === key ? color.text : "rgba(255,255,255,0.5)",
+                        color: sort === key ? color.text : color.textMuted,
                         padding: "12px 16px", textAlign: "left" as const,
                         cursor: inPosition ? "pointer" : "default", userSelect: "none", whiteSpace: "nowrap" as const,
                       }}>
@@ -112,7 +241,7 @@ export function InPositionClient({ initialData }: { initialData: CohortCachePayl
                       <td style={S.td}><div style={bone(110)} /></td>
                       <td style={S.td}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <div style={{ width: 48, height: 3, borderRadius: 2, background: "rgba(255,255,255,0.08)" }} />
+                          <div style={{ width: 48, height: 3, borderRadius: 2, background: color.barBg }} />
                           <div style={bone(28)} />
                         </div>
                       </td>
@@ -128,7 +257,7 @@ export function InPositionClient({ initialData }: { initialData: CohortCachePayl
                     <tr key={w.wallet_id} style={{ transition: "background 0.1s" }}
                       onMouseEnter={(e) => (e.currentTarget.style.background = color.rowHover)}
                       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-                      <td style={{ ...S.td, color: "rgba(255,255,255,0.32)" }}>{i + 1}</td>
+                      <td style={{ ...S.td, color: color.textDim }}>{i + 1}</td>
                       <td style={S.td}>
                         <button onClick={() => router.push(`/wallets/discovery?address=${w.address}`)}
                           style={{ ...S.mono, color: color.neutral, background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" as const }}>
@@ -137,8 +266,8 @@ export function InPositionClient({ initialData }: { initialData: CohortCachePayl
                       </td>
                       <td style={S.td}>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <div style={{ width: "48px", height: "3px", background: "rgba(255,255,255,0.08)", borderRadius: "2px" }}>
-                            <div style={{ width: `${w.overall_score * 100}%`, height: "100%", background: w.overall_score >= 0.7 ? color.green : w.overall_score >= 0.5 ? color.neutral : color.red, borderRadius: "2px" }} />
+                          <div style={{ width: "48px", height: "3px", background: color.barBg, borderRadius: radius.bar }}>
+                            <div style={{ width: `${w.overall_score * 100}%`, height: "100%", background: color.neutral, borderRadius: radius.bar }} />
                           </div>
                           <span style={{ fontSize: "11px", fontWeight: 600, color: color.text }}>{w.overall_score.toFixed(2)}</span>
                         </div>
@@ -147,7 +276,7 @@ export function InPositionClient({ initialData }: { initialData: CohortCachePayl
                       <td style={{ ...S.td, color: w.unrealized_pnl >= 0 ? color.green : color.red, fontVariantNumeric: "tabular-nums" }}>{formatUsd(w.unrealized_pnl)}</td>
                       <td style={S.td}>{w.win_rate != null ? formatPct(w.win_rate) : "n/a"}</td>
                       <td style={S.td}>{w.position_count}</td>
-                      <td style={{ ...S.td, color: (w.liq_buffer_pct ?? 1) < 0.15 ? color.red : "rgba(255,255,255,0.69)" }}>
+                      <td style={{ ...S.td, color: (w.liq_buffer_pct ?? 1) < 0.15 ? color.red : color.text }}>
                         {w.liq_buffer_pct != null ? formatPct(w.liq_buffer_pct) : "n/a"}
                       </td>
                     </tr>

@@ -16,9 +16,15 @@ npm run test:watch   # Vitest in watch mode
 npx vitest run lib/__tests__/cohort-engine.test.ts
 
 # Scripts (require env vars)
-npx tsx scripts/daily-wallet-scan.ts        # Full 1200-wallet cohort scan (GitHub Actions runs this)
-npx tsx scripts/validate-scoring-weights.ts # Correlate wallet scores vs EV scores over 30 days
+npx tsx scripts/daily-wallet-scan.ts          # Full 1200-wallet cohort scan (GitHub Actions runs this)
+npx tsx scripts/validate-scoring-weights.ts   # Correlate wallet scores vs EV scores over 30 days
+npx tsx scripts/signal-learning.ts            # Update signal_outcomes stats (GitHub Actions runs this daily)
+npx tsx scripts/bootstrap-hypurrscan-index.ts # Seed Hypurrscan address-name index
 ```
+
+## Sprint Workflow
+
+Work is organized in sprints tracked in [docs/sprints/status.md](docs/sprints/status.md). **Read that file at the start of any session** to know the active sprint, what's complete, and what's next. Sprint specs live in [docs/superpowers/specs/](docs/superpowers/specs/), plans in [docs/superpowers/plans/](docs/superpowers/plans/).
 
 ## Architecture
 
@@ -67,6 +73,7 @@ Browser (React)
 | `/wallets/inposition` | Wallets with open positions right now |
 | `/signals/feed` | Live signal event feed |
 | `/signals/divergence` | Contrarian/divergence signals |
+| `/signals/radar` | Market Radar — per-token cohort positioning view (Sprint 4) |
 | `/signals/performance` | Signal recipe performance analytics — 24h directional accuracy ranked |
 
 Old routes (`/scanner`, `/stalker`, `/contrarian`, `/imbalance`, `/recipes`, `/edge`, `/performance`) redirect to their current equivalents.
@@ -77,7 +84,7 @@ Old routes (`/scanner`, `/stalker`, `/contrarian`, `/imbalance`, `/recipes`, `/e
 - `cohort-state` — Client polls this; reads KV, fires background refresh if stale >5 min
 - `contrarian` — Powers the Divergence tab; reads KV, fires background refresh if stale
 - `market-ticker` — Live price/change data for the ticker strip
-- `wallet-profile`, `scanner-stats`, `recipe-performance`, `top-markets`, `deep-dive`
+- `wallet-profile`, `scanner-stats`, `recipe-performance`, `top-markets`, `deep-dive`, `signals-feed`, `market-radar`, `measure-outcomes`
 
 ### Server-Side Data Fetching
 
@@ -93,6 +100,10 @@ The `after()` Next.js API is used for fire-and-forget background work (e.g., tri
 | 002 | Wallet metrics |
 | 003 | Equity tiers |
 | 004 | Backtest daily PnLs |
+| 005 | Entity type column on wallets |
+| 006 | Signal intelligence tables |
+| 007 | Signal outcomes (drives the daily learning loop) |
+| 008 | Recipe calibration |
 
 ### Key Data Separation
 
@@ -127,7 +138,7 @@ Both support `workflow_dispatch` for manual runs.
 
 ### Tests
 
-Tests live in `lib/__tests__/*.test.ts`. The setup file (`lib/__tests__/setup.ts`) injects placeholder env vars — no real Supabase or KV credentials needed. Coverage exists for: `cohort-engine`, `utils`, `recipe-config`, `signal-learning`, `outcome-helpers`, `token-tiers`. API routes and React components are not unit-tested.
+Tests live in `lib/__tests__/*.test.ts`. The setup file (`lib/__tests__/setup.ts`) injects placeholder env vars — no real Supabase or KV credentials needed. Coverage exists for: `cohort-engine`, `utils`, `recipe-config`, `signal-learning`, `outcome-helpers`, `token-tiers`, `radar-utils`, `hypurrscan-api-client`, `hypurrscan-enrichment`. API routes and React components are not unit-tested.
 
 Mocking pattern uses `vi.mock()` for `@vercel/kv`, `@supabase/supabase-js`, and `@/lib/env`.
 

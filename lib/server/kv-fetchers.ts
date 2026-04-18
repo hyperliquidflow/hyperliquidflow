@@ -7,6 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from "@/lib/env";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 import type { MarketTickerEntry } from "@/app/api/market-ticker/route";
+import type { RadarResponse } from "@/lib/radar-utils";
 import { fetchGlobalAliases as hsGlobalAliases, type HsGlobalAliases } from "@/lib/hypurrscan-api-client";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -34,6 +35,29 @@ export async function fetchMarketTicker(): Promise<MarketTickerEntry[] | null> {
 export async function fetchContrarianState(): Promise<unknown> {
   try {
     return parse<unknown>(await kv.get("contrarian:latest"));
+  } catch { return null; }
+}
+
+/**
+ * Read a cached market-radar response from KV (no compute).
+ * Returns null on miss; the client then fetches fresh via the API route.
+ */
+export async function fetchMarketRadar(
+  asset: string,
+  tier: string,
+): Promise<RadarResponse | null> {
+  try {
+    return parse<RadarResponse>(await kv.get(`market-radar:${asset}:${tier}`));
+  } catch { return null; }
+}
+
+/**
+ * Read the cached top-assets list. Used by the radar page to pick a default
+ * asset for first-paint prefetch. Returns null on miss.
+ */
+export async function fetchRadarTopAssets(): Promise<string[] | null> {
+  try {
+    return parse<string[]>(await kv.get("market-radar:top-assets"));
   } catch { return null; }
 }
 

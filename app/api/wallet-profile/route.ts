@@ -3,6 +3,7 @@
 // Fetches live state + 30d fills and computes verdict.
 
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import {
   fetchClearinghouseState,
   fetchUserFillsByTime,
@@ -11,6 +12,9 @@ import {
 import { computeBacktest } from "@/lib/cohort-engine";
 import { isValidAddress } from "@/lib/utils";
 import { color } from "@/lib/design-tokens";
+import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from "@/lib/env";
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const address = req.nextUrl.searchParams.get("address") ?? "";
@@ -51,6 +55,26 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     const closing = closingFills(fills);
 
+    // Load stored behavior profile from daily scan (non-fatal if missing)
+    let stored_profile: Record<string, unknown> | null = null;
+    try {
+      const { data: walletRow } = await supabase
+        .from("wallets")
+        .select("id")
+        .eq("address", address.toLowerCase())
+        .maybeSingle();
+      if (walletRow?.id) {
+        const { data: wp } = await supabase
+          .from("wallet_profiles")
+          .select("trading_style, pnl_consistency, bull_daily_pnl, bear_daily_pnl, ranging_daily_pnl, regime_edge, current_coins, regime_day_counts, computed_at")
+          .eq("wallet_id", walletRow.id)
+          .maybeSingle();
+        stored_profile = wp ?? null;
+      }
+    } catch {
+      // Non-fatal
+    }
+
     return NextResponse.json({
       address,
       state: state.marginSummary,
@@ -71,6 +95,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       },
       verdict,
       verdict_color,
+      stored_profile,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

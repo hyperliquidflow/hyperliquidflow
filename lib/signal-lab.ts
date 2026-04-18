@@ -14,6 +14,7 @@ import type { HlL2Book, HlCandle, HlAssetCtx } from "@/lib/hyperliquid-api-clien
 import { getRecipeConfig } from "@/lib/recipe-config";
 import { buildOutcomeRows } from "@/lib/outcome-helpers";
 import { tieredNotional } from "@/lib/token-tiers";
+import { computeWalletRegimeFit } from "@/lib/signal-validation";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -1045,6 +1046,8 @@ export interface SignalLabInputs {
   recipeWinRates:      Map<string, number>;
   recipeSignalCounts:  Map<string, number>;
   regime:              "BULL" | "BEAR" | "RANGING";
+  /** Per-wallet regime profile from wallet_profiles. Optional -- absent = no regime fit annotation. */
+  walletProfileMap?:   Map<string, { bull_daily_pnl: number | null; bear_daily_pnl: number | null; ranging_daily_pnl: number | null }>;
 }
 
 /**
@@ -1057,6 +1060,7 @@ export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalEvent
   const {
     pairs, candles5m, candles4h, assetCtxMap, allMids, priorAllMids,
     backtestMap, l2Books, recipeWinRates, recipeSignalCounts, regime,
+    walletProfileMap,
   } = inputs;
 
   // Run recipes 1-7, 10-13 in parallel (all async now); R8 depends on their output
@@ -1092,6 +1096,22 @@ export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalEvent
 
   // Enrich with EV scores
   const enriched = enrichWithEv(allEvents, backtestMap, l2Books);
+
+  // Annotate each signal with wallet regime fit (how well this wallet performs in current regime)
+  if (walletProfileMap) {
+    for (const event of enriched) {
+      const profile = walletProfileMap.get(event.wallet_id);
+      const fit = profile
+        ? computeWalletRegimeFit(
+            profile.bull_daily_pnl,
+            profile.bear_daily_pnl,
+            profile.ranging_daily_pnl,
+            regime,
+          )
+        : null;
+      event.metadata = { ...event.metadata, wallet_regime_fit: fit };
+    }
+  }
 
   // Compute intraday recipe performance from recent signals_history (last 6h)
   const sixHoursAgo = new Date(Date.now() - 6 * 3600 * 1000).toISOString();

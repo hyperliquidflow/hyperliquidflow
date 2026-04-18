@@ -262,31 +262,63 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
         win_rate:       bt?.win_rate ?? null,
         liq_buffer_pct: computeLiqBuffer(state),
         equity_tier:    getEquityTier(parseFloat(state.marginSummary.accountValue)),
+        trading_style:  null,
       });
     }
 
-    // ── Step 8: Fetch L2 books + candles for top coins ────────────────────────
-    // Top 10 by total cohort notional: covers both L2 book (EV) and candle recipes.
+    // ── Step 8: Fetch L2 books + candles + wallet profiles in parallel ────────
+    // Wallet profiles are fetched here (before signal lab) so regime fit can be
+    // annotated on each signal at fire time. The same profileMap is reused in
+    // Step 10b for trading_style enrichment -- no second query needed.
     const topCoins = getTopCoins(pairs, 10);
     const l2Books    = new Map<string, Awaited<ReturnType<typeof fetchL2Book>>>();
     const candles4h  = new Map<string, Awaited<ReturnType<typeof fetchCandleSnapshot>>>();
 
     const fourHoursAgo = Date.now() - 4 * 60 * 60 * 1000;
-    await Promise.allSettled(
-      topCoins.map(async (coin) => {
-        const [book, candles] = await Promise.all([
-          fetchL2Book(coin),
-          fetchCandleSnapshot(coin, "5m", fourHoursAgo, Date.now()),
-        ]);
-        l2Books.set(coin, book);
-        candles4h.set(coin, candles);
-        cycleWeight += 4; // 2 per call
-      })
-    );
+    const batchIds = cohortSummary.map((w) => w.wallet_id);
+
+    const [, profileRowsRaw] = await Promise.all([
+      Promise.allSettled(
+        topCoins.map(async (coin) => {
+          const [book, candles] = await Promise.all([
+            fetchL2Book(coin),
+            fetchCandleSnapshot(coin, "5m", fourHoursAgo, Date.now()),
+          ]);
+          l2Books.set(coin, book);
+          candles4h.set(coin, candles);
+          cycleWeight += 4; // 2 per call
+        })
+      ),
+      supabase
+        .from("wallet_profiles")
+        .select("wallet_id, trading_style, bull_daily_pnl, bear_daily_pnl, ranging_daily_pnl")
+        .in("wallet_id", batchIds)
+        .then((r) => r.data),
+    ]);
 
     // candles5m reuses the same 5m series fetched above.
     // Recipe 2 uses it for price-flatness detection (first vs last close).
     const candles5m = candles4h;
+
+    type ProfileRow = {
+      wallet_id:        string;
+      trading_style:    string | null;
+      bull_daily_pnl:   number | null;
+      bear_daily_pnl:   number | null;
+      ranging_daily_pnl: number | null;
+    };
+    const profileRows = (profileRowsRaw ?? []) as ProfileRow[];
+    const walletProfileMap = new Map(
+      profileRows.map((p) => [
+        p.wallet_id,
+        {
+          trading_style:     p.trading_style,
+          bull_daily_pnl:    p.bull_daily_pnl,
+          bear_daily_pnl:    p.bear_daily_pnl,
+          ranging_daily_pnl: p.ranging_daily_pnl,
+        },
+      ])
+    );
 
     // ── Step 9: Run all 9 signal recipes ──────────────────────────────────────
     const { data: recipePerf } = await supabase
@@ -316,24 +348,55 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       l2Books,
       recipeWinRates,
       recipeSignalCounts,
-      regime: regimeResult.regime,
+      regime:           regimeResult.regime,
+      walletProfileMap,
     });
 
-    // ── Step 10: Fetch recent signals to include in KV payload ────────────────
-    // Need 24h of signals for the heatmap activity bar — 500 is a safe upper bound
+    // ── Step 10: Fetch recent signals + all-cohort positions in parallel ────────
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { data: recentSignals } = await supabase
-      .from("signals_history")
-      .select("recipe_id, coin, signal_type, direction, detected_at, ev_score, metadata, wallet_id")
-      .gte("detected_at", since24h)
-      .order("detected_at", { ascending: false })
-      .limit(500);
+    const allActiveIds = allActive.map((w) => w.id);
+    const [{ data: recentSignals }, { data: snapRows }] = await Promise.all([
+      supabase
+        .from("signals_history")
+        .select("recipe_id, coin, signal_type, direction, detected_at, ev_score, metadata, wallet_id")
+        .gte("detected_at", since24h)
+        .order("detected_at", { ascending: false })
+        .limit(500),
+      // Latest snapshot per active wallet — used for accurate full-cohort spotlight
+      supabase
+        .from("cohort_snapshots")
+        .select("wallet_id, unrealized_pnl, account_value, position_count, overall_score, liq_buffer_pct, snapshot_time")
+        .in("wallet_id", allActiveIds)
+        .gt("position_count", 0)
+        .order("snapshot_time", { ascending: false })
+        .limit(allActiveIds.length * 2),
+    ]);
+
+    // ── Step 10b: Enrich cohortSummary with trading styles ───────────────────
+    // walletProfileMap was fetched in Step 8 (before signal lab) -- no second query.
+    for (const w of cohortSummary) {
+      w.trading_style = walletProfileMap.get(w.wallet_id)?.trading_style ?? null;
+    }
 
     // ── Step 11: Write cohort payload to Vercel KV ────────────────────────────
     // Build a UUID → address map from the full active cohort (not cycle slice)
     const walletAddressMap = new Map<string, string>(
       allActive.map((w) => [w.id, w.address] as [string, string])
     );
+
+    // Deduplicate snapRows (keep latest per wallet) and build spotlight list
+    const seenSpotlight = new Set<string>();
+    const spotlightPositions: SpotlightWallet[] = (snapRows ?? [])
+      .filter((r) => { if (seenSpotlight.has(r.wallet_id)) return false; seenSpotlight.add(r.wallet_id); return true; })
+      .map((r) => ({
+        wallet_id:      r.wallet_id,
+        address:        walletAddressMap.get(r.wallet_id) ?? "",
+        unrealized_pnl: Number(r.unrealized_pnl),
+        account_value:  Number(r.account_value),
+        position_count: r.position_count as number,
+        overall_score:  Number(r.overall_score ?? 0),
+        liq_buffer_pct: r.liq_buffer_pct != null ? Number(r.liq_buffer_pct) : null,
+      }));
 
     const payload: CohortCachePayload = {
       updated_at:           new Date().toISOString(),
@@ -345,6 +408,7 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       top_wallets:   cohortSummary
         .sort((a, b) => b.overall_score - a.overall_score)
         .slice(0, 200),
+      spotlight_positions: spotlightPositions,
       recent_signals: (recentSignals ?? []).map((s) => ({
         recipe_id:      s.recipe_id,
         coin:           s.coin,
@@ -555,6 +619,16 @@ function getTopCoins(pairs: SnapshotPair[], limit: number): string[] {
 // KV Payload type (shared with cohort-state route)
 // ─────────────────────────────────────────────────────────────────────────────
 
+export interface SpotlightWallet {
+  wallet_id:      string;
+  address:        string;
+  unrealized_pnl: number;
+  account_value:  number;
+  position_count: number;
+  overall_score:  number;
+  liq_buffer_pct: number | null;
+}
+
 interface CohortWalletSummary {
   wallet_id:      string;
   address:        string;
@@ -566,6 +640,7 @@ interface CohortWalletSummary {
   win_rate:       number | null;
   liq_buffer_pct: number | null;
   equity_tier:    string | null;
+  trading_style:  string | null;
 }
 
 export interface CohortCachePayload {
@@ -595,4 +670,7 @@ export interface CohortCachePayload {
   }>;
   // Populated from the previous cron cycle's hygiene run (null on first run).
   hygiene_breakdown: HygieneBreakdown | null;
+  // All active wallets with open positions, from the latest snapshot per wallet.
+  // Always reflects the full cohort (not just the current batch slice).
+  spotlight_positions?: SpotlightWallet[];
 }

@@ -35,6 +35,7 @@ const NAV: NavEntry[] = [
     children: [
       { href: "/signals/feed",        label: "Feed"        },
       { href: "/signals/divergence",  label: "Divergence"  },
+      { href: "/signals/radar",       label: "Radar"       },
       { href: "/signals/performance",  label: "Performance" },
     ],
   },
