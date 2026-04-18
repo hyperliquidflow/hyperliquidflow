@@ -36,8 +36,13 @@ import {
   runBridgeInflowEnrichment,
   runTwapEnrichment,
 } from "@/lib/hypurrscan-enrichment";
+import { applyHygieneGates, type HygieneBreakdown } from "@/lib/cohort-hygiene";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+// Persists the breakdown from the last hygiene run so it can be included in the
+// KV payload on the *next* cycle (hygiene fires after the response, in after()).
+let lastHygieneBreakdown: HygieneBreakdown | null = null;
 
 /** Maximum active wallets processed per cron invocation. */
 const MAX_WALLETS_PER_CYCLE = 100;
@@ -129,6 +134,47 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
     ]);
     const prevBtcMid = priorBtcMid ?? currentBtcMid * 0.99;
     const regimeResult = detectRegime(currentBtcMid, prevBtcMid);
+
+    // 7-day daily regime history for the Market Vibes card.
+    // Fetch BTC daily candles (weight 20) and classify each day's return with the
+    // same BULL/BEAR/RANGING thresholds as detectRegime.
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const btcDailyCandles = await fetchCandleSnapshot(
+      "BTC",
+      "1d",
+      Date.now() - 9 * DAY_MS,
+      Date.now()
+    ).catch((e) => {
+      console.warn("[refresh-cohort] BTC 1d candle fetch failed:", e);
+      return [] as Awaited<ReturnType<typeof fetchCandleSnapshot>>;
+    });
+    cycleWeight += 20;
+    const classifyRet = (r: number): "BULL" | "BEAR" | "RANGING" =>
+      r > 0.01 ? "BULL" : r < -0.01 ? "BEAR" : "RANGING";
+    const regimeHistory: CohortCachePayload["regime_history"] = [];
+    const nowUtc = new Date();
+    for (let i = 6; i >= 1; i--) {
+      const dayStart = Date.UTC(
+        nowUtc.getUTCFullYear(), nowUtc.getUTCMonth(), nowUtc.getUTCDate() - i
+      );
+      const curr = btcDailyCandles.find((c) => c.t >= dayStart && c.t < dayStart + DAY_MS);
+      const prev = btcDailyCandles.find((c) => c.t >= dayStart - DAY_MS && c.t < dayStart);
+      let ret = 0;
+      if (curr && prev) {
+        const pc = parseFloat(prev.c);
+        if (pc > 0) ret = (parseFloat(curr.c) - pc) / pc;
+      }
+      regimeHistory.push({
+        date: new Date(dayStart).toISOString().slice(0, 10),
+        regime: classifyRet(ret),
+        btc_return: ret,
+      });
+    }
+    regimeHistory.push({
+      date: new Date().toISOString().slice(0, 10),
+      regime: regimeResult.regime,
+      btc_return: regimeResult.btc_return_24h,
+    });
 
     // ── Step 5: Load previous snapshots from Supabase ────────────────────────
     const walletIds = wallets.map((w) => w.id);
@@ -295,6 +341,7 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       total_active_wallets: allActive.length,
       regime:               regimeResult.regime,
       btc_return_24h: regimeResult.btc_return_24h,
+      regime_history: regimeHistory,
       top_wallets:   cohortSummary
         .sort((a, b) => b.overall_score - a.overall_score)
         .slice(0, 200),
@@ -309,6 +356,7 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
         wallet_address: s.wallet_id ? (walletAddressMap.get(s.wallet_id) ?? null) : null,
         metadata:       s.metadata,
       })),
+      hygiene_breakdown: lastHygieneBreakdown,
     };
 
     await Promise.all([
@@ -340,14 +388,22 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       })
     );
 
-    // Run background tasks after response: prune + enrichment + intraday recipe perf
+    // Run background tasks after response: hygiene + prune + enrichment + intraday recipe perf
     after(
       Promise.all([
+        applyHygieneGates(allActive.map((w) => w.id))
+          .then((result) => {
+            lastHygieneBreakdown = result.breakdown;
+            console.log(
+              `[hygiene] deactivated ${result.breakdown.total_deactivated_this_cycle}` +
+              ` low_equity: ${result.breakdown.low_equity},` +
+              ` liq_imminent: ${result.breakdown.liq_imminent},` +
+              ` drawdown_7d: ${result.breakdown.drawdown_7d}`
+            );
+          })
+          .catch((err) => console.error("[hygiene] error:", err)),
         pruneUnderperformers().catch((err) =>
           console.error("[refresh-cohort] pruneUnderperformers error:", err)
-        ),
-        deactivateDustWallets(cohortSummary).catch((err) =>
-          console.error("[refresh-cohort] deactivateDustWallets error:", err)
         ),
         runBridgeInflowEnrichment(wallets.map((w) => ({ id: w.id, address: w.address }))).catch((err) =>
           console.error("[refresh-cohort] bridgeInflowEnrichment error:", err)
@@ -444,28 +500,6 @@ async function updateIntradayRecipePerformance(): Promise<void> {
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Deactivate wallets whose live account equity is below $1K (Dust tier). */
-async function deactivateDustWallets(
-  summary: CohortWalletSummary[]
-): Promise<void> {
-  const DUST_THRESHOLD = 1_000;
-  const dustIds = summary
-    .filter((w) => w.account_value < DUST_THRESHOLD)
-    .map((w) => w.wallet_id);
-
-  if (dustIds.length === 0) return;
-
-  const { error } = await supabase
-    .from("wallets")
-    .update({ is_active: false })
-    .in("id", dustIds);
-
-  if (error) {
-    console.error("[refresh-cohort] deactivateDustWallets error:", error.message);
-  } else {
-    console.log(`[refresh-cohort] deactivated ${dustIds.length} dust wallets (equity < $${DUST_THRESHOLD})`);
-  }
-}
 
 function computeLiqBuffer(state: HlClearinghouseState): number | null {
   const av = parseFloat(state.marginSummary.accountValue);
@@ -541,6 +575,12 @@ export interface CohortCachePayload {
   total_active_wallets:  number;
   regime:                "BULL" | "BEAR" | "RANGING";
   btc_return_24h:        number;
+  // 7 entries, oldest first. Last entry is today (uses live regime).
+  regime_history:        Array<{
+    date:       string;  // YYYY-MM-DD (UTC)
+    regime:     "BULL" | "BEAR" | "RANGING";
+    btc_return: number;
+  }>;
   top_wallets:           CohortWalletSummary[];
   recent_signals: Array<{
     recipe_id:      string;
@@ -553,4 +593,6 @@ export interface CohortCachePayload {
     wallet_address: string | null;   // on-chain 0x address; null for cohort-level signals
     metadata:       Record<string, unknown>;
   }>;
+  // Populated from the previous cron cycle's hygiene run (null on first run).
+  hygiene_breakdown: HygieneBreakdown | null;
 }

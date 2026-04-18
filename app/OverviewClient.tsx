@@ -48,35 +48,23 @@ function buildHeatmap(signals: Signal[]) {
   }));
 }
 
-function buildRegimeHistory(signals: Signal[], currentRegime: "BULL" | "BEAR" | "RANGING") {
+function buildRegimeHistory(
+  history: CohortCachePayload["regime_history"] | undefined,
+  currentRegime: "BULL" | "BEAR" | "RANGING",
+) {
   const now = new Date();
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(now);
     d.setDate(now.getDate() - (6 - i));
-    d.setHours(0, 0, 0, 0);
-    const dEnd = new Date(d);
-    dEnd.setHours(23, 59, 59, 999);
     const isToday = i === 6;
     const label = isToday
       ? "Today"
       : d.toLocaleDateString("en-US", { weekday: "short" });
 
-    let regime: "BULL" | "BEAR" | "RANGING";
-    if (isToday) {
-      regime = currentRegime;
-    } else {
-      const daySignals = signals.filter(s => {
-        const t = new Date(s.detected_at).getTime();
-        return t >= d.getTime() && t <= dEnd.getTime();
-      });
-      if (daySignals.length === 0) {
-        regime = "RANGING";
-      } else {
-        const ln = daySignals.filter(s => s.direction === "LONG").length;
-        const sn = daySignals.filter(s => s.direction === "SHORT").length;
-        regime = ln > sn * 1.3 ? "BULL" : sn > ln * 1.3 ? "BEAR" : "RANGING";
-      }
-    }
+    const entry = history?.[i];
+    const regime: "BULL" | "BEAR" | "RANGING" = isToday
+      ? currentRegime
+      : entry?.regime ?? "RANGING";
     return { label, regime, isToday };
   });
 }
@@ -215,7 +203,7 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
   const avgScore     = data.top_wallets.length > 0
     ? data.top_wallets.reduce((s, w) => s + w.overall_score, 0) / data.top_wallets.length : 0;
   const heatmap      = buildHeatmap(data.recent_signals);
-  const regimeHist   = buildRegimeHistory(data.recent_signals, regime);
+  const regimeHist   = buildRegimeHistory(data.regime_history, regime);
   const coinExposure = buildCoinExposure(data.recent_signals);
   const topMovers    = buildTopMovers(data.recent_signals);
 

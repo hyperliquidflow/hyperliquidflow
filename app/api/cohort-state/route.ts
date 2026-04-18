@@ -120,6 +120,7 @@ export async function GET(): Promise<NextResponse> {
       total_active_wallets: totalActiveCount ?? wallets?.length ?? 0,
       regime:               "RANGING",
       btc_return_24h:       0,
+      regime_history:       [],
       top_wallets:   (wallets ?? []).map((w) => {
         const snap = latestByWallet.get(w.id) as Record<string, number | null> | undefined;
         return {
@@ -146,6 +147,7 @@ export async function GET(): Promise<NextResponse> {
         wallet_address: s.wallet_id ? (walletAddressMap.get(s.wallet_id) ?? null) : null,
         metadata:       s.metadata,
       })),
+      hygiene_breakdown: null,
     };
 
     return NextResponse.json(fallbackPayload, {
