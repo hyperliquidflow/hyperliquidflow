@@ -15,6 +15,12 @@
 import { createClient } from "@supabase/supabase-js";
 import * as fs from "fs/promises";
 import { computeFeeRatio, findSybilClusters } from "../lib/wash-sybil";
+import {
+  classifyTradingStyle,
+  computeConsistency,
+  computeRegimeStats,
+  extractTopCoins,
+} from "../lib/wallet-profile";
 
 // -- Environment validation ----------------------------------------------------
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -56,6 +62,10 @@ const MIN_HISTORY_VOLUME_RATIO     = 0.95;   // monthVlm/allTimeVlm <= this => >
 const MAX_FEE_RATIO                = 0.60;   // fees / |gross_pnl| > 0.60 = fee economics of wash, not alpha
 const SYBIL_CORRELATION_THRESHOLD  = 0.95;   // Pearson r > 0.95 on 60d daily PnL = same operator
 const MIN_NONZERO_DAYS_FOR_SYBIL   = 30;     // min active trading days before sybil correlation is trusted
+const SCALPER_THRESHOLD            = 300;    // >300 trades/60d = 5+/day
+const TREND_THRESHOLD              = 60;     // <60 trades/60d = <1/day
+const MIN_REGIME_DAYS              = 5;      // min days in a regime to compute a meaningful average
+const MAX_PROFILE_COINS            = 5;      // top N coins by notional from latest snapshot
 
 // -- Leaderboard pre-filter ----------------------------------------------------
 // Applied to leaderboard data before any fills API calls. Collapses 33k wallets
@@ -704,6 +714,124 @@ async function detectSybilClusters(
   return { clustersFound: clusters.size, walletsDeactivated };
 }
 
+// -- Wallet behavior profiles --------------------------------------------------
+
+interface HlCandle {
+  t: number; T: number; s: string; i: string;
+  o: string; c: string; h: string; l: string; v: string; n: number;
+}
+
+async function computeWalletProfiles(): Promise<{ computed: number; skipped: number }> {
+  let computed = 0;
+  let skipped  = 0;
+
+  // Fetch 60 BTC 1d candles aligned to the same window origin as buildDailyPnls
+  const windowStart = Date.now() - SCORING_WINDOW_DAYS * 86400 * 1000;
+  let btcCandles: HlCandle[] = [];
+  try {
+    btcCandles = await hlPost<HlCandle[]>({
+      type: "candleSnapshot",
+      req: { coin: "BTC", interval: "1d", startTime: windowStart, endTime: Date.now() },
+    });
+  } catch (err) {
+    console.warn("[profiles] BTC candle fetch failed, skipping profile run:", err);
+    return { computed, skipped };
+  }
+
+  // Build parallel regime label array aligned with daily_pnls index
+  const regimeLabels: string[] = btcCandles.map((c) => {
+    const ret = (parseFloat(c.c) - parseFloat(c.o)) / parseFloat(c.o);
+    if (ret > 0.01)  return "BULL";
+    if (ret < -0.01) return "BEAR";
+    return "RANGING";
+  });
+
+  // Fetch all active wallets
+  const { data: activeWallets, error: walletErr } = await supabase
+    .from("wallets")
+    .select("id")
+    .eq("is_active", true);
+  if (walletErr || !activeWallets?.length) {
+    console.warn("[profiles] could not fetch active wallets:", walletErr?.message);
+    return { computed, skipped };
+  }
+  const activeWalletIds = activeWallets.map((w) => w.id);
+
+  // Fetch user_pnl_backtest rows for all active wallets
+  const { data: backtestRows } = await supabase
+    .from("user_pnl_backtest")
+    .select("wallet_id, total_trades, daily_pnls")
+    .in("wallet_id", activeWalletIds);
+  const backtestMap = new Map(
+    (backtestRows ?? []).map((r) => [r.wallet_id, r])
+  );
+
+  // Fetch cohort_snapshots -- dedup to latest per wallet in JS
+  const { data: snapshotRows } = await supabase
+    .from("cohort_snapshots")
+    .select("wallet_id, positions, created_at")
+    .in("wallet_id", activeWalletIds);
+  const latestSnapshot = new Map<string, { positions: unknown[]; created_at: string }>();
+  for (const row of snapshotRows ?? []) {
+    const existing = latestSnapshot.get(row.wallet_id);
+    if (!existing || row.created_at > existing.created_at) {
+      latestSnapshot.set(row.wallet_id, { positions: row.positions ?? [], created_at: row.created_at });
+    }
+  }
+
+  // Compute profile per wallet
+  type ProfileRow = {
+    wallet_id:         string;
+    computed_at:       string;
+    trading_style:     string;
+    pnl_consistency:   number;
+    bull_daily_pnl:    number | null;
+    bear_daily_pnl:    number | null;
+    ranging_daily_pnl: number | null;
+    regime_edge:       number | null;
+    current_coins:     string[];
+    regime_day_counts: { BULL: number; BEAR: number; RANGING: number };
+  };
+  const batch: ProfileRow[] = [];
+
+  for (const walletId of activeWalletIds) {
+    const bt = backtestMap.get(walletId);
+    if (!bt) { skipped++; continue; }
+
+    const trading_style   = classifyTradingStyle(bt.total_trades);
+    const pnl_consistency = computeConsistency(bt.daily_pnls ?? []);
+    const regimeStats     = computeRegimeStats(bt.daily_pnls ?? [], regimeLabels, MIN_REGIME_DAYS);
+
+    const snap          = latestSnapshot.get(walletId);
+    const current_coins = snap ? extractTopCoins(snap.positions, MAX_PROFILE_COINS) : [];
+
+    batch.push({
+      wallet_id:         walletId,
+      computed_at:       new Date().toISOString(),
+      trading_style,
+      pnl_consistency,
+      bull_daily_pnl:    regimeStats.bull_daily_pnl,
+      bear_daily_pnl:    regimeStats.bear_daily_pnl,
+      ranging_daily_pnl: regimeStats.ranging_daily_pnl,
+      regime_edge:       regimeStats.regime_edge,
+      current_coins,
+      regime_day_counts: regimeStats.regime_day_counts,
+    });
+    computed++;
+  }
+
+  if (batch.length > 0) {
+    const { error: upsertErr } = await supabase
+      .from("wallet_profiles")
+      .upsert(batch, { onConflict: "wallet_id" });
+    if (upsertErr) {
+      console.warn("[profiles] upsert error:", upsertErr.message);
+    }
+  }
+
+  return { computed, skipped };
+}
+
 // -- Wallet outcome resolution -------------------------------------------------
 
 async function resolveWalletOutcomes(): Promise<void> {
@@ -798,6 +926,8 @@ async function main(): Promise<void> {
     } as Record<string, number>,
     sybil_clusters_found:      0,
     sybil_wallets_deactivated: 0,
+    profiles_computed:         0,
+    profiles_skipped:          0,
   };
 
   // Phase 0: Pre-fetch Hypurrscan aliases — used both for pre-filter and end-of-scan enrichment
@@ -1030,6 +1160,13 @@ async function main(): Promise<void> {
     summary.sybil_wallets_deactivated = sybilResult.walletsDeactivated;
     console.log(`[sybil] clusters: ${sybilResult.clustersFound}, deactivated: ${sybilResult.walletsDeactivated}`);
   }
+
+  // ── Phase 8: Per-wallet behavior profiles ─────────────────────────────────
+  console.log("\n[Phase 8] Computing wallet behavior profiles...");
+  const profileResult = await computeWalletProfiles();
+  summary.profiles_computed = profileResult.computed;
+  summary.profiles_skipped  = profileResult.skipped;
+  console.log(`[profiles] computed: ${profileResult.computed}, skipped: ${profileResult.skipped}`);
 
   summary.duration_ms = Date.now() - startMs;
 
