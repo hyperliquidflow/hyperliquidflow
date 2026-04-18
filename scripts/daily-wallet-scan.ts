@@ -14,6 +14,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import * as fs from "fs/promises";
+import { computeFeeRatio, findSybilClusters } from "../lib/wash-sybil";
 
 // -- Environment validation ----------------------------------------------------
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -52,6 +53,9 @@ const MIN_PROFIT_FACTOR            = 1.3;    // gross wins / gross losses -- exc
 const MAX_DRAWDOWN_FOR_ACTIVATION  = 0.40;   // reject wallets with >40% 30d drawdown
 const MAX_TRADES_30D               = 1000;   // scaled to 60d window (>1000 = ~17 trades/day = wash/farm)
 const MIN_HISTORY_VOLUME_RATIO     = 0.95;   // monthVlm/allTimeVlm <= this => >=5% volume predates this month
+const MAX_FEE_RATIO                = 0.60;   // fees / |gross_pnl| > 0.60 = fee economics of wash, not alpha
+const SYBIL_CORRELATION_THRESHOLD  = 0.95;   // Pearson r > 0.95 on 60d daily PnL = same operator
+const MIN_NONZERO_DAYS_FOR_SYBIL   = 30;     // min active trading days before sybil correlation is trusted
 
 // -- Leaderboard pre-filter ----------------------------------------------------
 // Applied to leaderboard data before any fills API calls. Collapses 33k wallets
@@ -379,6 +383,7 @@ interface ScoringResult {
   current_win_streak:     number;
   current_loss_streak:    number;
   max_win_streak:         number;
+  wash_score:             number | null;
   error?: string;
 }
 
@@ -466,6 +471,14 @@ async function scoreWallet(
     (leaderboardEntry.monthVlm / leaderboardEntry.allTimeVlm) > MIN_HISTORY_VOLUME_RATIO
   )                                                        rejection_reason = "suspiciously_fresh";
 
+  // Wash detection: compute fee_ratio for all wallets that passed prior gates.
+  // Store regardless of outcome so the distribution is tunable post-scan.
+  let wash_score: number | null = null;
+  if (rejection_reason === null) {
+    wash_score = computeFeeRatio(total_fees_30d, realized_pnl_30d_gross);
+    if (wash_score > MAX_FEE_RATIO) rejection_reason = "wash_detected";
+  }
+
   const qualifies = rejection_reason === null;
 
   return {
@@ -486,6 +499,7 @@ async function scoreWallet(
     current_win_streak:  curWin,
     current_loss_streak: curLoss,
     max_win_streak:      maxWin,
+    wash_score,
   };
 }
 
@@ -529,6 +543,7 @@ async function updateWalletMetrics(result: ScoringResult): Promise<void> {
       realized_pnl_30d: result.realized_pnl_30d,
       last_scanned_at:  new Date().toISOString(),
       is_active:        result.qualifies,
+      ...(result.wash_score !== null && { wash_score: result.wash_score }),
     })
     .eq("address", result.address);
 
@@ -626,6 +641,69 @@ async function computeAndSaveRecipePerformance(): Promise<void> {
   }
 }
 
+// -- Sybil cluster detection ---------------------------------------------------
+
+async function detectSybilClusters(
+  qualifiedWallets: Map<string, number>,  // walletId -> profit_factor
+): Promise<{ clustersFound: number; walletsDeactivated: number }> {
+  const walletIds = [...qualifiedWallets.keys()];
+
+  const { data: backtestRows, error } = await supabase
+    .from("user_pnl_backtest")
+    .select("wallet_id, daily_pnls")
+    .in("wallet_id", walletIds);
+
+  if (error) {
+    console.error("[sybil] backtest fetch error:", error.message);
+    return { clustersFound: 0, walletsDeactivated: 0 };
+  }
+
+  const seriesMap = new Map<string, number[]>();
+  for (const row of backtestRows ?? []) {
+    if (Array.isArray(row.daily_pnls)) {
+      seriesMap.set(row.wallet_id, row.daily_pnls as number[]);
+    }
+  }
+
+  const clusters = findSybilClusters(seriesMap, SYBIL_CORRELATION_THRESHOLD, MIN_NONZERO_DAYS_FOR_SYBIL);
+
+  if (clusters.size === 0) return { clustersFound: 0, walletsDeactivated: 0 };
+
+  let walletsDeactivated = 0;
+  const now = new Date().toISOString();
+
+  for (const [clusterId, members] of clusters) {
+    // Keep the wallet with the highest profit_factor; deactivate the rest
+    let primaryId = members[0];
+    let bestPf    = qualifiedWallets.get(primaryId) ?? 0;
+    for (const id of members) {
+      const pf = qualifiedWallets.get(id) ?? 0;
+      if (pf > bestPf) { bestPf = pf; primaryId = id; }
+    }
+
+    const duplicates = members.filter((id) => id !== primaryId);
+
+    // Label primary with cluster ID (stays active)
+    await supabase.from("wallets").update({ sybil_cluster_id: clusterId }).eq("id", primaryId);
+
+    // Deactivate duplicates
+    if (duplicates.length > 0) {
+      const { error: deactErr } = await supabase
+        .from("wallets")
+        .update({ is_active: false, deactivation_reason: "sybil_duplicate", deactivated_at: now, sybil_cluster_id: clusterId })
+        .in("id", duplicates);
+
+      if (deactErr) {
+        console.error(`[sybil] deactivate error for cluster ${clusterId}:`, deactErr.message);
+      } else {
+        walletsDeactivated += duplicates.length;
+      }
+    }
+  }
+
+  return { clustersFound: clusters.size, walletsDeactivated };
+}
+
 // -- Wallet outcome resolution -------------------------------------------------
 
 async function resolveWalletOutcomes(): Promise<void> {
@@ -716,7 +794,10 @@ async function main(): Promise<void> {
       negative_alltime:    0,
       suspiciously_fresh:  0,
       entity_excluded:     0,
+      wash_detected:       0,
     } as Record<string, number>,
+    sybil_clusters_found:      0,
+    sybil_wallets_deactivated: 0,
   };
 
   // Phase 0: Pre-fetch Hypurrscan aliases — used both for pre-filter and end-of-scan enrichment
@@ -808,6 +889,10 @@ async function main(): Promise<void> {
     }
   }
 
+  // Tracks wallets that qualify in this run for post-scan sybil analysis.
+  // Keyed by wallet DB ID -> profit_factor (used to pick cluster primary).
+  const qualifiedForSybil = new Map<string, number>();
+
   const scoringStart = Date.now();
   let completed = 0;
   let errors    = 0;
@@ -831,7 +916,12 @@ async function main(): Promise<void> {
           }
         }
 
-        if (result.qualifies) summary.activated++;
+        if (result.qualifies) {
+          summary.activated++;
+          // Track qualifying wallet IDs for post-scan sybil analysis
+          const walletId = addressToId.get(address);
+          if (walletId) qualifiedForSybil.set(walletId, result.profit_factor);
+        }
         if (result.win_rate > summary.top_win_rate) summary.top_win_rate = result.win_rate;
 
         return result;
@@ -872,21 +962,6 @@ async function main(): Promise<void> {
 
   // Compute and persist recipe performance metrics from the last 30 days of signals
   await computeAndSaveRecipePerformance();
-
-  summary.duration_ms = Date.now() - startMs;
-
-  const total_rejected = Object.values(summary.rejection_breakdown).reduce((a, b) => a + b, 0);
-  console.log("\n[cohort-quality] Activation results:");
-  console.log(`  activated:   ${summary.activated}`);
-  console.log(`  rejected:    ${total_rejected}`);
-  console.log(`  scan errors: ${summary.scan_errors}`);
-  console.log("[cohort-quality] Rejection breakdown:");
-  for (const [reason, count] of Object.entries(summary.rejection_breakdown)) {
-    if (count > 0) console.log(`    ${reason.padEnd(22)} ${count}`);
-  }
-
-  console.log("[scan] Complete:", JSON.stringify(summary, null, 2));
-  await fs.writeFile("scan-summary.json", JSON.stringify(summary, null, 2));
 
   // ── Phase 6: Identity enrichment using aliases pre-fetched in Phase 0 ─────
   console.log("\n[Phase 6] Enrichment pass using pre-fetched aliases...");
@@ -946,6 +1021,30 @@ async function main(): Promise<void> {
   }
 
   await resolveWalletOutcomes();
+
+  // ── Phase 7: Sybil detection ───────────────────────────────────────────────
+  if (qualifiedForSybil.size >= 2) {
+    console.log(`\n[sybil] Running cluster detection on ${qualifiedForSybil.size} qualified wallets...`);
+    const sybilResult = await detectSybilClusters(qualifiedForSybil);
+    summary.sybil_clusters_found      = sybilResult.clustersFound;
+    summary.sybil_wallets_deactivated = sybilResult.walletsDeactivated;
+    console.log(`[sybil] clusters: ${sybilResult.clustersFound}, deactivated: ${sybilResult.walletsDeactivated}`);
+  }
+
+  summary.duration_ms = Date.now() - startMs;
+
+  const total_rejected = Object.values(summary.rejection_breakdown).reduce((a, b) => a + b, 0);
+  console.log("\n[cohort-quality] Activation results:");
+  console.log(`  activated:   ${summary.activated}`);
+  console.log(`  rejected:    ${total_rejected}`);
+  console.log(`  scan errors: ${summary.scan_errors}`);
+  console.log("[cohort-quality] Rejection breakdown:");
+  for (const [reason, count] of Object.entries(summary.rejection_breakdown)) {
+    if (count > 0) console.log(`    ${reason.padEnd(22)} ${count}`);
+  }
+
+  console.log("[scan] Complete:", JSON.stringify(summary, null, 2));
+  await fs.writeFile("scan-summary.json", JSON.stringify(summary, null, 2));
 }
 
 main().catch((err) => {

@@ -36,7 +36,7 @@ Waterproof wallet selection system — 6 independent streams (A-F).
 |---|---|---|---|
 | A | Cohort Quality (activation gate) | COMPLETE (2026-04-18) | [spec](../superpowers/specs/2026-04-17-stream-a-cohort-quality.md) |
 | B | Realtime Hygiene (live blow-up deactivation) | PLAN READY | [spec](../superpowers/specs/2026-04-18-stream-b-realtime-hygiene.md) | [plan](../superpowers/plans/2026-04-18-stream-b-realtime-hygiene.md) |
-| C | Wash / Sybil Detection | PLANNED | pending |
+| C | Wash / Sybil Detection | PLAN READY | [spec](../superpowers/specs/2026-04-18-stream-c-wash-sybil.md) | [plan](../superpowers/plans/2026-04-18-stream-c-wash-sybil.md) |
 | D | Per-Wallet Behavior Profile | PLANNED | pending |
 | E | Signal Validation Feedback | PLANNED | pending |
 | F | Dashboard Truth | PLANNED | pending |
