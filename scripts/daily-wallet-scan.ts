@@ -63,6 +63,8 @@ const MAX_FEE_RATIO                = 0.60;   // fees / |gross_pnl| > 0.60 = fee 
 const SYBIL_CORRELATION_THRESHOLD  = 0.95;   // Pearson r > 0.95 on 60d daily PnL = same operator
 const MIN_NONZERO_DAYS_FOR_SYBIL   = 30;     // min active trading days before sybil correlation is trusted
 const SCALPER_THRESHOLD            = 300;    // >300 trades/60d = 5+/day
+// Stream A gate G10 (Sprint 8). Threshold re-fit empirically in Sprint 13 from cohort_attrition data.
+const MAX_LEVERAGE_G10             = 15;     // deactivate wallets whose max observed leverage exceeds this
 const TREND_THRESHOLD              = 60;     // <60 trades/60d = <1/day
 const MIN_REGIME_DAYS              = 5;      // min days in a regime to compute a meaningful average
 const MAX_PROFILE_COINS            = 5;      // top N coins by notional from latest snapshot
@@ -897,6 +899,207 @@ async function resolveWalletOutcomes(): Promise<void> {
   console.log(`[wallet-outcomes] resolved ${resolved} of ${openOutcomes.length} open outcomes`);
 }
 
+// -- Leverage stats + G10 gate ------------------------------------------------
+
+async function computeLeverageStats(): Promise<{ computed: number; g10_deactivated: number }> {
+  const { data: activeWallets, error: walletErr } = await supabase
+    .from("wallets")
+    .select("id, address")
+    .eq("is_active", true);
+
+  if (walletErr || !activeWallets?.length) {
+    console.warn("[leverage] could not fetch active wallets:", walletErr?.message);
+    return { computed: 0, g10_deactivated: 0 };
+  }
+
+  const walletIds = activeWallets.map((w) => w.id);
+
+  // Fetch available snapshots (cleanup job keeps 2 per wallet)
+  const { data: snapshots } = await supabase
+    .from("cohort_snapshots")
+    .select("wallet_id, positions, account_value")
+    .in("wallet_id", walletIds);
+
+  // Fetch PnL for leverage_adj_return
+  const { data: backtestRows } = await supabase
+    .from("user_pnl_backtest")
+    .select("wallet_id, total_pnl_usd")
+    .in("wallet_id", walletIds);
+
+  const pnlMap = new Map(
+    (backtestRows ?? []).map((r) => [r.wallet_id as string, Number(r.total_pnl_usd ?? 0)])
+  );
+
+  // Group snapshots by wallet
+  type SnapRow = { positions: unknown[]; account_value: number };
+  const snapsByWallet = new Map<string, SnapRow[]>();
+  for (const snap of snapshots ?? []) {
+    const rows = snapsByWallet.get(snap.wallet_id) ?? [];
+    rows.push({ positions: (snap.positions ?? []) as unknown[], account_value: Number(snap.account_value) });
+    snapsByWallet.set(snap.wallet_id, rows);
+  }
+
+  type LeverageUpdate = {
+    id: string;
+    max_leverage_60d: number;
+    avg_leverage_60d: number;
+    leverage_adj_return: number;
+    blow_up_distance: number;
+  };
+  const leverageUpdates: LeverageUpdate[] = [];
+  const backtestUpdates: Array<{ wallet_id: string; max_leverage_day: number; avg_leverage_day: number }> = [];
+
+  for (const wallet of activeWallets) {
+    const snaps = snapsByWallet.get(wallet.id);
+    if (!snaps?.length) continue;
+
+    const allLeverages: number[] = [];
+    for (const snap of snaps) {
+      for (const ap of snap.positions as Record<string, unknown>[]) {
+        const pos = ap?.position as Record<string, unknown> | undefined;
+        const lev = pos?.leverage as Record<string, unknown> | undefined;
+        const val = lev?.value;
+        if (typeof val === "number" && val > 0) allLeverages.push(val);
+      }
+    }
+
+    if (allLeverages.length === 0) continue;
+
+    const max_leverage = Math.max(...allLeverages);
+    const avg_leverage = allLeverages.reduce((a, b) => a + b, 0) / allLeverages.length;
+    const total_pnl    = pnlMap.get(wallet.id) ?? 0;
+
+    leverageUpdates.push({
+      id:                  wallet.id,
+      max_leverage_60d:    max_leverage,
+      avg_leverage_60d:    avg_leverage,
+      leverage_adj_return: avg_leverage > 0 ? total_pnl / (1 + avg_leverage) : total_pnl,
+      blow_up_distance:    Math.max(0, Math.min(1, 1 - max_leverage / MAX_LEVERAGE_G10)),
+    });
+
+    backtestUpdates.push({
+      wallet_id:        wallet.id,
+      max_leverage_day: max_leverage,
+      avg_leverage_day: avg_leverage,
+    });
+  }
+
+  // Update wallets table individually (can't bulk-upsert due to NOT NULL address constraint)
+  let computed = 0;
+  for (const { id, ...patch } of leverageUpdates) {
+    const { error } = await supabase.from("wallets").update(patch).eq("id", id);
+    if (!error) computed++;
+  }
+
+  // Bulk upsert user_pnl_backtest leverage fields
+  if (backtestUpdates.length > 0) {
+    const { error } = await supabase.from("user_pnl_backtest").upsert(backtestUpdates, { onConflict: "wallet_id" });
+    if (error) console.warn("[leverage] backtest upsert error:", error.message);
+  }
+
+  // G10 gate: deactivate wallets exceeding the leverage ceiling
+  const toDeactivate = leverageUpdates
+    .filter((u) => u.max_leverage_60d > MAX_LEVERAGE_G10)
+    .map((u) => u.id);
+
+  let g10_deactivated = 0;
+  if (toDeactivate.length > 0) {
+    const now = new Date().toISOString();
+    const { error } = await supabase
+      .from("wallets")
+      .update({ is_active: false, deactivation_reason: "high_leverage", deactivated_at: now })
+      .in("id", toDeactivate);
+    if (!error) {
+      g10_deactivated = toDeactivate.length;
+      console.log(`[leverage] G10 gate deactivated ${g10_deactivated} high-leverage wallets`);
+    }
+  }
+
+  return { computed, g10_deactivated };
+}
+
+// -- Cohort attrition ----------------------------------------------------------
+
+function deactivationReasonToState(reason: string | null | undefined): string {
+  if (!reason) return "active";
+  if (reason === "high_leverage" || reason === "liquidation_imminent") return "blown_up";
+  if (reason === "max_drawdown" || reason === "drawdown_threshold" || reason === "drawdown_7d") return "deactivated_drawdown";
+  if (reason === "low_equity" || reason === "low_equity_cycles" || reason === "liq_imminent") return "deactivated_drawdown";
+  if (reason === "wash_detected" || reason === "sybil_duplicate") return "deactivated_wash";
+  return "deactivated_inactivity";
+}
+
+async function upsertAttritionStates(): Promise<{ upserted: number }> {
+  // Include wallets that are currently active OR have ever been deactivated for a known reason
+  const { data: wallets, error: walletErr } = await supabase
+    .from("wallets")
+    .select("address, id, is_active, deactivation_reason, deactivated_at")
+    .or("is_active.eq.true,deactivation_reason.not.is.null");
+
+  if (walletErr || !wallets?.length) {
+    console.warn("[attrition] could not fetch wallet list:", walletErr?.message);
+    return { upserted: 0 };
+  }
+
+  // Preserve first_active_date for existing rows
+  const { data: existing } = await supabase
+    .from("cohort_attrition")
+    .select("wallet_address, first_active_date")
+    .in("wallet_address", wallets.map((w) => w.address));
+
+  const existingMap = new Map(
+    (existing ?? []).map((r) => [r.wallet_address as string, r.first_active_date as string])
+  );
+
+  const today = new Date().toISOString().slice(0, 10);
+  const now   = new Date();
+
+  function stateAtDays(
+    firstActive: Date,
+    deactivatedAt: Date | null,
+    isActive: boolean,
+    reason: string | null | undefined,
+    days: number,
+  ): string {
+    const milestone = new Date(firstActive);
+    milestone.setDate(milestone.getDate() + days);
+    if (now < milestone) return "never_reached";
+    if (isActive) return "active";
+    if (deactivatedAt && deactivatedAt <= milestone) return deactivationReasonToState(reason);
+    return "active"; // deactivated after this milestone
+  }
+
+  const rows = wallets.map((w) => {
+    const first_active_date = existingMap.get(w.address) ?? today;
+    const firstActiveDate   = new Date(first_active_date);
+    const deactivatedAt     = w.deactivated_at ? new Date(w.deactivated_at) : null;
+    const last_seen_active  = w.is_active ? today : (deactivatedAt?.toISOString().slice(0, 10) ?? null);
+
+    return {
+      wallet_address:   w.address,
+      wallet_id:        w.id,
+      first_active_date,
+      last_seen_active,
+      state_30d:        stateAtDays(firstActiveDate, deactivatedAt, w.is_active, w.deactivation_reason, 30),
+      state_90d:        stateAtDays(firstActiveDate, deactivatedAt, w.is_active, w.deactivation_reason, 90),
+      state_180d:       stateAtDays(firstActiveDate, deactivatedAt, w.is_active, w.deactivation_reason, 180),
+      state_360d:       stateAtDays(firstActiveDate, deactivatedAt, w.is_active, w.deactivation_reason, 360),
+      updated_at:       new Date().toISOString(),
+    };
+  });
+
+  const { error } = await supabase
+    .from("cohort_attrition")
+    .upsert(rows, { onConflict: "wallet_address" });
+
+  if (error) {
+    console.error("[attrition] upsert error:", error.message);
+    return { upserted: 0 };
+  }
+
+  return { upserted: rows.length };
+}
+
 // -- Main ----------------------------------------------------------------------
 
 async function main(): Promise<void> {
@@ -928,6 +1131,10 @@ async function main(): Promise<void> {
     sybil_wallets_deactivated: 0,
     profiles_computed:         0,
     profiles_skipped:          0,
+    leverage_computed:         0,
+    g10_deactivated:           0,
+    attrition_upserted:        0,
+    score_history_written:     0,
   };
 
   // Phase 0: Pre-fetch Hypurrscan aliases — used both for pre-filter and end-of-scan enrichment
@@ -1168,6 +1375,25 @@ async function main(): Promise<void> {
   summary.profiles_skipped  = profileResult.skipped;
   console.log(`[profiles] computed: ${profileResult.computed}, skipped: ${profileResult.skipped}`);
 
+  // ── Phase 9: Leverage stats + G10 gate ────────────────────────────────────
+  console.log("\n[Phase 9] Computing leverage stats and applying G10 gate...");
+  const leverageResult = await computeLeverageStats();
+  summary.leverage_computed = leverageResult.computed;
+  summary.g10_deactivated   = leverageResult.g10_deactivated;
+  console.log(`[leverage] computed: ${leverageResult.computed}, G10 deactivated: ${leverageResult.g10_deactivated}`);
+
+  // ── Phase 10: Cohort attrition upsert ─────────────────────────────────────
+  console.log("\n[Phase 10] Upserting cohort attrition states...");
+  const attritionResult = await upsertAttritionStates();
+  summary.attrition_upserted = attritionResult.upserted;
+  console.log(`[attrition] upserted: ${attritionResult.upserted} rows`);
+
+  // ── Phase 11: Write daily score history for rank IC ───────────────────────
+  console.log("\n[Phase 11] Writing score history for rank IC...");
+  const scoreHistoryResult = await writeScoreHistory();
+  summary.score_history_written = scoreHistoryResult.written;
+  console.log(`[score-history] written: ${scoreHistoryResult.written} rows`);
+
   summary.duration_ms = Date.now() - startMs;
 
   const total_rejected = Object.values(summary.rejection_breakdown).reduce((a, b) => a + b, 0);
@@ -1182,6 +1408,64 @@ async function main(): Promise<void> {
 
   console.log("[scan] Complete:", JSON.stringify(summary, null, 2));
   await fs.writeFile("scan-summary.json", JSON.stringify(summary, null, 2));
+}
+
+// ── Phase 11: Write score history for rank IC ─────────────────────────────────
+// Snapshots every active wallet's overall_score and today's daily PnL (the most
+// recent element of user_pnl_backtest.daily_pnls) into wallet_score_history.
+// After 31+ days of history, scripts/rank-ic.ts can compute rank IC.
+async function writeScoreHistory(): Promise<{ written: number }> {
+  const today = new Date().toISOString().slice(0, 10);
+
+  const { data: activeWallets, error: walletErr } = await supabase
+    .from("wallets")
+    .select("id, overall_score")
+    .eq("is_active", true)
+    .not("overall_score", "is", null);
+
+  if (walletErr) {
+    console.error("[score-history] fetch error:", walletErr.message);
+    return { written: 0 };
+  }
+  if (!activeWallets || activeWallets.length === 0) return { written: 0 };
+
+  const walletIds = activeWallets.map((w) => w.id);
+
+  // Fetch daily_pnls for each active wallet; index [SCORING_WINDOW_DAYS-1] = most recent day
+  const { data: backtests } = await supabase
+    .from("user_pnl_backtest")
+    .select("wallet_id, daily_pnls")
+    .in("wallet_id", walletIds);
+
+  const pnlMap = new Map<string, number>();
+  for (const bt of backtests ?? []) {
+    const arr = bt.daily_pnls as number[] | null;
+    if (Array.isArray(arr) && arr.length > 0) {
+      pnlMap.set(bt.wallet_id, arr[arr.length - 1] ?? 0);
+    }
+  }
+
+  const rows = activeWallets.map((w) => ({
+    date:          today,
+    wallet_id:     w.id,
+    overall_score: w.overall_score,
+    daily_pnl_usd: pnlMap.get(w.id) ?? 0,
+  }));
+
+  let written = 0;
+  const CHUNK = 500;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const chunk = rows.slice(i, i + CHUNK);
+    const { error } = await supabase
+      .from("wallet_score_history")
+      .upsert(chunk, { onConflict: "date,wallet_id" });
+    if (error) {
+      console.error("[score-history] upsert error:", error.message);
+    } else {
+      written += chunk.length;
+    }
+  }
+  return { written };
 }
 
 main().catch((err) => {
