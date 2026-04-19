@@ -69,6 +69,14 @@ const TREND_THRESHOLD              = 60;     // <60 trades/60d = <1/day
 const MIN_REGIME_DAYS              = 5;      // min days in a regime to compute a meaningful average
 const MAX_PROFILE_COINS            = 5;      // top N coins by notional from latest snapshot
 
+// -- Multi-window gates (G11/G12/G13, Sprint R11) ------------------------------
+// Fetch 180d fills only for wallets that already passed G1-G10 (controls API cost).
+const SCORE_STABILITY_THRESHOLD    = 0.25;   // G11 -- reject if max-min score across three windows > this
+const MIN_REGIME_DAYS_G12          = 10;     // G12 -- require >=10 active trading days per regime bucket (180d)
+const MULTI_WINDOW_DAYS            = 180;    // G13 -- fills window to fetch for G11/G12
+const MULTI_WINDOW_CONCURRENCY     = 4;      // higher throughput is safe here (secondary, post-activation pass)
+const OOCV_TARGET_SIZE             = 400;    // target held-out OOCV sample: stratified random from rejected-but-prequalified
+
 // -- Leaderboard pre-filter ----------------------------------------------------
 // Applied to leaderboard data before any fills API calls. Collapses 33k wallets
 // to high-signal candidates using data already present in the leaderboard response.
@@ -367,6 +375,52 @@ function computeDrawdownScore(dailyPnls: number[]): number {
     if (dd > maxDrawdown) maxDrawdown = dd;
   }
   return Math.min(1, Math.max(0, 1 - maxDrawdown));
+}
+
+// -- Multi-window helpers (Sprint R11) -----------------------------------------
+
+// Parameterised version of buildDailyPnls; builds an array of `windowDays` length
+// with index 0 = oldest day and index N-1 = today.
+function buildDailyPnlsForWindow(fills: FillRecord[], windowDays: number): number[] {
+  const byDay = new Map<string, number>();
+  for (const f of fills) {
+    const day = new Date(f.time).toISOString().slice(0, 10);
+    byDay.set(day, (byDay.get(day) ?? 0) + parseFloat(f.closedPnl));
+  }
+  const pnls = new Array<number>(windowDays).fill(0);
+  const today = new Date();
+  for (const [day, pnl] of byDay) {
+    const daysAgo = Math.floor(
+      (today.getTime() - new Date(day).getTime()) / 86_400_000
+    );
+    if (daysAgo >= 0 && daysAgo < windowDays) {
+      pnls[windowDays - 1 - daysAgo] = pnl;
+    }
+  }
+  return pnls;
+}
+
+// Composite 4-factor score for any daily-PnL window.
+// Uses the same formula as app-side cohort scoring but substitutes
+// regime_edge (historical) for regime_fit (live position bias).
+function computeWindowScore(dailyPnls: number[], regimeLabels: string[]): number {
+  const sharpe      = computeSharpeProxy(dailyPnls);
+  const drawdown    = computeDrawdownScore(dailyPnls);
+  const consistency = computeConsistency(dailyPnls);
+  const rStats      = computeRegimeStats(dailyPnls, regimeLabels, 1);
+  const regimeEdge  = rStats.regime_edge !== null ? Math.max(0, rStats.regime_edge) : 0;
+  return 0.35 * sharpe + 0.25 * consistency + 0.25 * drawdown + 0.15 * regimeEdge;
+}
+
+// Fetch closing fills for the 180d multi-window pass.
+async function fetchFills180d(address: string): Promise<FillRecord[]> {
+  const windowStart = Date.now() - MULTI_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+  return hlPost<FillRecord[]>({
+    type: "userFillsByTime",
+    user: address,
+    startTime: windowStart,
+    endTime: Date.now(),
+  });
 }
 
 // -- Scoring: fetch fills and compute metrics ----------------------------------
@@ -1100,6 +1154,212 @@ async function upsertAttritionStates(): Promise<{ upserted: number }> {
   return { upserted: rows.length };
 }
 
+// -- Multi-window gates (G11/G12/G13, Sprint R11) ------------------------------
+
+// Phase 12: For every currently-active wallet, fetch 180d fills (G13 condition),
+// compute score_30d/score_90d/score_180d + regime day counts, then apply:
+//   G11 (score_stability > 0.25) -> deactivate as "score_unstable"
+//   G12 (< 10 active days in any regime bucket) -> deactivate as "low_regime_coverage"
+// Stores multi-window score columns and regime_at_day on user_pnl_backtest.
+async function computeMultiWindowGates(): Promise<{
+  computed: number;
+  g11_deactivated: number;
+  g12_deactivated: number;
+}> {
+  // Fetch 180d BTC candles for regime label alignment.
+  const windowStart = Date.now() - MULTI_WINDOW_DAYS * 86_400_000;
+  let btcCandles: HlCandle[] = [];
+  try {
+    btcCandles = await hlPost<HlCandle[]>({
+      type: "candleSnapshot",
+      req: { coin: "BTC", interval: "1d", startTime: windowStart, endTime: Date.now() },
+    });
+  } catch (err) {
+    console.warn("[multi-window] BTC candle fetch failed, skipping Phase 12:", err);
+    return { computed: 0, g11_deactivated: 0, g12_deactivated: 0 };
+  }
+
+  // Build regime label array aligned oldest-first (matches buildDailyPnlsForWindow index).
+  const regimeLabels180: string[] = btcCandles.map((c) => {
+    const ret = (parseFloat(c.c) - parseFloat(c.o)) / parseFloat(c.o);
+    if (ret > 0.01)  return "BULL";
+    if (ret < -0.01) return "BEAR";
+    return "RANGING";
+  });
+
+  const { data: activeWallets } = await supabase
+    .from("wallets")
+    .select("id, address")
+    .eq("is_active", true);
+
+  if (!activeWallets?.length) return { computed: 0, g11_deactivated: 0, g12_deactivated: 0 };
+
+  const mwSem = new Semaphore(MULTI_WINDOW_CONCURRENCY);
+  let computed = 0, g11_deactivated = 0, g12_deactivated = 0;
+
+  await Promise.allSettled(
+    activeWallets.map(async (wallet) => {
+      await mwSem.acquire();
+      try {
+        let fills180: FillRecord[];
+        try {
+          fills180 = await fetchFills180d(wallet.address);
+        } catch {
+          return; // G13: skip G11/G12 if 180d fetch unavailable
+        }
+
+        const closingFills = fills180.filter((f) => parseFloat(f.closedPnl) !== 0);
+
+        const pnls30  = buildDailyPnlsForWindow(closingFills, 30);
+        const pnls90  = buildDailyPnlsForWindow(closingFills, 90);
+        const pnls180 = buildDailyPnlsForWindow(closingFills, MULTI_WINDOW_DAYS);
+
+        // Use last N regime labels aligned to each window
+        const rl30  = regimeLabels180.slice(-30);
+        const rl90  = regimeLabels180.slice(-90);
+        const rl180 = regimeLabels180;
+
+        const score30  = computeWindowScore(pnls30,  rl30);
+        const score90  = computeWindowScore(pnls90,  rl90);
+        const score180 = computeWindowScore(pnls180, rl180);
+        const stability = Math.max(score30, score90, score180) - Math.min(score30, score90, score180);
+
+        // Count active (non-zero PnL) trading days per regime bucket over 180d window.
+        const len = Math.min(pnls180.length, rl180.length);
+        let bull_days = 0, bear_days = 0, ranging_days = 0;
+        for (let i = 0; i < len; i++) {
+          if (pnls180[i] === 0) continue;
+          if (rl180[i] === "BULL")    bull_days++;
+          else if (rl180[i] === "BEAR")    bear_days++;
+          else if (rl180[i] === "RANGING") ranging_days++;
+        }
+
+        computed++;
+
+        let deactivationReason: string | null = null;
+        if (stability > SCORE_STABILITY_THRESHOLD) {
+          deactivationReason = "score_unstable";
+        } else if (
+          bull_days    < MIN_REGIME_DAYS_G12 ||
+          bear_days    < MIN_REGIME_DAYS_G12 ||
+          ranging_days < MIN_REGIME_DAYS_G12
+        ) {
+          deactivationReason = "low_regime_coverage";
+        }
+
+        const now = new Date().toISOString();
+        const walletPatch: Record<string, unknown> = {
+          score_30d:       score30,
+          score_90d:       score90,
+          score_180d:      score180,
+          bull_days,
+          bear_days,
+          ranging_days,
+          score_stability: stability,
+        };
+        if (deactivationReason) {
+          walletPatch.is_active           = false;
+          walletPatch.deactivation_reason = deactivationReason;
+          walletPatch.deactivated_at      = now;
+          if (deactivationReason === "score_unstable") g11_deactivated++;
+          else                                         g12_deactivated++;
+        }
+
+        await supabase.from("wallets").update(walletPatch).eq("id", wallet.id);
+
+        // Persist regime_at_day alongside the backtest row for downstream consumers.
+        await supabase
+          .from("user_pnl_backtest")
+          .update({ regime_at_day: rl180 })
+          .eq("wallet_id", wallet.id);
+
+      } catch (err) {
+        console.warn(`[multi-window] ${wallet.address} error:`, err);
+      } finally {
+        mwSem.release();
+      }
+    })
+  );
+
+  return { computed, g11_deactivated, g12_deactivated };
+}
+
+// Phase 13: Stratified random sample from wallets that passed the leaderboard
+// pre-filter but failed activation gates. Upserts into out_of_cohort_tracking.
+// Existing OOCV rows are left untouched (ignoreDuplicates); wallets that have
+// since activated are marked is_active_in_oocv = false.
+async function sampleOocvWallets(
+  prequalifiedRejected: Map<string, string>, // address -> rejection_reason
+  addressToId: Map<string, string>,          // address -> DB UUID
+): Promise<{ sampled: number }> {
+  if (prequalifiedRejected.size === 0) return { sampled: 0 };
+
+  // Mark any OOCV wallets that graduated to active cohort as inactive in OOCV.
+  const { data: nowActive } = await supabase
+    .from("wallets")
+    .select("address")
+    .eq("is_active", true);
+  const activeAddrs = new Set((nowActive ?? []).map((w: { address: string }) => w.address.toLowerCase()));
+  const { data: oocvRows } = await supabase
+    .from("out_of_cohort_tracking")
+    .select("wallet_address")
+    .eq("is_active_in_oocv", true);
+  const toDegrade = (oocvRows ?? [])
+    .filter((r: { wallet_address: string }) => activeAddrs.has(r.wallet_address.toLowerCase()))
+    .map((r: { wallet_address: string }) => r.wallet_address);
+  if (toDegrade.length > 0) {
+    await supabase
+      .from("out_of_cohort_tracking")
+      .update({ is_active_in_oocv: false, removed_at: new Date().toISOString() })
+      .in("wallet_address", toDegrade);
+  }
+
+  // Stratify by rejection reason: take up to (target / buckets) per reason.
+  const byReason = new Map<string, string[]>();
+  for (const [addr, reason] of prequalifiedRejected) {
+    if (!byReason.has(reason)) byReason.set(reason, []);
+    byReason.get(reason)!.push(addr);
+  }
+
+  const perBucket = Math.ceil(OOCV_TARGET_SIZE / byReason.size);
+  const sample: Array<{ wallet_address: string; wallet_id: string | null; basis: string }> = [];
+
+  for (const [reason, addresses] of byReason) {
+    const shuffled = [...addresses].sort(() => Math.random() - 0.5).slice(0, perBucket);
+    for (const addr of shuffled) {
+      sample.push({
+        wallet_address: addr,
+        wallet_id:      addressToId.get(addr) ?? null,
+        basis:          `stratified_random:${reason}`,
+      });
+    }
+  }
+
+  const final = sample.slice(0, OOCV_TARGET_SIZE);
+  if (final.length === 0) return { sampled: 0 };
+
+  const now = new Date().toISOString();
+  const rows = final.map((r) => ({
+    wallet_address:    r.wallet_address,
+    wallet_id:         r.wallet_id,
+    added_at:          now,
+    basis:             r.basis,
+    is_active_in_oocv: true,
+  }));
+
+  let inserted = 0;
+  const CHUNK = 100;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const { error, count } = await supabase
+      .from("out_of_cohort_tracking")
+      .upsert(rows.slice(i, i + CHUNK), { onConflict: "wallet_address", ignoreDuplicates: true })
+      .select("wallet_address");
+    if (!error) inserted += count ?? 0;
+  }
+
+  return { sampled: inserted };
+}
+
 // -- Main ----------------------------------------------------------------------
 
 async function main(): Promise<void> {
@@ -1126,6 +1386,8 @@ async function main(): Promise<void> {
       suspiciously_fresh:  0,
       entity_excluded:     0,
       wash_detected:       0,
+      score_unstable:      0,
+      low_regime_coverage: 0,
     } as Record<string, number>,
     sybil_clusters_found:      0,
     sybil_wallets_deactivated: 0,
@@ -1135,6 +1397,9 @@ async function main(): Promise<void> {
     g10_deactivated:           0,
     attrition_upserted:        0,
     score_history_written:     0,
+    g11_deactivated:           0,
+    g12_deactivated:           0,
+    oocv_sampled:              0,
   };
 
   // Phase 0: Pre-fetch Hypurrscan aliases — used both for pre-filter and end-of-scan enrichment
@@ -1283,6 +1548,10 @@ async function main(): Promise<void> {
     })
   );
 
+  // Wallets that passed the leaderboard pre-filter but failed activation gates.
+  // Sampled in Phase 13 to build the OOCV held-out set.
+  const prequalifiedRejected = new Map<string, string>(); // address -> rejection_reason
+
   for (const r of results) {
     if (r.status === "rejected") {
       summary.scan_errors++;
@@ -1293,6 +1562,17 @@ async function main(): Promise<void> {
       const reason = r.value.rejection_reason;
       if (summary.rejection_breakdown[reason] !== undefined) {
         summary.rejection_breakdown[reason]++;
+      }
+      // OOCV candidate: failed activation but passed the pre-filter quality bar.
+      // Entity-excluded wallets are not interesting controls -- skip them.
+      const entry = leaderboardMap.get(r.value.address.toLowerCase());
+      if (
+        reason !== "entity_excluded" &&
+        entry &&
+        entry.monthPnl >= PRE_QUALIFY_MIN_MONTH_PNL &&
+        entry.allTimePnl >= PRE_QUALIFY_MIN_ALLTIME_PNL
+      ) {
+        prequalifiedRejected.set(r.value.address, reason);
       }
     }
   }
@@ -1393,6 +1673,30 @@ async function main(): Promise<void> {
   const scoreHistoryResult = await writeScoreHistory();
   summary.score_history_written = scoreHistoryResult.written;
   console.log(`[score-history] written: ${scoreHistoryResult.written} rows`);
+
+  // ── Phase 12: Multi-window scoring + G11/G12 gates ────────────────────────
+  // Fetches 180d fills (G13) for active wallets, computes score_30d/90d/180d,
+  // bull/bear/ranging day counts, and applies G11 (score_stability) and G12
+  // (regime_coverage) gates.
+  console.log("\n[Phase 12] Multi-window scoring and G11/G12 gates...");
+  const mwResult = await computeMultiWindowGates();
+  summary.g11_deactivated = mwResult.g11_deactivated;
+  summary.g12_deactivated = mwResult.g12_deactivated;
+  summary.rejection_breakdown.score_unstable      = mwResult.g11_deactivated;
+  summary.rejection_breakdown.low_regime_coverage = mwResult.g12_deactivated;
+  console.log(
+    `[multi-window] computed: ${mwResult.computed}, ` +
+    `G11 deactivated: ${mwResult.g11_deactivated}, G12 deactivated: ${mwResult.g12_deactivated}`
+  );
+
+  // ── Phase 13: OOCV sample ─────────────────────────────────────────────────
+  // Stratified random sample of wallets that passed the leaderboard pre-filter
+  // but failed activation gates. These form the held-out control group for
+  // recipe base-rate comparison (signals measured but never served).
+  console.log("\n[Phase 13] Sampling out-of-cohort validation set...");
+  const oocvResult = await sampleOocvWallets(prequalifiedRejected, addressToId);
+  summary.oocv_sampled = oocvResult.sampled;
+  console.log(`[oocv] sampled: ${oocvResult.sampled} new wallets into out_of_cohort_tracking`);
 
   summary.duration_ms = Date.now() - startMs;
 

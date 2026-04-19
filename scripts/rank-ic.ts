@@ -151,6 +151,89 @@ async function computeIcForDate(dateStr: string): Promise<{
   return { rank_ic: rho, p_value: pv, cohort_size: n, effective_sample_size: ess, top_decile_hit_rate: topHitRate, bottom_decile_avoidance: bottomAvoid };
 }
 
+// ── OOCV recipe base-rate comparison ─────────────────────────────────────────
+// Compares weekly signal fire rates (in-cohort vs. out-of-cohort) per recipe.
+// If they diverge materially, wallet selection -- not the recipe -- is driving
+// the signal frequency.
+//
+// Currently: OOCV wallets have no positions tracked (Sprint R11 sets up the
+// held-out set; R12 will wire OOCV position tracking).  Until then this
+// function logs in-cohort base rates only and notes when OOCV data is absent.
+async function computeWeeklyRecipeBaseRates(): Promise<void> {
+  const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
+
+  // In-cohort: signals fired in the last 7 days
+  const { data: signals, error: sigErr } = await supabase
+    .from("signal_events")
+    .select("recipe_id, wallet_ids")
+    .gte("fired_at", weekAgo);
+
+  if (sigErr || !signals || signals.length === 0) {
+    console.log("[oocv-base-rates] no signal_events in last 7d, skipping");
+    return;
+  }
+
+  // Active cohort wallet IDs
+  const { data: activeWallets } = await supabase
+    .from("wallets")
+    .select("id")
+    .eq("is_active", true);
+  const activeIds = new Set((activeWallets ?? []).map((w: { id: string }) => w.id));
+
+  // OOCV wallet IDs
+  const { data: oocvRows } = await supabase
+    .from("out_of_cohort_tracking")
+    .select("wallet_id")
+    .eq("is_active_in_oocv", true)
+    .not("wallet_id", "is", null);
+  const oocvIds = new Set((oocvRows ?? []).map((r: { wallet_id: string }) => r.wallet_id));
+
+  // Count signal firings per recipe for in-cohort and OOCV wallets
+  const inCohortCounts = new Map<string, number>();
+  const oocvCounts     = new Map<string, number>();
+
+  for (const row of signals) {
+    const recipe   = row.recipe_id as string;
+    const wallets  = (row.wallet_ids ?? []) as string[];
+    const hasActive = wallets.some((id) => activeIds.has(id));
+    const hasOocv   = wallets.some((id) => oocvIds.has(id));
+    if (hasActive) inCohortCounts.set(recipe, (inCohortCounts.get(recipe) ?? 0) + 1);
+    if (hasOocv)   oocvCounts.set(recipe,    (oocvCounts.get(recipe)    ?? 0) + 1);
+  }
+
+  const activeCount = activeIds.size || 1;
+  const oocvCount   = oocvIds.size  || 1;
+
+  console.log(`[oocv-base-rates] in-cohort wallets: ${activeIds.size}, oocv wallets: ${oocvIds.size}`);
+  if (oocvIds.size === 0) {
+    console.log("[oocv-base-rates] OOCV set is empty -- no comparison yet. Position tracking required (Sprint R12).");
+  }
+
+  const allRecipes = new Set([...inCohortCounts.keys(), ...oocvCounts.keys()]);
+  let divergenceWarnings = 0;
+
+  for (const recipe of [...allRecipes].sort()) {
+    const ic   = (inCohortCounts.get(recipe) ?? 0) / activeCount;
+    const oc   = (oocvCounts.get(recipe)     ?? 0) / oocvCount;
+    const diff = Math.abs(ic - oc);
+    // Warn when in-cohort rate is more than 2x the OOCV rate (or vice-versa)
+    // and the absolute gap is non-trivial (> 0.05 signals/wallet/week).
+    const diverges = diff > 0.05 && (oc > 0 ? ic / oc > 2 || oc / ic > 2 : ic > 0.05);
+    if (diverges) divergenceWarnings++;
+    console.log(
+      `[oocv-base-rates] ${recipe.padEnd(20)} in-cohort: ${ic.toFixed(4)}/wallet  ` +
+      `oocv: ${oc.toFixed(4)}/wallet${diverges ? "  *** DIVERGENCE" : ""}`
+    );
+  }
+
+  if (divergenceWarnings > 0) {
+    console.warn(
+      `[oocv-base-rates] WARNING: ${divergenceWarnings} recipe(s) diverge materially. ` +
+      "Selection bias may be inflating in-cohort signal rates. Review R12 EV decoupling."
+    );
+  }
+}
+
 async function main() {
   const today = new Date();
   const cutoff = new Date(today);
@@ -221,6 +304,10 @@ async function main() {
   }
 
   console.log(`[rank-ic] done. computed=${computed} skipped=${skipped}`);
+
+  // Weekly OOCV vs in-cohort recipe base-rate comparison.
+  // Runs every time rank-ic.ts fires (daily at 02:00 UTC).
+  await computeWeeklyRecipeBaseRates();
 }
 
 main().catch((err) => {
