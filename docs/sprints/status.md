@@ -5,10 +5,10 @@ At the start of each session, read this file to know where to pick up.
 
 ## Active Sprint
 
-**Sprint 5 — Wallet Alerts + Paper Copy Trading**  
+**Sprint 6 — Auth System**  
 Status: NOT STARTED  
-Spec: `docs/superpowers/specs/2026-04-13-sprint-5-alerts-paper-trading.md`  
-Plan: pending  
+Spec: `docs/superpowers/specs/2026-04-13-sprint-6-auth.md`  
+Plan: not yet  
 Last worked on: n/a
 
 ---
@@ -21,7 +21,7 @@ Last worked on: n/a
 | 2 | Bias Trend Chart | COMPLETE | [spec](../superpowers/specs/2026-04-13-sprint-2-bias-trend.md) | [plan](../superpowers/plans/2026-04-14-sprint-2-bias-trend.md) |
 | 3 | Global Position Heatmap | COMPLETE | [spec](../superpowers/specs/2026-04-13-sprint-3-heatmap.md) | pending |
 | 4 | Market Radar | COMPLETE | [spec](../superpowers/specs/2026-04-13-sprint-4-market-radar.md) | [plan](../superpowers/plans/2026-04-17-sprint-4-market-radar.md) |
-| 5 | Wallet Alerts + Paper Copy Trading | NOT STARTED | [spec](../superpowers/specs/2026-04-13-sprint-5-alerts-paper-trading.md) | pending |
+| 5 | Wallet Alerts + Paper Copy Trading | COMPLETE (2026-04-19) | [spec](../superpowers/specs/2026-04-13-sprint-5-alerts-paper-trading.md) | [plan](../superpowers/plans/2026-04-19-sprint-5-wallet-alerts-paper-trading.md) |
 | 6 | Auth System | PLANNED (future) | [spec](../superpowers/specs/2026-04-13-sprint-6-auth.md) | not yet |
 | 7 | UI Design + Integration Revision | PLANNED (after 4/5/6) | [spec](../superpowers/specs/2026-04-16-sprint-7-ui-revision.md) | not yet |
 | 8 | Signal Intelligence Agent | BLOCKED (data gate: 100+ signal_outcomes, 30d history) | [spec](../superpowers/specs/2026-04-15-signal-intelligence-agent-design.md) | not yet |
