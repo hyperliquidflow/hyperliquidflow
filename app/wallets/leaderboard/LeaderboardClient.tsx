@@ -72,12 +72,12 @@ type SortKey = "address" | "overall_score" | "account_value" | "unrealized_pnl" 
 
 const COLS: { key: SortKey; label: string }[] = [
   { key: "address",        label: "Wallet"     },
-  { key: "overall_score",  label: "Score"      },
-  { key: "account_value",  label: "AUM"        },
-  { key: "unrealized_pnl", label: "uPnL"       },
-  { key: "win_rate",       label: "Win Rate"   },
-  { key: "position_count", label: "Positions"  },
-  { key: "liq_buffer_pct", label: "Liq Buffer" },
+  { key: "overall_score",  label: "Quality"        },
+  { key: "account_value",  label: "AUM"            },
+  { key: "unrealized_pnl", label: "Open PnL"       },
+  { key: "win_rate",       label: "Win Rate"       },
+  { key: "position_count", label: "Positions"      },
+  { key: "liq_buffer_pct", label: "Safety Margin"  },
 ];
 
 export function LeaderboardClient({ initialData }: { initialData: CohortCachePayload | null }) {

@@ -74,8 +74,8 @@ export function PerformanceClient({ initialData }: { initialData: RecipeStats[] 
   return (
     <div className="page-enter">
       <PageHeader
-        title="Performance"
-        subtitle="Which signals have real edge. Ranked by 24h directional accuracy over the selected window."
+        title="Signal Scores"
+        subtitle="Which signals are working. Ranked by 24h directional accuracy over the selected window."
       />
       <div style={{ ...S.page, paddingTop: space.contentPaddingTop }}>
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>

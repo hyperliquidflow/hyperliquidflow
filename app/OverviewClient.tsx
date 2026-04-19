@@ -5,6 +5,8 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { formatUsd, formatPct, timeAgo, truncateAddress } from "@/lib/utils";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 import type { MarketTickerEntry } from "@/app/api/market-ticker/route";
+import type { SignalFreshnessPayload } from "@/app/api/signal-freshness/route";
+import type { RankIcPayload } from "@/app/api/rank-ic/route";
 import { PageHeader } from "@/components/page-header";
 import { RECIPE_META } from "@/lib/recipe-meta";
 import { OverviewLoadingState } from "@/components/loading-state";
@@ -194,6 +196,20 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
     staleTime:        55_000,
   });
 
+  const { data: freshness } = useQuery<SignalFreshnessPayload>({
+    queryKey:       ["signal-freshness"],
+    queryFn:        () => fetch("/api/signal-freshness").then(r => r.json()),
+    refetchInterval: 5 * 60_000,
+    staleTime:       4 * 60_000,
+  });
+
+  const { data: rankIc } = useQuery<RankIcPayload>({
+    queryKey:       ["rank-ic"],
+    queryFn:        () => fetch("/api/rank-ic").then(r => r.json()),
+    refetchInterval: 10 * 60_000,
+    staleTime:       9 * 60_000,
+  });
+
   if (!data && error) return <ErrorState message={String(error)} />;
   if (!data)          return <OverviewLoadingState />;
 
@@ -259,12 +275,12 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
       </div>
 
       <div style={{ flex: 1, minHeight: 0, overflow: "hidden", padding: `10px ${space.pagePaddingX} 12px`, display: "flex", flexDirection: "column", gap: "10px" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px", flexShrink: 0 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: "10px", flexShrink: 0 }}>
           {[
             { label: "Smart Money",    value: `${data.total_active_wallets ?? data.wallet_count}`, sub: "wallets tracked" },
             { label: "Book Value",     value: formatUsd(totalAv),      sub: "across Smart Money" },
             { label: "Unrealised PnL", value: formatUsd(totalPnl), clr: totalPnl >= 0 ? color.green : color.red, sub: "open positions" },
-            { label: "Avg Score",      value: avgScore.toFixed(2),     sub: "out of 1.00" },
+            { label: "Avg Quality",     value: avgScore.toFixed(2),     sub: "out of 1.00" },
           ].map(({ label, value, sub, clr }) => (
             <div key={label} style={{ ...S.card, padding: "14px 16px", transition: "border-color 0.2s, background 0.2s" }}>
               <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(255,255,255,0.38)" }}>{label}</div>
@@ -272,6 +288,37 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
               <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.32)", marginTop: "6px" }}>{sub}</div>
             </div>
           ))}
+          <div style={{ ...S.card, padding: "14px 16px" }}>
+            <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(255,255,255,0.38)" }}>Signal Speed</div>
+            <div style={{ fontSize: "32px", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: color.text, marginTop: "10px", lineHeight: 1 }}>
+              {freshness?.p50_ms != null
+                ? freshness.p50_ms >= 60_000
+                  ? `${(freshness.p50_ms / 60_000).toFixed(1)}m`
+                  : `${(freshness.p50_ms / 1000).toFixed(1)}s`
+                : "--"}
+            </div>
+            <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.32)", marginTop: "6px" }}>
+              {freshness?.count ? `p50 · ${freshness.count} signals` : "no data yet"}
+            </div>
+          </div>
+          <div style={{ ...S.card, padding: "14px 16px" }}>
+            <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(255,255,255,0.38)" }}>Scoring Edge</div>
+            <div style={{
+              fontSize: "32px", fontWeight: 700, fontVariantNumeric: "tabular-nums", marginTop: "10px", lineHeight: 1,
+              color: rankIc?.latest_ic == null
+                ? color.textMuted
+                : rankIc.latest_ic > (rankIc.mdic ?? 0.08) ? color.green
+                : rankIc.latest_ic > 0 ? color.amber
+                : color.red,
+            }}>
+              {rankIc?.latest_ic != null ? rankIc.latest_ic.toFixed(3) : "--"}
+            </div>
+            <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.32)", marginTop: "6px" }}>
+              {rankIc?.total_measurements
+                ? `${rankIc.total_measurements} measurements`
+                : "no data yet"}
+            </div>
+          </div>
         </div>
 
         <div style={{ ...S.card, flexShrink: 0 }}>

@@ -278,9 +278,9 @@ function EvPopup({ rect }: { rect: DOMRect }) {
       pointerEvents: "none",
       fontFamily: T.sans,
     }}>
-      <div style={{ fontSize: "13px", fontWeight: 700, color: color.text, marginBottom: "6px" }}>Expected Value</div>
+      <div style={{ fontSize: "13px", fontWeight: 700, color: color.text, marginBottom: "6px" }}>Confidence Score</div>
       <div style={{ fontSize: "13px", color: color.textMuted, lineHeight: 1.45 }}>
-        Modeled signal edge based on historical accuracy and market context. Higher scores indicate stronger conviction.
+        How strongly the signal pattern matches historical winning setups. Higher means more conviction.
       </div>
     </div>
   );
@@ -347,7 +347,7 @@ function SignalRow({ sig }: { sig: Signal }) {
           <div style={{ ...S.evValue, color: EV_COLOR(sig.ev_score) }}>
             {(sig.ev_score * 100).toFixed(0)}
           </div>
-          <div style={S.evLabel}>EV</div>
+          <div style={S.evLabel}>Conf</div>
           {evRect && typeof document !== "undefined" && createPortal(
             <EvPopup rect={evRect} />,
             document.body,
@@ -383,7 +383,7 @@ function RecipeSidebar({
 
   return (
     <div style={S.sidebar}>
-      <div style={S.sidebarHeader}>Recipes</div>
+      <div style={S.sidebarHeader}>Signals</div>
       <div style={S.sidebarScroll}>
         {RECIPE_GROUPS.map((group) => (
           <div key={group.label}>

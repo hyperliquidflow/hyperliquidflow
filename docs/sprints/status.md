@@ -45,6 +45,26 @@ Waterproof wallet selection system — 6 independent streams (A-F).
 
 ---
 
+## Remediation Plan Sprints (from .claude/plans/hyperliquidflow-remediation-and-kind-grove.md)
+
+Separate sprint numbering from the product sprints above.
+
+| # | Name | Status | Notes |
+|---|---|---|---|
+| R7 | Signal-to-entry latency capture | COMPLETE (2026-04-19) | migration 012, signal_timing table, SignalLabResult, freshness API + Overview stat card |
+| R8 | Leverage capture + cohort attrition | COMPLETE (2026-04-19) | migration 013, computeLeverageStats, upsertAttritionStates, G10 gate, blow_up_distance |
+| R9 | Rank IC measurement | COMPLETE (2026-04-19) | migration 014, wallet_score_history, rank_ic_history, rank-ic.ts, rank-ic.yml, /performance/ranking page, Overview IC badge |
+| R10 | Outcome measurement overhaul | COMPLETE (2026-04-19) | migration 015, lib/atr.ts, simulateAtrExit, signal-learning rewrite, recipe_performance net PnL fields |
+| R11-R24 | Phases 2-4 | PLANNED | |
+| R25+ | Phase 5: automated execution | GATED on Phase 3 | |
+
+### Known Gaps (deferred, non-blocking)
+
+- **first_poll_ts backfill gap** (`app/api/cohort-state/route.ts`): backfill only fires on primary KV hit path. Fallback and KV-miss paths skip it. Latency stats are slightly undercounted on rare misses. Fix when Sprint R10 touches outcome measurement.
+- **user_pnl_backtest partial upsert** (`scripts/daily-wallet-scan.ts` `computeLeverageStats`): upsert sends only `wallet_id + leverage columns`. Harmless while active wallets always have backtest rows. Would break if a wallet had no prior backtest row. Note for Sprint R13 when backtest schema changes.
+
+---
+
 ## How to Start a Sprint
 
 1. Read this file to confirm which sprint is active
