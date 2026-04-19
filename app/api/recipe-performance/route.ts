@@ -13,7 +13,7 @@ export async function GET(): Promise<NextResponse> {
     await Promise.all([
       supabase
         .from("recipe_performance")
-        .select("recipe_id, signal_count, true_positive, false_positive, avg_ev_score, win_rate, measured_at")
+        .select("recipe_id, signal_count, true_positive, false_positive, avg_ev_score, win_rate, measured_at, median_net_pnl_bps, win_rate_net, expectancy_bps_net, sample_size_60d")
         .order("measured_at", { ascending: false })
         .limit(100),
       kv.get<Record<string, { avg_ev: number; count: number }>>("recipe:intraday_perf"),
@@ -107,14 +107,18 @@ export async function GET(): Promise<NextResponse> {
       if (!latest.has(recipe_id)) {
         result.push({
           recipe_id,
-          signal_count:  count,
-          avg_ev_score:  avg_ev,
-          win_rate:      null,
-          true_positive: 0,
-          false_positive:0,
-          measured_at:   new Date().toISOString(),
+          signal_count:        count,
+          avg_ev_score:        avg_ev,
+          win_rate:            null,
+          true_positive:       0,
+          false_positive:      0,
+          measured_at:         new Date().toISOString(),
+          median_net_pnl_bps:  null,
+          win_rate_net:        null,
+          expectancy_bps_net:  null,
+          sample_size_60d:     null,
           ...(outcomeMap.get(recipe_id) ?? OUTCOME_DEFAULTS),
-        });
+        } as RecipeStats);
       }
     }
   }

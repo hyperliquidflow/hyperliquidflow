@@ -88,6 +88,12 @@ export interface RecipeStats {
   avg_move_24h_30d: number | null;
   top_coins_7d:     string[];
   top_coins_30d:    string[];
+
+  // ATR-based net PnL fields (null until signal-learning.ts has simulated exits)
+  median_net_pnl_bps: number | null;
+  win_rate_net:       number | null;
+  expectancy_bps_net: number | null;
+  sample_size_60d:    number | null;
 }
 
 export const OUTCOME_DEFAULTS = {
@@ -97,6 +103,7 @@ export const OUTCOME_DEFAULTS = {
   accuracy_1h_30d: null, accuracy_4h_30d: null, accuracy_24h_30d: null,
   avg_move_1h_30d: null, avg_move_4h_30d: null, avg_move_24h_30d: null,
   top_coins_7d: [] as string[], top_coins_30d: [] as string[],
+  median_net_pnl_bps: null, win_rate_net: null, expectancy_bps_net: null, sample_size_60d: null,
 } as const satisfies Omit<RecipeStats, "recipe_id"|"signal_count"|"true_positive"|"false_positive"|"avg_ev_score"|"win_rate"|"measured_at">;
 
 export async function fetchRecipePerformance(): Promise<RecipeStats[] | null> {
@@ -104,7 +111,7 @@ export async function fetchRecipePerformance(): Promise<RecipeStats[] | null> {
     const [{ data, error }, intradayRaw] = await Promise.all([
       supabase
         .from("recipe_performance")
-        .select("recipe_id, signal_count, true_positive, false_positive, avg_ev_score, win_rate, measured_at")
+        .select("recipe_id, signal_count, true_positive, false_positive, avg_ev_score, win_rate, measured_at, median_net_pnl_bps, win_rate_net, expectancy_bps_net, sample_size_60d")
         .order("measured_at", { ascending: false })
         .limit(100),
       kv.get<Record<string, { avg_ev: number; count: number }>>("recipe:intraday_perf"),

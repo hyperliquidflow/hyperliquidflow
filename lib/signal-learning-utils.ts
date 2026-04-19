@@ -130,3 +130,107 @@ export function dominantRegime(
   for (const o of recent) counts[o.regime_at_fire] = (counts[o.regime_at_fire] ?? 0) + 1;
   return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
 }
+
+// ─── ATR-based exit simulation ─────────────────────────────────────────────────
+
+// Round-trip taker cost: 5 bps entry + 5 bps exit (Hyperliquid market taker).
+export const ROUND_TRIP_FEE_BPS = 10;
+
+export interface AtrExitResult {
+  entry_price:          number;
+  exit_price:           number;
+  exit_reason:          "stop" | "target" | "time_1h" | "time_4h" | "time_24h";
+  gross_pnl_bps:        number;
+  net_pnl_bps:          number;
+  realized_r_multiple:  number;
+  is_win:               boolean;
+}
+
+/**
+ * Simulate first-exit-wins logic using discrete price snapshots.
+ * Stop = entry - 2*ATR (LONG) or entry + 2*ATR (SHORT).
+ * Target = entry + 3*ATR (LONG) or entry - 3*ATR (SHORT).
+ * Checked in order: 1h, 4h, 24h. First snapshot that hits stop or target wins;
+ * otherwise the first available snapshot is a time exit.
+ */
+export function simulateAtrExit(
+  direction:  "LONG" | "SHORT",
+  entryPrice: number,
+  atr:        number,
+  price1h:    number | null,
+  price4h:    number | null,
+  price24h:   number | null,
+): AtrExitResult | null {
+  if (entryPrice <= 0 || atr <= 0) return null;
+
+  const sign      = direction === "LONG" ? 1 : -1;
+  const stopPx    = entryPrice - sign * 2 * atr;
+  const targetPx  = entryPrice + sign * 3 * atr;
+
+  const snapshots: Array<[number | null, "time_1h" | "time_4h" | "time_24h"]> = [
+    [price1h,  "time_1h"],
+    [price4h,  "time_4h"],
+    [price24h, "time_24h"],
+  ];
+
+  let exitPx:     number | null = null;
+  let exitReason: AtrExitResult["exit_reason"] | null = null;
+
+  for (const [px, timeLabel] of snapshots) {
+    if (px === null) continue;
+    const hitStop   = direction === "LONG" ? px <= stopPx   : px >= stopPx;
+    const hitTarget = direction === "LONG" ? px >= targetPx : px <= targetPx;
+    if (hitStop) {
+      exitPx     = stopPx;   // use exact stop level as conservative approximation
+      exitReason = "stop";
+      break;
+    }
+    if (hitTarget) {
+      exitPx     = targetPx; // use exact target level
+      exitReason = "target";
+      break;
+    }
+    exitPx     = px;
+    exitReason = timeLabel;
+    break;
+  }
+
+  if (exitPx === null || exitReason === null) return null;
+
+  const grossPnlBps  = sign * ((exitPx - entryPrice) / entryPrice) * 10_000;
+  const netPnlBps    = grossPnlBps - ROUND_TRIP_FEE_BPS;
+  const rMultiple    = grossPnlBps / (2 * atr / entryPrice * 10_000); // pnl / 1R
+
+  return {
+    entry_price:         entryPrice,
+    exit_price:          exitPx,
+    exit_reason:         exitReason,
+    gross_pnl_bps:       parseFloat(grossPnlBps.toFixed(2)),
+    net_pnl_bps:         parseFloat(netPnlBps.toFixed(2)),
+    realized_r_multiple: parseFloat(rMultiple.toFixed(4)),
+    is_win:              netPnlBps > 0,
+  };
+}
+
+// Average net PnL across all resolved outcomes (expectancy).
+export function computeExpectancyBps(
+  outcomes: Array<{ net_pnl_bps: number | null }>,
+): number | null {
+  const resolved = outcomes.filter((o) => o.net_pnl_bps !== null);
+  if (resolved.length === 0) return null;
+  const sum = resolved.reduce((s, o) => s + (o.net_pnl_bps as number), 0);
+  return parseFloat((sum / resolved.length).toFixed(2));
+}
+
+// Median net PnL across resolved outcomes.
+export function computeMedianNetPnlBps(
+  outcomes: Array<{ net_pnl_bps: number | null }>,
+): number | null {
+  const vals = outcomes
+    .filter((o) => o.net_pnl_bps !== null)
+    .map((o) => o.net_pnl_bps as number)
+    .sort((a, b) => a - b);
+  if (vals.length === 0) return null;
+  const mid = Math.floor(vals.length / 2);
+  return vals.length % 2 === 0 ? (vals[mid - 1] + vals[mid]) / 2 : vals[mid];
+}
