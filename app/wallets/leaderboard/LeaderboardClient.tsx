@@ -8,6 +8,7 @@ import { formatUsd, formatPct, truncateAddress } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 import { color, card as C, type as T, space } from "@/lib/design-tokens";
+import { FollowButton } from "@/components/follow-button";
 
 function TierBadge({ tier }: { tier: string | null | undefined }) {
   if (!tier) return null;
@@ -193,13 +194,14 @@ export function LeaderboardClient({ initialData }: { initialData: CohortCachePay
                     onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
                     <td style={{ ...S.td, color: "rgba(255,255,255,0.32)" }}>{i + 1}</td>
                     <td style={S.td}>
-                      <div style={{ display: "flex", alignItems: "center" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                         <button onClick={() => router.push(`/wallets/discovery?address=${w.address}`)}
                           style={{ ...S.mono, color: color.neutral, background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" as const }}>
                           {truncateAddress(w.address)}
                         </button>
                         <TierBadge tier={w.equity_tier} />
                         <StyleBadge style={w.trading_style} />
+                        <FollowButton address={w.address} />
                       </div>
                     </td>
                     <td style={S.td}>
