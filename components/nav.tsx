@@ -8,6 +8,8 @@ import { useQuery } from "@tanstack/react-query";
 import { timeAgo } from "@/lib/utils";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 import { color, type as T, shadow, anim } from "@/lib/design-tokens";
+import { AlertBell } from "@/components/alert-bell";
+import { useAlertDetection } from "@/lib/hooks/use-alert-detection";
 
 const LOGO = "HyperliquidFLOW";
 
@@ -23,9 +25,11 @@ const NAV: NavEntry[] = [
     label:    "Wallets",
     base:     "/wallets",
     children: [
-      { href: "/wallets/discovery",   label: "Discovery"   },
-      { href: "/wallets/leaderboard", label: "Leaderboard" },
-      { href: "/wallets/inposition",  label: "In Position" },
+      { href: "/wallets/discovery",   label: "Discovery"    },
+      { href: "/wallets/leaderboard", label: "Leaderboard"  },
+      { href: "/wallets/inposition",  label: "In Position"  },
+      { href: "/wallets/following",   label: "Following"    },
+      { href: "/wallets/paper",       label: "Paper Trading"},
     ],
   },
   {
@@ -65,6 +69,8 @@ export function Nav() {
     refetchInterval: 60_000,
     staleTime: 55_000,
   });
+
+  useAlertDetection();
 
   return (
     <>
@@ -109,7 +115,7 @@ export function Nav() {
         }}
       >
         {/* Logo */}
-        <div className="sidenav-logo-wrap" style={{ padding: "0 20px 24px", borderBottom: `1px solid ${color.borderFaint}`, marginBottom: "16px" }}>
+        <div className="sidenav-logo-wrap" style={{ padding: "0 20px 24px", borderBottom: `1px solid ${color.borderFaint}`, marginBottom: "16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ fontSize: "16px", fontWeight: 700, letterSpacing: "0.01em", display: "flex", cursor: "default", userSelect: "none" }}>
             {LOGO.split("").map((ch, i) => (
               <span key={i} className="logo-char" style={{
@@ -118,6 +124,7 @@ export function Nav() {
               }}>{ch}</span>
             ))}
           </div>
+          <AlertBell />
         </div>
 
         {/* Nav items */}
