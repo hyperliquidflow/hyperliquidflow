@@ -188,7 +188,9 @@ async function computeWeeklyRecipeBaseRates(): Promise<void> {
     .not("wallet_id", "is", null);
   const oocvIds = new Set((oocvRows ?? []).map((r: { wallet_id: string }) => r.wallet_id));
 
-  // Count signal firings per recipe for in-cohort and OOCV wallets
+  // Count signal_events rows per recipe that involved at least one in-cohort / OOCV wallet.
+  // Metric is firing-frequency (events / wallet count), not participation rate.
+  // Sufficient for selection-bias detection; participation rate can be added in R12.
   const inCohortCounts = new Map<string, number>();
   const oocvCounts     = new Map<string, number>();
 

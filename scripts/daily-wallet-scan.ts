@@ -407,7 +407,7 @@ function computeWindowScore(dailyPnls: number[], regimeLabels: string[]): number
   const sharpe      = computeSharpeProxy(dailyPnls);
   const drawdown    = computeDrawdownScore(dailyPnls);
   const consistency = computeConsistency(dailyPnls);
-  const rStats      = computeRegimeStats(dailyPnls, regimeLabels, 1);
+  const rStats      = computeRegimeStats(dailyPnls, regimeLabels, MIN_REGIME_DAYS);
   const regimeEdge  = rStats.regime_edge !== null ? Math.max(0, rStats.regime_edge) : 0;
   return 0.35 * sharpe + 0.25 * consistency + 0.25 * drawdown + 0.15 * regimeEdge;
 }
@@ -1180,6 +1180,8 @@ async function computeMultiWindowGates(): Promise<{
   }
 
   // Build regime label array aligned oldest-first (matches buildDailyPnlsForWindow index).
+  // Defensive sort: candleSnapshot is always ascending but make it explicit.
+  btcCandles.sort((a, b) => a.t - b.t);
   const regimeLabels180: string[] = btcCandles.map((c) => {
     const ret = (parseFloat(c.c) - parseFloat(c.o)) / parseFloat(c.o);
     if (ret > 0.01)  return "BULL";
@@ -1268,9 +1270,10 @@ async function computeMultiWindowGates(): Promise<{
         await supabase.from("wallets").update(walletPatch).eq("id", wallet.id);
 
         // Persist regime_at_day alongside the backtest row for downstream consumers.
+        // Sliced to SCORING_WINDOW_DAYS so it aligns index-for-index with daily_pnls.
         await supabase
           .from("user_pnl_backtest")
-          .update({ regime_at_day: rl180 })
+          .update({ regime_at_day: regimeLabels180.slice(-SCORING_WINDOW_DAYS) })
           .eq("wallet_id", wallet.id);
 
       } catch (err) {
@@ -1347,17 +1350,19 @@ async function sampleOocvWallets(
     is_active_in_oocv: true,
   }));
 
-  let inserted = 0;
+  // oocv_sampled = candidates identified this run (not net-new inserts).
+  // ignoreDuplicates means existing rows are silently skipped; count from
+  // the upsert response is unreliable across Supabase client versions.
   const CHUNK = 100;
+  let errors = 0;
   for (let i = 0; i < rows.length; i += CHUNK) {
-    const { error, count } = await supabase
+    const { error } = await supabase
       .from("out_of_cohort_tracking")
-      .upsert(rows.slice(i, i + CHUNK), { onConflict: "wallet_address", ignoreDuplicates: true })
-      .select("wallet_address");
-    if (!error) inserted += count ?? 0;
+      .upsert(rows.slice(i, i + CHUNK), { onConflict: "wallet_address", ignoreDuplicates: true });
+    if (error) errors++;
   }
 
-  return { sampled: inserted };
+  return { sampled: errors === 0 ? final.length : 0 };
 }
 
 // -- Main ----------------------------------------------------------------------
@@ -1682,8 +1687,8 @@ async function main(): Promise<void> {
   const mwResult = await computeMultiWindowGates();
   summary.g11_deactivated = mwResult.g11_deactivated;
   summary.g12_deactivated = mwResult.g12_deactivated;
-  summary.rejection_breakdown.score_unstable      = mwResult.g11_deactivated;
-  summary.rejection_breakdown.low_regime_coverage = mwResult.g12_deactivated;
+  summary.rejection_breakdown.score_unstable      += mwResult.g11_deactivated;
+  summary.rejection_breakdown.low_regime_coverage += mwResult.g12_deactivated;
   console.log(
     `[multi-window] computed: ${mwResult.computed}, ` +
     `G11 deactivated: ${mwResult.g11_deactivated}, G12 deactivated: ${mwResult.g12_deactivated}`
