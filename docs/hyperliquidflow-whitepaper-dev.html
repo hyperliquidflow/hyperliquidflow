@@ -1,0 +1,1236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HyperliquidFLOW: Developer Reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ---- reset + base ---- */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  * { user-select: none; -webkit-user-select: none; }
+  [style*="Geist Mono"], [style*="tabular-nums"], code, pre, .selectable {
+    user-select: text; -webkit-user-select: text;
+  }
+
+  html { background: #060606; color: #f0f0f0; font-family: 'DM Sans', system-ui, sans-serif; }
+  body { background: #060606; min-height: 100vh; }
+
+  /* ---- page / print layout ---- */
+  @page { size: A4; margin: 0; }
+
+  .page {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 auto;
+    padding: 0;
+    page-break-after: always;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* ---- cover ---- */
+  .cover {
+    background: #060606;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 64px 56px;
+    min-height: 297mm;
+  }
+
+  .cover-kicker {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #50d2c1;
+    margin-bottom: 20px;
+  }
+
+  .cover-wordmark {
+    font-size: 32px;
+    font-weight: 700;
+    color: #f0f0f0;
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+    margin-bottom: 24px;
+  }
+
+  .cover-subtitle {
+    font-size: 16px;
+    color: rgba(255,255,255,0.55);
+    line-height: 1.6;
+    max-width: 480px;
+    margin-bottom: 56px;
+  }
+
+  .cover-meta {
+    display: flex;
+    gap: 40px;
+    padding-top: 28px;
+    border-top: 1px solid rgba(255,255,255,0.07);
+  }
+
+  .cover-meta-item { display: flex; flex-direction: column; gap: 4px; }
+  .cover-meta-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.28);
+  }
+  .cover-meta-value { font-size: 13px; color: rgba(255,255,255,0.65); }
+
+  .cover-aura {
+    position: absolute;
+    bottom: -120px;
+    right: -80px;
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(ellipse, rgba(80,210,193,0.06) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  /* ---- content pages ---- */
+  .content-page {
+    background: #060606;
+    padding: 52px 56px 48px;
+    min-height: 297mm;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ---- page header strip ---- */
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    margin-bottom: 36px;
+  }
+
+  .page-header-wordmark {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.28);
+  }
+
+  .page-header-label {
+    font-size: 11px;
+    color: rgba(255,255,255,0.22);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  /* ---- typography ---- */
+  h1.section-title {
+    font-size: 26px;
+    font-weight: 700;
+    color: #f0f0f0;
+    letter-spacing: -0.01em;
+    margin-bottom: 8px;
+  }
+
+  .section-number {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.28);
+    margin-bottom: 10px;
+  }
+
+  h2.subsection {
+    font-size: 16px;
+    font-weight: 600;
+    color: #f0f0f0;
+    margin-top: 28px;
+    margin-bottom: 10px;
+  }
+
+  h3.sub-sub {
+    font-size: 13px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.7);
+    margin-top: 20px;
+    margin-bottom: 8px;
+  }
+
+  p {
+    font-size: 13px;
+    line-height: 1.75;
+    color: rgba(255,255,255,0.65);
+    margin-bottom: 14px;
+  }
+
+  ul, ol {
+    font-size: 13px;
+    line-height: 1.75;
+    color: rgba(255,255,255,0.65);
+    margin-bottom: 14px;
+    padding-left: 20px;
+  }
+
+  li { margin-bottom: 4px; }
+
+  /* ---- code blocks ---- */
+  pre {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    line-height: 1.65;
+    color: rgba(255,255,255,0.75);
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(80,210,193,0.2);
+    border-left: 3px solid #50d2c1;
+    border-radius: 6px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+    overflow-x: auto;
+    user-select: text;
+    -webkit-user-select: text;
+    white-space: pre;
+  }
+
+  code {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    color: #50d2c1;
+    background: rgba(80,210,193,0.07);
+    border: 1px solid rgba(80,210,193,0.15);
+    border-radius: 3px;
+    padding: 1px 5px;
+    user-select: text;
+    -webkit-user-select: text;
+  }
+
+  /* ---- stream badges ---- */
+  .stream-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: #50d2c1;
+    background: rgba(80,210,193,0.08);
+    border: 1px solid rgba(80,210,193,0.2);
+    border-radius: 4px;
+    padding: 2px 7px;
+    letter-spacing: 0.05em;
+    vertical-align: middle;
+  }
+
+  .recipe-id {
+    display: inline-flex;
+    align-items: center;
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.55);
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 3px;
+    padding: 1px 6px;
+    vertical-align: middle;
+  }
+
+  /* ---- cards ---- */
+  .card {
+    background: rgba(12,12,12,0.7);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 20px rgba(0,0,0,0.4);
+    margin-bottom: 16px;
+  }
+
+  .card-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .card-header-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.4);
+  }
+
+  .card-body {
+    padding: 18px 20px;
+  }
+
+  .card-body p:last-child,
+  .card-body ul:last-child,
+  .card-body ol:last-child { margin-bottom: 0; }
+
+  /* ---- data tables ---- */
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+    margin-bottom: 20px;
+  }
+
+  .data-table th {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.35);
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+  }
+
+  .data-table td {
+    padding: 8px 12px;
+    color: rgba(255,255,255,0.65);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    vertical-align: top;
+    line-height: 1.5;
+  }
+
+  .data-table td:first-child {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    color: rgba(255,255,255,0.75);
+    white-space: nowrap;
+  }
+
+  .data-table tr:last-child td { border-bottom: none; }
+
+  /* ---- two-column grid ---- */
+  .col2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  /* ---- TOC ---- */
+  .toc-item {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    font-size: 13px;
+    color: rgba(255,255,255,0.65);
+  }
+
+  .toc-num {
+    font-size: 11px;
+    color: rgba(255,255,255,0.28);
+    font-weight: 700;
+    min-width: 28px;
+  }
+
+  .toc-dots {
+    flex: 1;
+    border-bottom: 1px dotted rgba(255,255,255,0.12);
+    margin: 0 8px;
+    position: relative;
+    top: -3px;
+  }
+
+  .toc-page {
+    font-size: 11px;
+    font-family: 'Geist Mono', monospace;
+    color: rgba(255,255,255,0.28);
+  }
+
+  /* ---- recipe rows ---- */
+  .recipe-row {
+    display: grid;
+    grid-template-columns: 44px 1fr auto;
+    gap: 10px;
+    align-items: start;
+    padding: 10px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+
+  .recipe-row:last-child { border-bottom: none; }
+
+  .recipe-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #f0f0f0;
+    margin-bottom: 2px;
+  }
+
+  .recipe-desc {
+    font-size: 11px;
+    color: rgba(255,255,255,0.42);
+    line-height: 1.5;
+  }
+
+  .recipe-window {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    color: rgba(255,255,255,0.35);
+    white-space: nowrap;
+  }
+
+  /* ---- divider ---- */
+  .divider {
+    border: none;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    margin: 24px 0;
+  }
+
+  /* ---- spacer ---- */
+  .spacer { flex: 1; }
+
+  /* ---- page footer ---- */
+  .page-footer {
+    margin-top: auto;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255,255,255,0.04);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .page-footer-text {
+    font-size: 11px;
+    color: rgba(255,255,255,0.18);
+  }
+
+  .page-footer-num {
+    font-family: 'Geist Mono', monospace;
+    font-size: 11px;
+    color: rgba(255,255,255,0.18);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* screen preview spacing */
+  @media screen {
+    .page { margin: 24px auto; box-shadow: 0 8px 48px rgba(0,0,0,0.8); }
+  }
+</style>
+</head>
+<body>
+
+<!-- COVER -->
+<div class="page cover">
+  <div class="cover-aura"></div>
+  <div class="cover-kicker">Developer Reference</div>
+  <div class="cover-wordmark">HYPERLIQUIDFLOW</div>
+  <div class="cover-subtitle">Full technical specification: pipeline architecture, stream contracts, signal recipes, data model, scoring formulas, KV cache design, and infrastructure configuration.</div>
+  <div class="cover-meta">
+    <div class="cover-meta-item">
+      <span class="cover-meta-label">Version</span>
+      <span class="cover-meta-value">1.0</span>
+    </div>
+    <div class="cover-meta-item">
+      <span class="cover-meta-label">Date</span>
+      <span class="cover-meta-value">April 2026</span>
+    </div>
+    <div class="cover-meta-item">
+      <span class="cover-meta-label">Stack</span>
+      <span class="cover-meta-value">Next.js 15, Supabase, Vercel KV</span>
+    </div>
+    <div class="cover-meta-item">
+      <span class="cover-meta-label">Platform</span>
+      <span class="cover-meta-value">Vercel (Hobby tier)</span>
+    </div>
+  </div>
+</div>
+
+<!-- TABLE OF CONTENTS -->
+<div class="page content-page">
+  <div class="page-header">
+    <span class="page-header-wordmark">HYPERLIQUIDFLOW</span>
+    <span class="page-header-label">Developer Reference</span>
+  </div>
+
+  <div class="section-number">Contents</div>
+  <h1 class="section-title" style="margin-bottom:32px;">Table of Contents</h1>
+
+  <div class="toc-item"><span class="toc-num">1</span><span>Architecture Overview</span><span class="toc-dots"></span><span class="toc-page">3</span></div>
+  <div class="toc-item"><span class="toc-num">2</span><span>Data Model</span><span class="toc-dots"></span><span class="toc-page">4</span></div>
+  <div class="toc-item"><span class="toc-num">3</span><span>Cohort Pipeline: Streams A-D</span><span class="toc-dots"></span><span class="toc-page">6</span></div>
+  <div class="toc-item"><span class="toc-num">4</span><span>Signal Detection</span><span class="toc-dots"></span><span class="toc-page">8</span></div>
+  <div class="toc-item"><span class="toc-num">5</span><span>Quality Assurance: Streams E-F</span><span class="toc-dots"></span><span class="toc-page">10</span></div>
+  <div class="toc-item"><span class="toc-num">6</span><span>Infrastructure</span><span class="toc-dots"></span><span class="toc-page">11</span></div>
+  <div class="toc-item"><span class="toc-num">7</span><span>API Routes</span><span class="toc-dots"></span><span class="toc-page">12</span></div>
+  <div class="toc-item"><span class="toc-num">8</span><span>Known Limitations</span><span class="toc-dots"></span><span class="toc-page">13</span></div>
+  <div class="toc-item"><span class="toc-num">9</span><span>Glossary</span><span class="toc-dots"></span><span class="toc-page">14</span></div>
+
+  <hr class="divider">
+
+  <h2 class="subsection">Document Scope</h2>
+  <p>This document is the authoritative technical reference for the HyperliquidFLOW system. It covers every layer from raw API ingestion to client polling. Intended audience: engineers building on, extending, or operating the system.</p>
+  <p>The companion consumer whitepaper omits stream labels, recipe identifiers, database table names, formulas, and code. This document includes all of them.</p>
+
+  <h2 class="subsection">Repository Layout</h2>
+  <pre>hyperliquidflow/
+  app/               Next.js App Router pages and API routes
+  components/        Shared React components (nav, cards, etc.)
+  lib/               Core engines and utilities
+  lib/__tests__/     Vitest unit tests
+  scripts/           CLI scripts for daily scan and learning jobs
+  supabase/          SQL migrations
+  docs/              Whitepapers and sprint documentation
+  .github/workflows/ GitHub Actions (daily scan, learning, freshness check)</pre>
+
+  <div class="spacer"></div>
+  <div class="page-footer">
+    <span class="page-footer-text">HYPERLIQUIDFLOW Developer Reference</span>
+    <span class="page-footer-num">2</span>
+  </div>
+</div>
+
+<!-- SECTION 1: ARCHITECTURE OVERVIEW -->
+<div class="page content-page">
+  <div class="page-header">
+    <span class="page-header-wordmark">HYPERLIQUIDFLOW</span>
+    <span class="page-header-label">Section 1: Architecture Overview</span>
+  </div>
+
+  <div class="section-number">Section 01</div>
+  <h1 class="section-title">Architecture Overview</h1>
+  <p style="margin-bottom:24px;">HyperliquidFLOW is a Next.js 15 App Router application. All heavy computation runs server-side or in background jobs. The browser receives pre-computed snapshots via a React Query polling loop.</p>
+
+  <h2 class="subsection">Full Data Flow</h2>
+  <pre>Vercel Cron (00:00 UTC daily)      GitHub Actions (daily 00:00 UTC)
+  /api/refresh-cohort                scripts/daily-wallet-scan.ts
+  (seed + signal detection only)     +-- discover (leaderboard + fills)
+  Hobby plan: must finish in 10s     +-- Stream A: activation gates (9 checks)
+                                     +-- Stream C: wash / sybil detection
+                                     +-- Stream D: behavior profiling
+                                     +-- backtests + full scoring
+                                     +-- writes Supabase + artifact
+
+GitHub Actions ping (24/7)          GitHub Actions (01:00 UTC daily)
+  keeps signal detection live         scripts/signal-learning.ts
+  by calling /api/refresh-cohort      updates signal_outcomes stats
+
+Browser (React)
+  useQuery("/api/cohort-state") every 60s
+    +-- read KV snapshot (fast path, ~5ms)
+    +-- fires background refresh via after() if stale > 5 min
+    +-- fallback to Supabase on KV miss</pre>
+
+  <h2 class="subsection">Pipeline Streams</h2>
+  <table class="data-table">
+    <thead>
+      <tr><th>Stream</th><th>Name</th><th>Runtime</th><th>Purpose</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><span class="stream-badge">A</span></td><td>Activation Gates</td><td>daily-wallet-scan.ts</td><td>9-point quality gate for candidate wallets; writes wallets table</td></tr>
+      <tr><td><span class="stream-badge">B</span></td><td>Cohort Hygiene</td><td>refresh-cohort API</td><td>Deactivates wallets that go quiet, blow up, or stop trading</td></tr>
+      <tr><td><span class="stream-badge">C</span></td><td>Wash / Sybil</td><td>daily-wallet-scan.ts</td><td>Detects wash trading and Sybil address clusters</td></tr>
+      <tr><td><span class="stream-badge">D</span></td><td>Behavior Profile</td><td>daily-wallet-scan.ts</td><td>Per-wallet style, conviction, and regime tendency</td></tr>
+      <tr><td><span class="stream-badge">E</span></td><td>Signal Validation</td><td>refresh-cohort API</td><td>Filters emitted signals before they enter the KV snapshot</td></tr>
+      <tr><td><span class="stream-badge">F</span></td><td>Signal Learning</td><td>signal-learning.ts</td><td>Updates outcome stats; drives recipe calibration</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="subsection">Core Engines</h2>
+  <div class="col2">
+    <div class="card">
+      <div class="card-header"><span class="card-header-label">lib/cohort-engine.ts</span></div>
+      <div class="card-body"><p>Four-factor wallet scoring: <code>sharpe_proxy</code>, <code>pnl_consistency</code>, <code>drawdown_score</code>, <code>regime_fit</code>. Exports <code>scoreWallet()</code>, <code>detectRegime()</code>, <code>pruneUnderperformers()</code>.</p></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-header-label">lib/signal-lab.ts</span></div>
+      <div class="card-body"><p>13 pluggable signal recipes. Each implements <code>(pair: SnapshotPair) =&gt; SignalEvent[]</code>. All registered in <code>runSignalLab()</code>.</p></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-header-label">lib/risk-engine.ts</span></div>
+      <div class="card-body"><p>EV calculation, liquidation price, margin ratio, Hyperliquid fee schedule. Fee: 0.035% taker, 0.01% maker.</p></div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-header-label">lib/hyperliquid-api-client.ts</span></div>
+      <div class="card-body"><p>Raw Hyperliquid API calls: clearinghouse states, market data, fill history. All calls POST to <code>https://api.hyperliquid.xyz/info</code>.</p></div>
+    </div>
+  </div>
+
+  <div class="spacer"></div>
+  <div class="page-footer">
+    <span class="page-footer-text">HYPERLIQUIDFLOW Developer Reference</span>
+    <span class="page-footer-num">3</span>
+  </div>
+</div>
+
+<!-- SECTION 2: DATA MODEL -->
+<div class="page content-page">
+  <div class="page-header">
+    <span class="page-header-wordmark">HYPERLIQUIDFLOW</span>
+    <span class="page-header-label">Section 2: Data Model</span>
+  </div>
+
+  <div class="section-number">Section 02</div>
+  <h1 class="section-title">Data Model</h1>
+  <p>Supabase (PostgreSQL) stores all historical and scored data. Vercel KV caches hot snapshots for sub-10ms serving. Migrations live in <code>supabase/migrations/</code>.</p>
+
+  <h2 class="subsection">Supabase Tables</h2>
+
+  <h3 class="sub-sub">wallets</h3>
+  <p>One row per discovered address. Written by Stream A during the daily scan.</p>
+  <table class="data-table">
+    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>address</td><td>text PK</td><td>Hyperliquid address (0x...)</td></tr>
+      <tr><td>is_active</td><td>boolean</td><td>True if in current cohort</td></tr>
+      <tr><td>entity_type</td><td>text</td><td>human | bot | fund | unknown (migration 005)</td></tr>
+      <tr><td>score</td><td>numeric</td><td>Composite 0-100; updated daily</td></tr>
+      <tr><td>equity_tier</td><td>text</td><td>elite | major | large | mid | small | micro | dust</td></tr>
+      <tr><td>first_seen_at</td><td>timestamptz</td><td>Discovery timestamp</td></tr>
+      <tr><td>last_active_at</td><td>timestamptz</td><td>Last trade time from fills API</td></tr>
+      <tr><td>deactivation_reason</td><td>text</td><td>Null if active; Stream B exit code if deactivated</td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="sub-sub">user_pnl_backtest</h3>
+  <p>Daily realized PnL rows per wallet. Source of truth for scoring. Never conflate with unrealized positions in <code>cohort_snapshots</code>.</p>
+  <table class="data-table">
+    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>address</td><td>text FK</td><td>References wallets.address</td></tr>
+      <tr><td>date</td><td>date</td><td>UTC date of the PnL snapshot</td></tr>
+      <tr><td>daily_pnl</td><td>numeric</td><td>Realized PnL in USD for that day</td></tr>
+      <tr><td>cumulative_pnl</td><td>numeric</td><td>Running total from first observation</td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="sub-sub">cohort_snapshots</h3>
+  <p>Live positions per wallet captured each refresh cycle. Powers Stream E signal detection.</p>
+  <table class="data-table">
+    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>address</td><td>text FK</td><td></td></tr>
+      <tr><td>snapshot_at</td><td>timestamptz</td><td>Time of capture</td></tr>
+      <tr><td>positions</td><td>jsonb</td><td>Array of open position objects from clearinghouse</td></tr>
+      <tr><td>account_value</td><td>numeric</td><td>Total margin account value at snapshot time</td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="sub-sub">Signal Intelligence Tables (migrations 006-008)</h3>
+  <p><code>signals_history</code> stores every emitted <code>SignalEvent</code>. <code>signal_outcomes</code> drives the Stream F daily learning loop. <code>recipe_performance</code> holds rolling accuracy stats per recipe. <code>recipe_calibration</code> stores per-recipe threshold overrides tuned from outcome data.</p>
+
+  <h3 class="sub-sub">Stream Output Tables</h3>
+  <p><code>wallet_hygiene</code> records Stream B deactivation events. <code>wash_sybil</code> stores cluster membership and wash-trade scores from Stream C. <code>wallet_profiles</code> stores the behavior style labels from Stream D via <code>lib/wallet-profile.ts</code>.</p>
+
+  <div class="spacer"></div>
+  <div class="page-footer">
+    <span class="page-footer-text">HYPERLIQUIDFLOW Developer Reference</span>
+    <span class="page-footer-num">4</span>
+  </div>
+</div>
+
+<!-- SECTION 2b: KV CACHE + TYPESCRIPT INTERFACES -->
+<div class="page content-page">
+  <div class="page-header">
+    <span class="page-header-wordmark">HYPERLIQUIDFLOW</span>
+    <span class="page-header-label">Section 2: Data Model (continued)</span>
+  </div>
+
+  <h2 class="subsection">Vercel KV Cache Keys</h2>
+  <table class="data-table">
+    <thead><tr><th>Key</th><th>TTL</th><th>Content</th></tr></thead>
+    <tbody>
+      <tr><td>cohort:active</td><td>120s</td><td>Main cohort snapshot: scored wallets + current signal events</td></tr>
+      <tr><td>cohort:active:fallback</td><td>24h</td><td>Stale backup written alongside primary; served on primary miss</td></tr>
+      <tr><td>cohort:cycle_offset</td><td>25h</td><td>Integer rotating window offset for partial cron refresh cycles</td></tr>
+      <tr><td>btc_mid:{HH}</td><td>25h</td><td>BTC mid price keyed by UTC hour; used for regime detection</td></tr>
+      <tr><td>market:prior_mids</td><td>10min</td><td>Map of coin to prior mid price; used by intraday signal recipes</td></tr>
+      <tr><td>market:funding_history:{coin}</td><td>25h</td><td>Recent funding rate array for a given coin</td></tr>
+      <tr><td>cohort:underwater_counts</td><td>25h</td><td>Per-coin count of wallets with losing open positions</td></tr>
+      <tr><td>recipe:intraday_perf</td><td>7h</td><td>Running recipe accuracy stats within the current trading day</td></tr>
+      <tr><td>market-ticker:v4</td><td>short</td><td>Live price and 24h change data for ticker strip</td></tr>
+      <tr><td>contrarian:latest</td><td>120s</td><td>Contrarian signal cache for /api/contrarian</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="subsection">Fallback Chain</h2>
+  <pre>// lib/server/kv-fetchers.ts - fetchCohortState()
+const primary = await kv.get("cohort:active");
+if (primary) return primary;
+
+const fallback = await kv.get("cohort:active:fallback");
+if (fallback) return fallback;
+
+// Full Supabase read as last resort
+return await supabase
+  .from("cohort_snapshots")
+  .select("*")
+  .order("snapshot_at", { ascending: false })
+  .limit(1);</pre>
+
+  <h2 class="subsection">TypeScript Interfaces</h2>
+  <pre>interface CohortSnapshot {
+  wallets:         ScoredWallet[];
+  signals:         SignalEvent[];
+  updated_at:      number;         // Unix ms
+  regime:          "BULL" | "BEAR" | "RANGING";
+  btc_24h_pct:     number;
+}
+
+interface ScoredWallet {
+  address:         string;
+  score:           number;         // 0-100 composite
+  sharpe_proxy:    number;
+  pnl_consistency: number;
+  drawdown_score:  number;
+  regime_fit:      number;
+  equity_tier:     string;
+  is_active:       boolean;
+}
+
+interface SignalEvent {
+  recipe_id:    string;   // e.g. "R5"
+  wallet:       string;
+  coin:         string;
+  direction:    "LONG" | "SHORT" | "FLAT";
+  signal_type:  "entry" | "exit" | "scale_in" | "scale_out" | "flip" | "alert";
+  ev_score:     number;
+  notional_usd: number;
+  ts:           number;   // Unix ms
+}
+
+type SignalRecipe = (pair: SnapshotPair) =&gt; SignalEvent[];
+
+interface SnapshotPair {
+  prior:   CohortSnapshot;
+  current: CohortSnapshot;
+  regime:  "BULL" | "BEAR" | "RANGING";
+}</pre>
+
+  <div class="spacer"></div>
+  <div class="page-footer">
+    <span class="page-footer-text">HYPERLIQUIDFLOW Developer Reference</span>
+    <span class="page-footer-num">5</span>
+  </div>
+</div>
+
+<!-- SECTION 3: COHORT PIPELINE -->
+<div class="page content-page">
+  <div class="page-header">
+    <span class="page-header-wordmark">HYPERLIQUIDFLOW</span>
+    <span class="page-header-label">Section 3: Cohort Pipeline</span>
+  </div>
+
+  <div class="section-number">Section 03</div>
+  <h1 class="section-title">Cohort Pipeline: Streams A-D</h1>
+  <p>The daily wallet scan runs at 00:00 UTC via GitHub Actions. It processes up to 5,000 candidate wallets and produces a scored cohort of approximately 500 active wallets. Runtime budget: 50 minutes.</p>
+
+  <h2 class="subsection"><span class="stream-badge">A</span> Activation Gates</h2>
+  <p>Candidates must pass all 9 gates to enter the active cohort. Gate checks run in <code>scripts/daily-wallet-scan.ts</code> against 30 days of fill history and clearinghouse data.</p>
+
+  <table class="data-table">
+    <thead><tr><th>Gate</th><th>Field / Check</th><th>Threshold</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>G1</td><td>win_rate</td><td>&gt;= 0.52</td><td>Ratio of winning days to total trading days</td></tr>
+      <tr><td>G2</td><td>trade_count_30d</td><td>&gt;= 10</td><td>Minimum 10 trades in 30-day window</td></tr>
+      <tr><td>G3</td><td>avg_notional</td><td>&gt;= 500 USD</td><td>Filters dust-level wallets</td></tr>
+      <tr><td>G4</td><td>max_drawdown_30d</td><td>&lt;= 0.40</td><td>Drawdown from equity peak; blocks blow-ups</td></tr>
+      <tr><td>G5</td><td>pnl_consistency</td><td>&gt;= 0.3</td><td>Winning-day ratio over 30-day window</td></tr>
+      <tr><td>G6</td><td>active_days_30d</td><td>&gt;= 5</td><td>Must have traded on at least 5 of last 30 days</td></tr>
+      <tr><td>G7</td><td>wash_score</td><td>&lt;= 0.3</td><td>Stream C output; high score = likely wash trading</td></tr>
+      <tr><td>G8</td><td>sybil_cluster_size</td><td>&lt;= 3</td><td>Stream C output; large clusters excluded</td></tr>
+      <tr><td>G9</td><td>entity_type</td><td>!= "bot"</td><td>Automated bots excluded from cohort</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="subsection"><span class="stream-badge">B</span> Cohort Hygiene</h2>
+  <p>Stream B runs inside <code>/api/refresh-cohort</code> on every cron cycle. It calls <code>pruneUnderperformers()</code> from <code>lib/cohort-hygiene.ts</code> and writes <code>wallet_hygiene</code> rows on deactivation.</p>
+  <p>Deactivation triggers: 5 consecutive quiet days with no trades, drawdown exceeding 50% from equity peak, or account value dropping below the dust threshold. The exit code is written to <code>wallets.deactivation_reason</code>.</p>
+
+  <h2 class="subsection">Scoring Formula</h2>
+  <pre>// lib/cohort-engine.ts - scoreWallet()
+overall_score =
+  0.35 * sharpe_proxy      // risk-adjusted return
++ 0.25 * pnl_consistency   // rolling Sharpe stability
++ 0.25 * drawdown_score    // 1 - max_drawdown_30d
++ 0.15 * regime_fit        // accuracy in current regime
+
+// Regime detection - detectRegime()
+btc_24h_pct > +1.0  => "BULL"
+btc_24h_pct < -1.0  => "BEAR"
+otherwise           => "RANGING"
+
+// sharpe_proxy
+sharpe_proxy = mean(daily_pnl_30d) / stddev(daily_pnl_30d)
+
+// pnl_consistency
+pnl_consistency = winning_days / total_days  (30-day window)
+
+// drawdown_score
+drawdown_score = 1 - (peak_equity - current_equity) / peak_equity</pre>
+
+  <div class="spacer"></div>
+  <div class="page-footer">
+    <span class="page-footer-text">HYPERLIQUIDFLOW Developer Reference</span>
+    <span class="page-footer-num">6</span>
+  </div>
+</div>
+
+<!-- SECTION 3b: STREAMS C + D -->
+<div class="page content-page">
+  <div class="page-header">
+    <span class="page-header-wordmark">HYPERLIQUIDFLOW</span>
+    <span class="page-header-label">Section 3: Cohort Pipeline (continued)</span>
+  </div>
+
+  <h2 class="subsection"><span class="stream-badge">C</span> Wash Trading and Sybil Detection</h2>
+  <p>Implemented in <code>lib/wash-sybil.ts</code>. Runs after discovery in <code>daily-wallet-scan.ts</code>. Output written to the <code>wash_sybil</code> Supabase table.</p>
+
+  <div class="col2">
+    <div class="card">
+      <div class="card-header"><span class="card-header-label">Wash Trading Detection</span></div>
+      <div class="card-body">
+        <p>Computes a <code>wash_score</code> per wallet from 0.0 to 1.0. High scores indicate self-trading patterns.</p>
+        <ul>
+          <li>Identifies opposing fills against the same counterparty within a short time window</li>
+          <li>Flags fill sequences that produce no net position change</li>
+          <li>Weights by recency; older patterns decay</li>
+        </ul>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-header-label">Sybil Cluster Detection</span></div>
+      <div class="card-body">
+        <p>Groups wallets into clusters based on correlated fill timing and shared counterparty patterns.</p>
+        <ul>
+          <li>Cluster size written to <code>wash_sybil.cluster_size</code></li>
+          <li>Gate G8 blocks clusters of 4 or more</li>
+          <li>Cluster membership stored in <code>wash_sybil.cluster_id</code></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <h2 class="subsection"><span class="stream-badge">D</span> Behavior Profiling</h2>
+  <p>Implemented in <code>lib/wallet-profile.ts</code>. Runs after scoring. Writes to <code>wallet_profiles</code>.</p>
+
+  <table class="data-table">
+    <thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td>trading_style</td><td>text</td><td>scalper | swing | position; derived from avg hold duration</td></tr>
+      <tr><td>conviction_level</td><td>numeric</td><td>0-1; ratio of large-notional trades vs total</td></tr>
+      <tr><td>regime_tendency</td><td>text</td><td>bull_hunter | bear_hunter | range_trader; win-rate per regime</td></tr>
+      <tr><td>avg_hold_hours</td><td>numeric</td><td>Average hours between entry fill and closing fill</td></tr>
+      <tr><td>preferred_coins</td><td>text[]</td><td>Top 3 coins by notional volume in 30-day window</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="subsection">Discovery Sources</h2>
+  <p>Candidates are sourced from two paths each daily run:</p>
+  <ul>
+    <li><strong>Leaderboard:</strong> top 2,000 addresses from the Hyperliquid PnL leaderboard API</li>
+    <li><strong>Fill graph:</strong> first-degree fill counterparties of existing cohort members (up to 3,000 additional candidates)</li>
+  </ul>
+  <p>Deduplication runs before gate checking. Existing wallets in the <code>wallets</code> table are updated in place. Net new candidates that pass all gates are activated with <code>is_active = true</code>. At the end of each run, <code>scan-summary.json</code> is uploaded as a GitHub Actions artifact with 7-day retention.</p>
+
+  <div class="spacer"></div>
+  <div class="page-footer">
+    <span class="page-footer-text">HYPERLIQUIDFLOW Developer Reference</span>
+    <span class="page-footer-num">7</span>
+  </div>
+</div>
+
+<!-- SECTION 4: SIGNAL DETECTION -->
+<div class="page content-page">
+  <div class="page-header">
+    <span class="page-header-wordmark">HYPERLIQUIDFLOW</span>
+    <span class="page-header-label">Section 4: Signal Detection</span>
+  </div>
+
+  <div class="section-number">Section 04</div>
+  <h1 class="section-title">Signal Detection</h1>
+  <p>Signal detection runs inside <code>/api/refresh-cohort</code> on every cron cycle. It calls <code>runSignalLab(pair)</code> with the prior and current cohort snapshot pair and collects all emitted <code>SignalEvent</code> objects. All 13 recipes run on every cycle.</p>
+
+  <h2 class="subsection">Recipe Catalog</h2>
+  <div class="card">
+    <div class="card-header"><span class="card-header-label">13 Signal Recipes - lib/signal-lab.ts</span></div>
+    <div class="card-body">
+      <div class="recipe-row"><span class="recipe-id">R1</span><div><div class="recipe-name">Liquidation Flush</div><div class="recipe-desc">Cohort wallet just got liquidated on a coin; contrarian entry signal for the opposite direction.</div></div><span class="recipe-window">1-cycle</span></div>
+      <div class="recipe-row"><span class="recipe-id">R2</span><div><div class="recipe-name">Hot Streak</div><div class="recipe-desc">Wallet has won 5+ consecutive days; flags current open positions as momentum candidates.</div></div><span class="recipe-window">5d streak</span></div>
+      <div class="recipe-row"><span class="recipe-id">R3</span><div><div class="recipe-name">Regime Shift</div><div class="recipe-desc">BTC crosses the BULL/BEAR threshold; repositioning signal for regime-sensitive wallets.</div></div><span class="recipe-window">2-cycle</span></div>
+      <div class="recipe-row"><span class="recipe-id">R4</span><div><div class="recipe-name">Size Up</div><div class="recipe-desc">High-conviction wallet meaningfully increases position notional in a single cycle.</div></div><span class="recipe-window">1-cycle</span></div>
+      <div class="recipe-row"><span class="recipe-id">R5</span><div><div class="recipe-name">Contrarian</div><div class="recipe-desc">Wallet opens a position that runs counter to the current majority direction in that coin.</div></div><span class="recipe-window">1-cycle</span></div>
+      <div class="recipe-row"><span class="recipe-id">R6</span><div><div class="recipe-name">Crowded Entry</div><div class="recipe-desc">3+ top-quartile wallets enter the same coin in the same direction within one cycle.</div></div><span class="recipe-window">1-cycle</span></div>
+      <div class="recipe-row"><span class="recipe-id">R7</span><div><div class="recipe-name">Funding Flip</div><div class="recipe-desc">Funding rate sign changes for a coin where cohort wallets hold large open positions.</div></div><span class="recipe-window">24h</span></div>
+      <div class="recipe-row"><span class="recipe-id">R8</span><div><div class="recipe-name">Spread Capture</div><div class="recipe-desc">Wallet opens simultaneous long and short on correlated coins; statistical arb pattern.</div></div><span class="recipe-window">1-cycle</span></div>
+      <div class="recipe-row"><span class="recipe-id">R9</span><div><div class="recipe-name">Velocity Break</div><div class="recipe-desc">Notional velocity spikes 3x above the wallet's 7-day average within a single cycle.</div></div><span class="recipe-window">7d baseline</span></div>
+      <div class="recipe-row"><span class="recipe-id">R10</span><div><div class="recipe-name">Drawdown Recovery</div><div class="recipe-desc">Wallet was in drawdown &gt; 20% last cycle; opens new positions this cycle.</div></div><span class="recipe-window">2-cycle</span></div>
+      <div class="recipe-row"><span class="recipe-id">R11</span><div><div class="recipe-name">Momentum Add</div><div class="recipe-desc">Wallet scales into an existing winning position after at least 2h of positive price movement.</div></div><span class="recipe-window">2h window</span></div>
+      <div class="recipe-row"><span class="recipe-id">R12</span><div><div class="recipe-name">Quiet Accumulation</div><div class="recipe-desc">Wallet builds position size across 3+ consecutive cycles with no public signal activity.</div></div><span class="recipe-window">3-cycle</span></div>
+      <div class="recipe-row"><span class="recipe-id">R13</span><div><div class="recipe-name">Regime Exit</div><div class="recipe-desc">Top-quartile wallets close positions at the start of a regime change; precursor to reversal.</div></div><span class="recipe-window">2-cycle</span></div>
+    </div>
+  </div>
+
+  <div class="spacer"></div>
+  <div class="page-footer">
+    <span class="page-footer-text">HYPERLIQUIDFLOW Developer Reference</span>
+    <span class="page-footer-num">8</span>
+  </div>
+</div>
+
+<!-- SECTION 4b: EV FORMULA + RECIPE CONFIG -->
+<div class="page content-page">
+  <div class="page-header">
+    <span class="page-header-wordmark">HYPERLIQUIDFLOW</span>
+    <span class="page-header-label">Section 4: Signal Detection (continued)</span>
+  </div>
+
+  <h2 class="subsection">EV Scoring Formula</h2>
+  <p>Every <code>SignalEvent</code> carries an <code>ev_score</code> computed by <code>lib/risk-engine.ts</code>. The score represents estimated expected value in USD after accounting for Hyperliquid fee costs.</p>
+  <pre>// lib/risk-engine.ts - calculateEV()
+trade_cost = (taker_fee_rate * ref_notional) + walkBook(depth_snapshot, ref_notional)
+
+// Hyperliquid fee schedule:
+//   taker_fee_rate = 0.00035  (0.035%)
+//   maker_fee_rate = 0.0001   (0.010%)
+
+ev = (win_prob * avg_win_usd) - ((1 - win_prob) * avg_loss_usd) - trade_cost
+
+// win_prob        - from recipe_calibration table; updated daily by Stream F
+// avg_win_usd     - rolling 30-day average per recipe
+// avg_loss_usd    - rolling 30-day average per recipe
+// walkBook()      - slippage estimate from order book depth snapshot
+// ref_notional    - position notional in USD</pre>
+
+  <h2 class="subsection">Recipe Configuration</h2>
+  <p>Per-recipe thresholds are stored in <code>lib/recipe-config.ts</code>. Stream F writes calibration updates to <code>recipe_calibration</code>; the config module merges these at runtime.</p>
+  <pre>// lib/recipe-config.ts (example entries)
+export const recipeConfig: RecipeConfigMap = {
+  R1: {
+    min_liquidation_usd:  10_000,
+    lookback_cycles:      1,
+    min_wallet_score:     60,
+  },
+  R6: {
+    min_wallet_count:       3,
+    min_wallet_percentile:  75,
+    direction_threshold:    0.7,   // 70% of entrants must agree on direction
+  },
+  R9: {
+    velocity_multiplier:    3.0,
+    baseline_window_days:   7,
+    min_notional:           5_000,
+  },
+};</pre>
+
+  <h2 class="subsection">Adding a Recipe</h2>
+  <ol>
+    <li>Add the function to <code>lib/signal-lab.ts</code> with signature <code>(pair: SnapshotPair) =&gt; SignalEvent[]</code></li>
+    <li>Register it in the <code>recipes</code> map inside <code>runSignalLab()</code> with the next available ID (R14, R15, etc.)</li>
+    <li>Add display label and description to <code>lib/recipe-meta.ts</code> keyed by the recipe ID string</li>
+    <li>Add a config entry to <code>lib/recipe-config.ts</code></li>
+    <li>Insert a row into <code>recipe_performance</code> so outcome tracking begins immediately</li>
+  </ol>
+
+  <div class="spacer"></div>
+  <div class="page-footer">
+    <span class="page-footer-text">HYPERLIQUIDFLOW Developer Reference</span>
+    <span class="page-footer-num">9</span>
+  </div>
+</div>
+
+<!-- SECTION 5: QUALITY ASSURANCE -->
+<div class="page content-page">
+  <div class="page-header">
+    <span class="page-header-wordmark">HYPERLIQUIDFLOW</span>
+    <span class="page-header-label">Section 5: Quality Assurance</span>
+  </div>
+
+  <div class="section-number">Section 05</div>
+  <h1 class="section-title">Quality Assurance: Streams E-F</h1>
+
+  <h2 class="subsection"><span class="stream-badge">E</span> Signal Validation</h2>
+  <p>Stream E runs inside <code>/api/refresh-cohort</code> immediately after <code>runSignalLab()</code>. It discards signals that fail integrity checks before they enter the KV snapshot.</p>
+
+  <div class="card">
+    <div class="card-header"><span class="card-header-label">Validation Gates</span></div>
+    <div class="card-body">
+      <ul>
+        <li><strong>Wallet score gate:</strong> wallet must have <code>score &gt;= 50</code> at signal time</li>
+        <li><strong>Active cohort gate:</strong> <code>is_active = true</code> in the <code>wallets</code> table</li>
+        <li><strong>Stream C gate:</strong> <code>wash_score &lt;= 0.3</code>, re-checked at signal time, not just at activation</li>
+        <li><strong>Minimum notional:</strong> signal position must be &gt;= $500 notional to avoid dust position noise</li>
+        <li><strong>Cooldown gate:</strong> same recipe + wallet + coin combination cannot fire more than once per hour</li>
+        <li><strong>EV floor:</strong> signals with <code>ev_score &lt; 0</code> are dropped</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2 class="subsection"><span class="stream-badge">F</span> Signal Learning</h2>
+  <p>Stream F runs daily at 01:00 UTC via <code>scripts/signal-learning.ts</code>. It computes directional accuracy per recipe and updates <code>signal_outcomes</code> and <code>recipe_calibration</code>.</p>
+
+  <pre>// scripts/signal-learning.ts (high-level flow)
+1. Fetch signals from signals_history where ts > 24h ago
+2. For each signal, fetch coin price at ts + 1h and ts + 4h
+3. Classify outcome: WIN if price moved in signal direction
+   by more than the threshold; LOSS otherwise
+4. Upsert outcome row into signal_outcomes
+5. Recompute win_prob per recipe over rolling 30-day window
+6. Write updated win_prob to recipe_calibration
+7. Upload learning-summary.json artifact (14-day retention)</pre>
+
+  <h2 class="subsection">Market Radar (<span class="stream-badge">E</span> output)</h2>
+  <p>The Market Radar view at <code>/signals/radar</code> is powered by <code>lib/radar-utils.ts</code>. It aggregates cohort position data per coin from the same KV snapshot as the main feed. No additional data fetching is required.</p>
+  <p>Key output fields per coin: <code>long_count</code>, <code>short_count</code>, <code>net_direction</code>, <code>total_notional_usd</code>, <code>top_wallets</code> (up to 5). The <code>cohort:underwater_counts</code> KV key provides the losing-position overlay.</p>
+
+  <h2 class="subsection">Phase 2 Dependency</h2>
+  <p>Auto-calibration in Phase 2 is gated on accumulating at least 100 entries in <code>signal_outcomes</code> and 30 days of data. Until that threshold is reached, <code>win_prob</code> values in <code>recipe_calibration</code> are seeded with conservative priors rather than empirical data.</p>
+
+  <div class="spacer"></div>
+  <div class="page-footer">
+    <span class="page-footer-text">HYPERLIQUIDFLOW Developer Reference</span>
+    <span class="page-footer-num">10</span>
+  </div>
+</div>
+
+<!-- SECTION 6: INFRASTRUCTURE -->
+<div class="page content-page">
+  <div class="page-header">
+    <span class="page-header-wordmark">HYPERLIQUIDFLOW</span>
+    <span class="page-header-label">Section 6: Infrastructure</span>
+  </div>
+
+  <div class="section-number">Section 06</div>
+  <h1 class="section-title">Infrastructure</h1>
+
+  <h2 class="subsection">GitHub Actions Workflows</h2>
+
+  <div class="card" style="margin-bottom:14px;">
+    <div class="card-header">
+      <span class="card-header-label">daily-wallet-scan.yml</span>
+      <span class="stream-badge" style="margin-left:auto;">A</span>
+      <span class="stream-badge">C</span>
+      <span class="stream-badge">D</span>
+    </div>
+    <div class="card-body">
+      <ul>
+        <li>Schedule: <code>0 0 * * *</code> UTC; supports <code>workflow_dispatch</code></li>
+        <li>Timeout: 50 minutes</li>
+        <li>Runs: <code>npx tsx scripts/daily-wallet-scan.ts</code></li>
+        <li>Required env: <code>SUPABASE_URL</code>, <code>SUPABASE_SERVICE_ROLE_KEY</code>, <code>HYPERLIQUID_API_URL</code></li>
+        <li>Artifact: <code>scan-summary.json</code>, 7-day retention</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px;">
+    <div class="card-header">
+      <span class="card-header-label">signal-learning.yml</span>
+      <span class="stream-badge" style="margin-left:auto;">F</span>
+    </div>
+    <div class="card-body">
+      <ul>
+        <li>Schedule: <code>0 1 * * *</code> UTC, after daily scan completes</li>
+        <li>Timeout: 20 minutes</li>
+        <li>Runs: <code>npx tsx scripts/signal-learning.ts</code></li>
+        <li>Artifact: <code>learning-summary.json</code>, 14-day retention</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px;">
+    <div class="card-header"><span class="card-header-label">freshness-check.yml</span></div>
+    <div class="card-body">
+      <ul>
+        <li>Schedule: every 15 minutes (<code>*/15 * * * *</code>)</li>
+        <li>Hits <code>/api/cohort-state</code> and fails if <code>updated_at</code> is older than 1200 seconds</li>
+        <li>Emails repo admins on failure; catches silent cron outages before they surface to users</li>
+      </ul>
+    </div>
+  </div>
+
+  <h2 class="subsection">Vercel Configuration</h2>
+  <p>Runs on the Vercel Hobby plan. The Vercel Cron pings <code>/api/refresh-cohort</code> daily at 00:00 UTC. The endpoint must complete in under 10 seconds; all heavy computation is offloaded to GitHub Actions. Upgrading to Pro removes this limit and would allow inlining the daily scan.</p>
+
+  <pre>SUPABASE_URL=                    # Supabase project URL
+SUPABASE_ANON_KEY=               # Browser-safe anon key (never used server-side)
+SUPABASE_SERVICE_ROLE_KEY=       # Full access; never sent to browser
+KV_URL=                          # Vercel KV connection URL
+KV_REST_API_URL=                 # KV REST endpoint
+KV_REST_API_TOKEN=               # KV read/write token
+KV_REST_API_READ_ONLY_TOKEN=     # KV read-only token
+HYPERLIQUID_API_URL=https://api.hyperliquid.xyz/info
+NEXT_PUBLIC_POLL_INTERVAL_MS=60000
+CRON_SECRET=                     # Optional; restricts cron to Vercel scheduler</pre>
+
+  <div class="spacer"></div>
+  <div class="page-footer">
+    <span class="page-footer-text">HYPERLIQUIDFLOW Developer Reference</span>
+    <span class="page-footer-num">11</span>
+  </div>
+</div>
+
+<!-- SECTION 7: API ROUTES -->
+<div class="page content-page">
+  <div class="page-header">
+    <span class="page-header-wordmark">HYPERLIQUIDFLOW</span>
+    <span class="page-header-label">Section 7: API Routes</span>
+  </div>
+
+  <div class="section-number">Section 07</div>
+  <h1 class="section-title">API Routes</h1>
+
+  <table class="data-table">
+    <thead><tr><th>Route</th><th>Method</th><th>Auth</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td>/api/refresh-cohort</td><td>GET/POST</td><td>CRON_SECRET (opt.)</td><td>Cron + manual trigger. Runs Stream B, Stream E, writes KV. Must finish in 10s on Hobby.</td></tr>
+      <tr><td>/api/cohort-state</td><td>GET</td><td>None</td><td>Primary client poll. Reads <code>cohort:active</code> KV. Fires background refresh via <code>after()</code> if stale &gt; 5 min.</td></tr>
+      <tr><td>/api/contrarian</td><td>GET</td><td>None</td><td>Reads <code>contrarian:latest</code> KV. Fires background refresh if stale.</td></tr>
+      <tr><td>/api/market-ticker</td><td>GET</td><td>None</td><td>Live price and 24h change from <code>market-ticker:v4</code> KV.</td></tr>
+      <tr><td>/api/signals-feed</td><td>GET</td><td>None</td><td>Paginated signal event feed from <code>signals_history</code> Supabase table.</td></tr>
+      <tr><td>/api/wallet-profile</td><td>GET</td><td>None</td><td>Per-wallet deep dive: scores, positions, Stream D profile. Query: <code>?address=0x...</code></td></tr>
+      <tr><td>/api/recipe-performance</td><td>GET</td><td>None</td><td>Ranked recipe stats from <code>recipe_performance</code> table.</td></tr>
+      <tr><td>/api/market-radar</td><td>GET</td><td>None</td><td>Per-coin cohort positioning via <code>lib/radar-utils.ts</code>.</td></tr>
+      <tr><td>/api/scanner-stats</td><td>GET</td><td>None</td><td>Discovery stats: candidate count, gate pass rates, cohort size over time.</td></tr>
+      <tr><td>/api/top-markets</td><td>GET</td><td>None</td><td>Top coins by cohort notional and signal frequency.</td></tr>
+      <tr><td>/api/deep-dive</td><td>GET</td><td>None</td><td>Expanded wallet analysis including 30-day PnL chart data.</td></tr>
+      <tr><td>/api/measure-outcomes</td><td>POST</td><td>Internal</td><td>Called by signal-learning.ts to write outcome data to Supabase.</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="subsection">Stale-While-Revalidate Pattern</h2>
+  <pre>// /api/cohort-state (simplified)
+const snapshot = await kv.get("cohort:active");
+
+if (snapshot) {
+  const ageSeconds = (Date.now() - snapshot.updated_at) / 1000;
+  if (ageSeconds > 300) {
+    after(async () => {
+      await fetch("/api/refresh-cohort", { method: "POST" });
+    });
+  }
+  return NextResponse.json(snapshot);
+}
+
+// Cache miss fallback chain
+const fallback = await kv.get("cohort:active:fallback");
+if (fallback) return NextResponse.json(fallback);
+return NextResponse.json(await fetchFromSupabase());</pre>
+
+  <h2 class="subsection">Auth Model</h2>
+  <p>Data routes have no OAuth. Server-side reads use <code>SUPABASE_SERVICE_ROLE_KEY</code>, which is never exposed to the browser. Client-side Supabase calls (if any) use the anon key. <code>CRON_SECRET</code> restricts the cron endpoint to Vercel's scheduler IP range when set.</p>
+
+  <div class="spacer"></div>
+  <div class="page-footer">
+    <span class="page-footer-text">HYPERLIQUIDFLOW Developer Reference</span>
+    <span class="page-footer-num">12</span>
+  </div>
+</div>
+
+<!-- SECTION 8: KNOWN LIMITATIONS -->
+<div class="page content-page">
+  <div class="page-header">
+    <span class="page-header-wordmark">HYPERLIQUIDFLOW</span>
+    <span class="page-header-label">Section 8: Known Limitations</span>
+  </div>
+
+  <div class="section-number">Section 08</div>
+  <h1 class="section-title">Known Limitations</h1>
+
+  <div class="col2">
+    <div class="card">
+      <div class="card-header"><span class="card-header-label">Vercel Cron Budget</span></div>
+      <div class="card-body">
+        <p>The Hobby plan imposes a 10-second execution limit. <code>/api/refresh-cohort</code> cannot perform full cohort rescoring; it only runs signal detection and hygiene checks. Full scoring lives in the 50-minute GitHub Actions job. Upgrading to Pro would allow inlining the daily scan.</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-header-label">Signal Learning Data Lag</span></div>
+      <div class="card-body">
+        <p>Phase 2 auto-calibration is blocked until 100+ signal outcomes accumulate in <code>signal_outcomes</code> and at least 30 days of data exist. Until that threshold is reached, <code>win_prob</code> values in <code>recipe_calibration</code> are conservative priors, not empirical data.</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-header-label">Hyperliquid API Rate Limits</span></div>
+      <div class="card-body">
+        <p>The daily scan issues one <code>/info</code> POST per wallet for clearinghouse state and one per wallet for fill history. At 5,000 candidates that is 10,000 requests. A 50ms per-request delay keeps the scan within Hyperliquid's undocumented rate limit. If the limit tightens, the scan will fail with 429 errors and produce partial data in the artifact.</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-header-label">No Real-Time Position Updates</span></div>
+      <div class="card-body">
+        <p>Positions are polled, not streamed. The client poll interval is 60 seconds (<code>NEXT_PUBLIC_POLL_INTERVAL_MS</code>). Intraday entries and exits that resolve within a single 60-second window may be missed by recipe pairs that compare consecutive snapshots.</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-header-label">KV TTL Race on Cron Miss</span></div>
+      <div class="card-body">
+        <p>If both <code>cohort:active</code> and <code>cohort:active:fallback</code> expire before a refresh cycle completes, the API falls back to a live Supabase query (200-500ms vs 5ms for KV). The freshness-check workflow emails on stale data older than 1200s to catch cron outages before this degrades the user experience.</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-header-label">Sybil Detection Coverage</span></div>
+      <div class="card-body">
+        <p>Stream C detects Sybil clusters via fill counterparty graph analysis. Wallets that use intermediate addresses to obscure coordination may not be flagged. Detection is probabilistic. Gate G8 uses a conservative cluster-size threshold to minimize false negatives at the cost of some false positives.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="spacer"></div>
+  <div class="page-footer">
+    <span class="page-footer-text">HYPERLIQUIDFLOW Developer Reference</span>
+    <span class="page-footer-num">13</span>
+  </div>
+</div>
+
+<!-- SECTION 9: GLOSSARY -->
+<div class="page content-page">
+  <div class="page-header">
+    <span class="page-header-wordmark">HYPERLIQUIDFLOW</span>
+    <span class="page-header-label">Section 9: Glossary</span>
+  </div>
+
+  <div class="section-number">Section 09</div>
+  <h1 class="section-title">Glossary</h1>
+
+  <table class="data-table">
+    <thead><tr><th>Term</th><th>Definition</th></tr></thead>
+    <tbody>
+      <tr><td>cohort</td><td>The set of ~500 active wallets that have passed all Stream A gates and have not been deactivated by Stream B.</td></tr>
+      <tr><td>SnapshotPair</td><td>The prior and current cohort snapshots passed to each signal recipe for diff-based analysis.</td></tr>
+      <tr><td>SignalEvent</td><td>Typed event object emitted by a recipe; includes recipe_id, wallet, coin, direction, signal_type, ev_score, and timestamp.</td></tr>
+      <tr><td>ev_score</td><td>Expected value in USD of a signal, net of Hyperliquid fees and estimated slippage via walkBook.</td></tr>
+      <tr><td>regime</td><td>Market context derived from BTC 24h return: BULL (&gt;+1%), BEAR (&lt;-1%), or RANGING.</td></tr>
+      <tr><td>Stream A</td><td>Activation gate pipeline; 9-point quality check that admits wallets to the cohort.</td></tr>
+      <tr><td>Stream B</td><td>Hygiene layer; monitors active wallets and deactivates those that go quiet or blow up.</td></tr>
+      <tr><td>Stream C</td><td>Wash-trading and Sybil detection; writes wash_score and cluster_id to the wash_sybil table.</td></tr>
+      <tr><td>Stream D</td><td>Behavior profiling; classifies each wallet by trading style, conviction, and regime tendency.</td></tr>
+      <tr><td>Stream E</td><td>Signal validation; filters emitted signals before they enter the KV snapshot.</td></tr>
+      <tr><td>Stream F</td><td>Signal learning; computes outcome stats and updates recipe calibration daily.</td></tr>
+      <tr><td>walkBook</td><td>Slippage estimator in risk-engine.ts; simulates a market order fill against order book depth.</td></tr>
+      <tr><td>recipe_calibration</td><td>Supabase table storing per-recipe win_prob values updated by Stream F.</td></tr>
+      <tr><td>wash_score</td><td>0.0 to 1.0 score per wallet from Stream C; high value indicates self-trading patterns.</td></tr>
+      <tr><td>regime_fit</td><td>Scoring factor (weight 15%); wallet win rate in the current market regime.</td></tr>
+      <tr><td>drawdown_score</td><td>Scoring factor (weight 25%); 1 minus the ratio of equity drawdown from peak.</td></tr>
+      <tr><td>pnl_consistency</td><td>Scoring factor (weight 25%); winning-day ratio over a 30-day window.</td></tr>
+      <tr><td>sharpe_proxy</td><td>Scoring factor (weight 35%); mean daily PnL divided by standard deviation over 30 days.</td></tr>
+      <tr><td>R1-R13</td><td>Recipe IDs for the 13 signal recipes registered in lib/signal-lab.ts.</td></tr>
+      <tr><td>after()</td><td>Next.js API for fire-and-forget background execution after a response is sent; used for stale-while-revalidate refreshes.</td></tr>
+      <tr><td>cohort:active</td><td>Primary Vercel KV key holding the current scored cohort snapshot; TTL 120s.</td></tr>
+      <tr><td>cohort:active:fallback</td><td>Backup KV key written alongside primary; TTL 24h; served when primary has expired.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="spacer"></div>
+  <div class="page-footer">
+    <span class="page-footer-text">HYPERLIQUIDFLOW Developer Reference</span>
+    <span class="page-footer-num">14</span>
+  </div>
+</div>
+
+</body>
+</html>

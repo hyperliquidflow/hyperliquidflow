@@ -16,7 +16,7 @@ npm run test:watch   # Vitest in watch mode
 npx vitest run lib/__tests__/cohort-engine.test.ts
 
 # Scripts (require env vars)
-npx tsx scripts/daily-wallet-scan.ts          # Full 1200-wallet cohort scan (GitHub Actions runs this)
+npx tsx scripts/daily-wallet-scan.ts          # Full cohort scan: discovery, Streams A/C/D, backtests (GitHub Actions runs this)
 npx tsx scripts/validate-scoring-weights.ts   # Correlate wallet scores vs EV scores over 30 days
 npx tsx scripts/signal-learning.ts            # Update signal_outcomes stats (GitHub Actions runs this daily)
 npx tsx scripts/bootstrap-hypurrscan-index.ts # Seed Hypurrscan address-name index
@@ -28,37 +28,49 @@ Work is organized in sprints tracked in [docs/sprints/status.md](docs/sprints/st
 
 ## Architecture
 
-**HyperliquidFLOW** is a Next.js 15 App Router app that tracks the top ~1200 Hyperliquid wallets, scores them, and surfaces trading signals. All heavy computation is server-side; the client is a thin React Query poller.
+**HyperliquidFLOW** is a Next.js 15 App Router app that tracks an activated cohort of high-quality Hyperliquid wallets (~500 active at any time, rebuilt daily from ~4,500 discovered candidates), scores them, and surfaces trading signals. All heavy computation is server-side; the client is a thin React Query poller.
 
 ### Data Flow
 
 ```
-GitHub Actions ping (*/5 min)   Vercel Cron (00:00 UTC daily)   GitHub Actions (daily 00:00 UTC)
-  /api/refresh-cohort             /api/refresh-cohort             scripts/daily-wallet-scan.ts
-  ├─ fetch up to 100 wallets      (seed-only, Hobby plan limit)   ├─ full 1200-wallet cohort
-  ├─ score wallets                                                ├─ backtests + full scoring
-  ├─ run 9 signal recipes                                         └─ writes Supabase + artifact
-  ├─ write Supabase
-  └─ cache snapshot → KV
+Vercel Cron (00:00 UTC daily)   GitHub Actions (daily 00:00 UTC)
+  /api/refresh-cohort             scripts/daily-wallet-scan.ts
+  (seed-only, Hobby plan limit)   ├─ discover (leaderboard + fills)
+                                  ├─ Stream A activation gates (9 checks)
+                                  ├─ Stream C wash / sybil detection
+                                  ├─ Stream D behavior profiling
+                                  ├─ backtests + full scoring
+                                  └─ writes Supabase + artifact
+
+GitHub Actions ping (24/7)      GitHub Actions (01:00 UTC daily)
+  keeps signal detection live     scripts/signal-learning.ts
+  by calling /api/refresh-cohort  updates signal_outcomes stats
 
 Browser (React)
   useQuery("/api/cohort-state") every 60s
     ├─ read KV snapshot (fast path)
+    ├─ fires background refresh if stale >5 min
     └─ fallback to Supabase on KV miss
 ```
 
-**Why GitHub Actions for the 5-min ping:** Vercel Hobby plan limits cron to one run/day. The `.github/workflows/refresh-cohort-ping.yml` workflow pings `/api/refresh-cohort` every 5 minutes so signal detection runs 24/7 without Pro plan. Schedule may drift under GitHub Actions load; if true 60s cadence is required, upgrade Vercel to Pro and move the schedule back to `vercel.json`.
-
-**Cron budget:** `/api/refresh-cohort` must complete in ≤10s on Vercel free tier — that's why full cohort scoring lives in the daily GitHub Actions job, not the per-5-min ping.
+**Cron budget:** `/api/refresh-cohort` must complete in ≤10s on Vercel free tier — that's why full cohort scoring lives in the daily GitHub Actions job, not the per-cron ping.
 
 ### Core Engines (`lib/`)
 
 | File | Purpose |
 |------|---------|
 | `cohort-engine.ts` | Four-factor wallet scoring: Sharpe proxy, PnL consistency, drawdown, regime fit |
-| `signal-lab.ts` | 9 pluggable signal recipes — each takes `SnapshotPair → SignalEvent[]` |
+| `signal-lab.ts` | 13 pluggable signal recipes — each takes `SnapshotPair → SignalEvent[]` |
 | `risk-engine.ts` | EV calculation, liquidation price, margin ratio, Hyperliquid fee schedule |
 | `hyperliquid-api-client.ts` | Raw Hyperliquid API: clearinghouse states, market data, fill history |
+| `cohort-hygiene.ts` | Stream B hygiene gates — deactivates wallets that go quiet, blow up, or stop trading |
+| `wash-sybil.ts` | Stream C — wash-trading and Sybil cluster detection |
+| `wallet-profile.ts` | Stream D — per-wallet behavior profiling (style, conviction, regime tendency) |
+| `signal-learning-utils.ts` | Outcome tracking helpers for the daily learning loop |
+| `recipe-config.ts` | Per-recipe tunable config (thresholds, window sizes) |
+| `radar-utils.ts` | Aggregation helpers for the Market Radar view |
+| `hypurrscan-api-client.ts` | Hypurrscan name/label index client |
+| `hypurrscan-enrichment.ts` | Enriches wallet addresses with Hypurrscan labels |
 | `env.ts` | Central env var access — never read `process.env` directly elsewhere |
 | `recipe-meta.ts` | Single source of truth for signal recipe `label` + `desc` strings (used by Overview, Signals, Edge) |
 | `design-tokens.ts` | All visual design tokens: `color`, `type`, `space`, `radius`, `shadow`, `effect`, `layout`, `anim`, `card`, `row` |
@@ -80,7 +92,7 @@ Old routes (`/scanner`, `/stalker`, `/contrarian`, `/imbalance`, `/recipes`, `/e
 
 ### API Routes (`app/api/`)
 
-- `refresh-cohort` — Vercel Cron endpoint; scores cohort, runs recipes, writes KV. Calls `pruneUnderperformers` in background via `after()`.
+- `refresh-cohort` — Vercel Cron endpoint (and manual trigger target); scores cohort, runs recipes, writes KV. Calls `pruneUnderperformers` in background via `after()`.
 - `cohort-state` — Client polls this; reads KV, fires background refresh if stale >5 min
 - `contrarian` — Powers the Divergence tab; reads KV, fires background refresh if stale
 - `market-ticker` — Live price/change data for the ticker strip
@@ -129,12 +141,13 @@ Fallback chain on cache miss: primary key → fallback key → Supabase query.
 
 ### GitHub Actions
 
-Two daily workflows run in sequence:
+Three workflows:
 
-- **`daily-wallet-scan.yml`** — `0 0 * * *` UTC. Scores all 1200 wallets, runs full backtests, writes Supabase + uploads `scan-summary.json` artifact (7d retention). 25-minute timeout.
+- **`freshness-check.yml`** — Every 15 min. Hits `/api/cohort-state` and fails if `updated_at` is >1200s stale. Catches silent cron outages; emails repo admins on failure.
+- **`daily-wallet-scan.yml`** — `0 0 * * *` UTC. Discovery, Streams A/C/D, backtests, full scoring for ~500 active wallets (up to 5,000 candidates). Writes Supabase + uploads `scan-summary.json` artifact (7d retention). 50-minute timeout.
 - **`signal-learning.yml`** — `0 1 * * *` UTC (after scan finishes). Runs `scripts/signal-learning.ts` to update outcome stats. 20-minute timeout. Uploads `learning-summary.json` (14d retention).
 
-Both support `workflow_dispatch` for manual runs.
+All three support `workflow_dispatch` for manual runs.
 
 ### Tests
 
@@ -150,7 +163,7 @@ No OAuth on data routes. Auth relies on:
 
 ### Adding Signal Recipes
 
-Add to `lib/signal-lab.ts` following the `(pair: SnapshotPair) => SignalEvent[]` pattern. All nine existing recipes are registered in the `runAllRecipes` function. Add the display label + description to `lib/recipe-meta.ts` (keyed by the recipe ID string).
+Add to `lib/signal-lab.ts` following the `(pair: SnapshotPair) => SignalEvent[]` pattern. All 13 existing recipes are registered in the `runSignalLab` function. Add the display label + description to `lib/recipe-meta.ts` (keyed by the recipe ID string).
 
 ### Nav Structure
 

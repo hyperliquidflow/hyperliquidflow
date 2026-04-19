@@ -109,8 +109,8 @@ export function PerformanceClient({ initialData }: { initialData: RecipeStats[] 
                 {/* Fallback: no outcome data yet */}
                 {isNew ? (
                   <div style={{ padding: "16px 20px 18px" }}>
-                    <div style={{ ...S.fallback, color: perf?.win_rate != null ? accuracyColor(perf.win_rate) : color.textFaint }}>
-                      {perf?.win_rate != null ? formatPct(perf.win_rate) : "n/a"}
+                    <div style={{ ...S.fallback, color: perf?.win_rate != null && (perf?.true_positive ?? 0) > 0 ? accuracyColor(perf.win_rate) : color.textFaint }}>
+                      {perf?.win_rate != null && (perf?.true_positive ?? 0) > 0 ? formatPct(perf.win_rate) : "n/a"}
                     </div>
                     <div style={T.statLabel}>Signal Quality</div>
                     <div style={S.fallbackNote}>
