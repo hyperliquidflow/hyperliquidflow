@@ -63,13 +63,21 @@ export interface SnapshotPair {
 }
 
 export interface SignalEvent {
-  wallet_id:   string;
-  recipe_id:   string;
-  coin:        string;
-  signal_type: "ENTRY" | "EXIT" | "SCALE_IN" | "SCALE_OUT" | "FLIP" | "ALERT";
-  direction:   "LONG" | "SHORT" | "FLAT" | null;
-  ev_score:    number | null;
-  metadata:    Record<string, unknown>;
+  wallet_id:     string;
+  recipe_id:     string;
+  coin:          string;
+  signal_type:   "ENTRY" | "EXIT" | "SCALE_IN" | "SCALE_OUT" | "FLIP" | "ALERT";
+  direction:     "LONG" | "SHORT" | "FLAT" | null;
+  ev_score:      number | null;
+  metadata:      Record<string, unknown>;
+  // Unix-ms from the originating fill.time; null until WebSocket ingestion (Sprint 21)
+  whale_fill_ts?: number | null;
+}
+
+export interface SignalLabResult {
+  events:          SignalEvent[];
+  emittedIds:      string[];   // signals_history UUIDs, same order as rowsWithIds
+  signal_emit_ts:  string;     // ISO; captured just before the signals_history insert
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1054,9 +1062,9 @@ export interface SignalLabInputs {
  * Run all 9 signal recipes, enrich with EV scores, persist to Supabase.
  *
  * @param inputs  All market data and cohort state required by recipes
- * @returns Array of all fired signal events
+ * @returns Signal events, inserted DB IDs, and the emit timestamp for latency tracking
  */
-export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalEvent[]> {
+export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalLabResult> {
   const {
     pairs, candles5m, candles4h, assetCtxMap, allMids, priorAllMids,
     backtestMap, l2Books, recipeWinRates, recipeSignalCounts, regime,
@@ -1175,11 +1183,16 @@ export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalEvent
     ...r,
     id: randomUUID(),
   }));
+
+  const signal_emit_ts = new Date().toISOString();
+  let emittedIds: string[] = [];
+
   if (rowsWithIds.length > 0) {
     const { error } = await supabase.from("signals_history").insert(rowsWithIds);
     if (error) {
       console.error("[signal-lab] insert error:", error.message);
     } else {
+      emittedIds = rowsWithIds.map((r) => r.id);
       console.log(`[signal-lab] inserted ${rowsWithIds.length} signal events`);
       const outcomeRows = buildOutcomeRows(rowsWithIds, allMids);
       if (outcomeRows.length === 0) {
@@ -1201,5 +1214,5 @@ export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalEvent
     }
   }
 
-  return enriched;
+  return { events: enriched, emittedIds, signal_emit_ts };
 }

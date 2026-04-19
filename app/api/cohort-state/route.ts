@@ -45,6 +45,23 @@ export async function GET(): Promise<NextResponse> {
         triggerBackgroundRefresh();
       }
 
+      // Backfill first_poll_ts for any signals not yet seen by a browser
+      const unseenIds = (payload.recent_signals ?? [])
+        .map((s) => s.id)
+        .filter(Boolean) as string[];
+      if (unseenIds.length > 0) {
+        after(
+          (async () => {
+            const { error } = await supabase
+              .from("signal_timing")
+              .update({ first_poll_ts: new Date().toISOString() })
+              .in("signal_id", unseenIds)
+              .is("first_poll_ts", null);
+            if (error) console.error("[signal-timing] first_poll backfill error:", error.message);
+          })()
+        );
+      }
+
       return NextResponse.json(payload, {
         headers: {
           "Cache-Control": "public, max-age=55, stale-while-revalidate=10",
@@ -98,7 +115,7 @@ export async function GET(): Promise<NextResponse> {
     const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data: recentSignals } = await supabase
       .from("signals_history")
-      .select("recipe_id, coin, signal_type, direction, detected_at, ev_score, metadata, wallet_id")
+      .select("id, recipe_id, coin, signal_type, direction, detected_at, ev_score, metadata, wallet_id")
       .gte("detected_at", since24h)
       .order("detected_at", { ascending: false })
       .limit(500);
@@ -138,6 +155,7 @@ export async function GET(): Promise<NextResponse> {
         };
       }),
       recent_signals: (recentSignals ?? []).map((s) => ({
+        id:             s.id,
         recipe_id:      s.recipe_id,
         coin:           s.coin,
         signal_type:    s.signal_type,

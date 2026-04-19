@@ -337,7 +337,8 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       ])
     );
 
-    const signalEvents = await runSignalLab({
+    const snapshotDetectTs = new Date().toISOString();
+    const { events: signalEvents, emittedIds, signal_emit_ts: signalEmitTs } = await runSignalLab({
       pairs,
       candles5m,
       candles4h,
@@ -358,7 +359,7 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
     const [{ data: recentSignals }, { data: snapRows }] = await Promise.all([
       supabase
         .from("signals_history")
-        .select("recipe_id, coin, signal_type, direction, detected_at, ev_score, metadata, wallet_id")
+        .select("id, recipe_id, coin, signal_type, direction, detected_at, ev_score, metadata, wallet_id")
         .gte("detected_at", since24h)
         .order("detected_at", { ascending: false })
         .limit(500),
@@ -410,6 +411,7 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
         .slice(0, 200),
       spotlight_positions: spotlightPositions,
       recent_signals: (recentSignals ?? []).map((s) => ({
+        id:             s.id,
         recipe_id:      s.recipe_id,
         coin:           s.coin,
         signal_type:    s.signal_type,
@@ -428,6 +430,7 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       // Store allMids for next cycle's Recipe 5 price-confirmation check
       kv.set("market:prior_mids", allMids, { ex: PRIOR_MIDS_TTL_SECONDS }),
     ]);
+    const kvWriteTs = new Date().toISOString();
     // Secondary fallback key: survives cron gaps up to 24h, prevents Supabase fallback on KV miss
     kv.set("cohort:active:fallback", JSON.stringify(payload), { ex: 24 * 3600 }).catch(() => {});
 
@@ -452,7 +455,7 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       })
     );
 
-    // Run background tasks after response: hygiene + prune + enrichment + intraday recipe perf
+    // Run background tasks after response: hygiene + prune + enrichment + intraday recipe perf + timing
     after(
       Promise.all([
         applyHygieneGates(allActive.map((w) => w.id))
@@ -478,6 +481,21 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
         updateIntradayRecipePerformance().catch((err) =>
           console.error("[refresh-cohort] updateIntradayRecipePerformance error:", err)
         ),
+        emittedIds.length > 0
+          ? supabase
+              .from("signal_timing")
+              .insert(emittedIds.map((id) => ({
+                signal_id:           id,
+                whale_fill_ts:       null,
+                snapshot_detect_ts:  snapshotDetectTs,
+                signal_emit_ts:      signalEmitTs,
+                kv_write_ts:         kvWriteTs,
+              })))
+              .then(({ error }) => {
+                if (error) console.error("[signal-timing] insert error:", error.message);
+                else console.log(`[signal-timing] inserted ${emittedIds.length} timing rows`);
+              })
+          : Promise.resolve(),
       ])
     );
 
@@ -658,6 +676,7 @@ export interface CohortCachePayload {
   }>;
   top_wallets:           CohortWalletSummary[];
   recent_signals: Array<{
+    id:             string;
     recipe_id:      string;
     coin:           string;
     signal_type:    string;
