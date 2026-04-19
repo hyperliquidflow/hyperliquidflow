@@ -70,24 +70,20 @@ All four sprints complete as of 2026-04-19.
 
 ## Phase 2: Decoupling, anti-survivorship, anti-circularity (Sprints R11 through R16)
 
-### Sprint R11: Multi-window selection + out-of-cohort validation set
-- Migration `016_multi_window_and_oocv.sql`:
-  - Add `score_30d`, `score_90d`, `score_180d`, `bull_days`, `bear_days`, `ranging_days`, `score_stability` to `wallets`
-  - Add `regime_at_day` to `user_pnl_backtest`
-  - New table `out_of_cohort_tracking`: held-out set of 200-500 wallets that pass basic liquidity gates but are explicitly excluded from the active cohort. Signals measured on them but never served. This is the out-of-cohort control for recipe base rate comparison.
-- scripts/daily-wallet-scan.ts: multi-window scores + OOCV sample (stratified random from qualifying candidates)
-- scripts/rank-ic.ts: also compute in-cohort vs. out-of-cohort recipe base rates weekly. If they diverge materially, selection is doing the work, not the recipes. Flag it on the ranking page.
-- New gates (applied in `daily-wallet-scan.ts` Stream A block, after existing G1-G10):
-  - **G11 (score_stability)**: reject wallets whose rolling 30d score varies by more than 0.25 across the three windows (score_30d vs score_90d vs score_180d). Computed as `max(scores) - min(scores) > 0.25`. Prevents flash-performer selection.
-  - **G12 (regime_coverage)**: reject wallets with fewer than 10 trading days in any single regime bucket (bull_days, bear_days, ranging_days). Ensures the regime_fit factor has enough data across regimes to be meaningful.
-  - **G13 (window_count)**: only apply G11/G12 to wallets where 180d fill data was fetched. Fetch 180d fills only for candidates that pass all 30d gates to control API cost.
+### Sprint R11: Multi-window selection + out-of-cohort validation set -- COMPLETE (2026-04-19)
+- Migration 016_multi_window_and_oocv.sql: score_30d/90d/180d + bull/bear/ranging_days + score_stability on wallets; regime_at_day on user_pnl_backtest; out_of_cohort_tracking table
+- daily-wallet-scan.ts Phase 12: 180d fill fetch (G13), 3-window score computation, G11 (score_stability > 0.25) + G12 (< 10 active days per regime bucket) deactivation gates
+- daily-wallet-scan.ts Phase 13: stratified-random OOCV sample (target 400) from pre-filter-passing but activation-failing wallets
+- rank-ic.ts: computeWeeklyRecipeBaseRates() -- in-cohort vs OOCV firing-frequency comparison per recipe
+- **Post-review corrections (2026-04-19)**: C1 rejection_breakdown += not =; C2 computeWindowScore uses MIN_REGIME_DAYS=5 not 1; I1 regime_at_day sliced to SCORING_WINDOW_DAYS for daily_pnls alignment; I3 oocv_sampled uses final.length not unreliable upsert count; I5 btcCandles sorted ascending before regime mapping
+- **Known gaps carried forward**: regime_at_day is 60d-aligned (matches daily_pnls); 180d PnL storage deferred to R13 when backtest schema changes. OOCV signal tracking not yet wired (R12 scope).
 
-
-### Sprint R12: EV decouple
-- Migration `017_ev_decouple.sql`: CREATE new table `recipe_calibration` (`recipe_id` TEXT PK, `avg_win_bps` NUMERIC, `avg_loss_bps` NUMERIC, `sample_size_30d` INTEGER, `confidence_interval_low` NUMERIC, `confidence_interval_high` NUMERIC, `updated_at` TIMESTAMPTZ). **Note**: no `recipe_calibration` TABLE exists yet -- migration 008 (`008_recipe_calibration.sql`) is only data inserts into `agent_config`, not a table creation. Do not attempt ALTER TABLE. New `wallet_signal_stats` table (`wallet_address` TEXT, `recipe_id` TEXT, `window_days` INTEGER, `win_rate_net` NUMERIC, `signal_count` INTEGER, `updated_at` TIMESTAMPTZ, PK on wallet_address+recipe_id+window_days).
-- Rewrite lib/signal-lab.ts `enrichWithEv` and lib/risk-engine.ts `calculateEV`: Bayesian blend where recipe base rate weighted at least 70% and wallet adjustment capped at 30%. Recipe base rate sourced from the OOCV pool whenever sample size is adequate, not from the active cohort.
-- scripts/wallet-signal-stats.ts nightly.
-- Success criterion: Pearson(ev_score, wallet.score) drops from ~0.8 to 0.2-0.4. Plus: in-cohort and OOCV recipe stats should converge (within 95% CI).
+### Sprint R12: EV decouple -- COMPLETE (2026-04-19)
+- `supabase/migrations/017_ev_decouple.sql`: `recipe_calibration` (recipe_id PK, win_rate, avg_win_bps, avg_loss_bps, sample_size_30d, Wilson 95% CI bounds, source CHECK IN ('in_cohort','oocv','blended')) + `wallet_signal_stats` (wallet_address, recipe_id, window_days, win_rate_net, signal_count; PK on all three).
+- `scripts/wallet-signal-stats.ts`: nightly script (runs after signal-learning.ts in signal-learning.yml). Fetches resolved signal_outcomes last 30d, batch-looks up wallet_ids from signals_history, upserts both tables. MIN_SAMPLE_RECIPE=10, MIN_SAMPLE_WALLET=5, Wilson CI z=1.96.
+- `lib/signal-lab.ts`: `enrichWithEv` rewritten with Bayesian blend (RECIPE_WEIGHT=0.70, WALLET_WEIGHT=0.30). Recipe base rate activates only when sample_size_30d >= RECIPE_MIN_SAMPLE (30); falls back to wallet-only win_rate otherwise. `SignalLabInputs.recipeCalibrationMap` added (optional, backward-compat).
+- `app/api/refresh-cohort/route.ts`: loads `recipe_calibration` at Step 9, passes `recipeCalibrationMap` to `runSignalLab`.
+- Success criterion: Pearson(ev_score, wallet.score) drops from ~0.8 to 0.2-0.4 after 30d of production data (measured in R16).
 
 ### Sprint R13: Empirically-fit leverage-adjusted scoring
 - Pre-work: fit the leverage-to-blow-up relationship from the `cohort_attrition` table (R8). Regress realized drawdown / blow-up probability against pre-event leverage percentiles. Derive the functional form empirically, do not guess.
