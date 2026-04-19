@@ -1014,20 +1014,39 @@ async function recipe13(
 // EV enrichment — attach EV scores where backtest data is available
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Minimum resolved outcomes in recipe_calibration before the recipe base rate
+// is trusted enough to contribute to the 70% weight.  Below this threshold the
+// blend falls back to wallet-only win_rate.
+const RECIPE_MIN_SAMPLE = 30;
+
+// Bayesian weights for EV win_probability: recipe base rate vs wallet adjustment.
+const RECIPE_WEIGHT = 0.70;
+const WALLET_WEIGHT = 0.30;
+
 function enrichWithEv(
   events: SignalEvent[],
   backtestMap: Map<string, { win_rate: number; avg_win_usd: number; avg_loss_usd: number }>,
-  l2Books: Map<string, HlL2Book>
+  l2Books: Map<string, HlL2Book>,
+  recipeCalibrationMap: Map<string, { win_rate: number; sample_size_30d: number }>
 ): SignalEvent[] {
   return events.map((event) => {
     const bt = event.wallet_id ? backtestMap.get(event.wallet_id) : null;
     if (!bt || bt.win_rate === 0) return event;
 
-    const book = l2Books.get(event.coin) ?? null;
-    const notional = 10_000; // default reference notional for EV calc
-    const cost = estimateTradeCost(notional, book, event.direction === "LONG" ? "buy" : "sell");
+    const book    = l2Books.get(event.coin) ?? null;
+    const notional = 10_000; // reference notional for EV normalisation
+    const cost    = estimateTradeCost(notional, book, event.direction === "LONG" ? "buy" : "sell");
+
+    // Blend recipe base rate (70%) + wallet adjustment (30%) when calibration
+    // data is adequate.  Falls back to wallet-only below RECIPE_MIN_SAMPLE.
+    const cal = recipeCalibrationMap.get(event.recipe_id ?? "");
+    const recipeWinRate = cal && cal.sample_size_30d >= RECIPE_MIN_SAMPLE ? cal.win_rate : null;
+    const blendedWinRate = recipeWinRate !== null
+      ? RECIPE_WEIGHT * recipeWinRate + WALLET_WEIGHT * bt.win_rate
+      : bt.win_rate;
+
     const ev = computeEv({
-      win_probability: bt.win_rate,
+      win_probability: blendedWinRate,
       avg_win_usd:     bt.avg_win_usd,
       avg_loss_usd:    bt.avg_loss_usd,
       trade_cost_usd:  cost.total,
@@ -1056,6 +1075,9 @@ export interface SignalLabInputs {
   regime:              "BULL" | "BEAR" | "RANGING";
   /** Per-wallet regime profile from wallet_profiles. Optional -- absent = no regime fit annotation. */
   walletProfileMap?:   Map<string, { bull_daily_pnl: number | null; bear_daily_pnl: number | null; ranging_daily_pnl: number | null }>;
+  /** Recipe-level calibration from recipe_calibration table (R12). Used for 70% EV base rate.
+   *  Optional for backward-compat -- absent = enrichWithEv falls back to wallet-only win_rate. */
+  recipeCalibrationMap?: Map<string, { win_rate: number; sample_size_30d: number }>;
 }
 
 /**
@@ -1103,7 +1125,7 @@ export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalLabRe
   const allEvents = [...dedupedPre, ...r8, ...r9];
 
   // Enrich with EV scores
-  const enriched = enrichWithEv(allEvents, backtestMap, l2Books);
+  const enriched = enrichWithEv(allEvents, backtestMap, l2Books, inputs.recipeCalibrationMap ?? new Map());
 
   // Annotate each signal with wallet regime fit (how well this wallet performs in current regime)
   if (walletProfileMap) {

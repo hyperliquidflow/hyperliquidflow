@@ -337,6 +337,17 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       ])
     );
 
+    // Load recipe_calibration for the 70% EV base rate (R12 EV decouple)
+    const { data: recipeCalRows } = await supabase
+      .from("recipe_calibration")
+      .select("recipe_id, win_rate, sample_size_30d");
+    const recipeCalibrationMap = new Map(
+      (recipeCalRows ?? []).map((r) => [
+        r.recipe_id as string,
+        { win_rate: (r.win_rate as number) ?? 0, sample_size_30d: (r.sample_size_30d as number) ?? 0 },
+      ])
+    );
+
     const snapshotDetectTs = new Date().toISOString();
     const { events: signalEvents, emittedIds, signal_emit_ts: signalEmitTs } = await runSignalLab({
       pairs,
@@ -351,6 +362,7 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       recipeSignalCounts,
       regime:           regimeResult.regime,
       walletProfileMap,
+      recipeCalibrationMap,
     });
 
     // ── Step 10: Fetch recent signals + all-cohort positions in parallel ────────
