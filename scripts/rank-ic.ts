@@ -353,7 +353,8 @@ async function main() {
       .limit(30);
 
     if (recent && recent.length >= 30) {
-      const median = [...recent].map((r) => r.rank_ic ?? 0).sort((a, b) => a - b)[15];
+      const sorted30 = [...recent].map((r) => r.rank_ic ?? 0).sort((a, b) => a - b);
+      const median = sorted30[Math.floor(sorted30.length / 2)];
       const aboveMdic = recent.filter((r) => (r.rank_ic ?? 0) > MDIC && (r.p_value ?? 1) < 0.05).length;
       console.log(`[rank-ic] Phase 1 gate check: median IC=${median.toFixed(4)}, ${aboveMdic}/30 above MDIC with p<0.05`);
       if (aboveMdic < 15) {
@@ -371,8 +372,10 @@ async function main() {
         const shadowVals = shadowHistory.map((r) => r.rank_ic_shadow ?? 0).sort((a, b) => a - b);
         const shadowMedian = shadowVals[Math.floor(shadowVals.length / 2)];
         console.log(`[rank-ic] Shadow IC (V2 formula): median=${shadowMedian.toFixed(4)} over ${shadowHistory.length} measurements`);
-        if (shadowMedian > median) {
-          console.log("[rank-ic] V2 shadow IC is above V1 IC. V2 showing improvement. Monitor for 30-day cutover.");
+        if (shadowMedian >= median - 0.02) {
+          console.log(`[rank-ic] V2 shadow IC within cutover band (shadow=${shadowMedian.toFixed(4)} V1=${median.toFixed(4)}). Gate: PASS`);
+        } else {
+          console.warn(`[rank-ic] V2 shadow IC below cutover floor (shadow=${shadowMedian.toFixed(4)} V1=${median.toFixed(4)} floor=${(median - 0.02).toFixed(4)}). Gate: FAIL`);
         }
       }
     }

@@ -99,6 +99,9 @@ async function main() {
       break; // first unsafe bin -- stop here
     }
   }
+  if (safeLev > 10) {
+    console.warn(`[fit] WARNING: fitted safe_lev=${safeLev} is unusually high. Check attrition data quality before updating DEFAULT_PENALTY_PARAMS.`);
+  }
 
   // Find max_lev: lowest bin midpoint where blow-up rate >= 50%
   let maxLev = 15;
