@@ -361,9 +361,9 @@ async function main() {
       const { data: shadowHistory } = await supabase
         .from("rank_ic_history")
         .select("rank_ic_shadow")
+        .not("rank_ic_shadow", "is", null)
         .order("measurement_date", { ascending: false })
-        .limit(30)
-        .not("rank_ic_shadow", "is", null);
+        .limit(30);
 
       if (shadowHistory && shadowHistory.length >= 10) {
         const shadowVals = shadowHistory.map((r) => r.rank_ic_shadow ?? 0).sort((a, b) => a - b);
