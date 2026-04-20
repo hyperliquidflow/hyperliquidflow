@@ -59,7 +59,8 @@ describe("computeLevAdjSharpe", () => {
   });
 
   it("is lower for higher leverage with identical raw PnL", () => {
-    // Noisy data with mean~2: raw Sharpe ~1.2, both scores land between 0.6 and below 1
+    // mean=2, std=1 -- raw Sharpe ~2. Both scores land near 1.0 but remain
+    // distinguishable: lev=3 divides PnLs by 4, lev=0 by 1, so score(lev=0)>score(lev=3).
     const pnls = [2, 1, 3, 2, 1, 4, 1, 2, 3, 1,
                   2, 1, 3, 2, 1, 4, 1, 2, 3, 1,
                   2, 1, 3, 2, 1, 4, 1, 2, 3, 1];
@@ -87,5 +88,10 @@ describe("computeLevAdjSharpe", () => {
   it("single-element array is clamped to 1 (documents known behavior)", () => {
     // stddev of 1-element array is 0, so raw = 100/0.0001 = 1M, clamped to 1
     expect(computeLevAdjSharpe([100], 0)).toBe(1);
+  });
+
+  it("negative avgLeverage is treated the same as zero", () => {
+    const pnls = Array.from({ length: 30 }, (_, i) => (i % 2 === 0 ? 1 : 3));
+    expect(computeLevAdjSharpe(pnls, -5)).toBeCloseTo(computeLevAdjSharpe(pnls, 0), 6);
   });
 });
