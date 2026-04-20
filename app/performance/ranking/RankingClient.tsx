@@ -165,7 +165,6 @@ export function RankingClient() {
               <div style={{ fontSize: "32px", fontWeight: 700, color: color.textFaint, fontVariantNumeric: "tabular-nums" }}>--</div>
               <div style={{ fontSize: "13px", color: color.textMuted, maxWidth: "380px" }}>
                 No data yet. Accuracy is measured after wallets have had 30 days to prove their scores right or wrong.
-                The system started collecting today.
               </div>
               <div style={{
                 fontSize: "11px", color: color.textFaint,
