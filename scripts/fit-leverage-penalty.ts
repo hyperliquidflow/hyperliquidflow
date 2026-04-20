@@ -17,8 +17,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 async function main() {
   const { data: rows, error } = await supabase
     .from("cohort_attrition")
-    .select("wallet_address, realized_drawdown, state_30d, state_90d, state_180d, state_360d")
-    .not("realized_drawdown", "is", null);
+    .select("wallet_address, state_30d, state_90d, state_180d, state_360d");
 
   if (error) {
     console.error("[fit] cohort_attrition fetch error:", error.message);
@@ -91,16 +90,23 @@ async function main() {
     console.log(`[fit] bin ${i + 1}: midLev=${midLev.toFixed(1)} blowup_rate=${blowupRate.toFixed(3)} n=${bin.length}`);
   }
 
-  // Find safe_lev: highest bin midpoint where blow-up rate < 5%
+  // Find safe_lev: highest contiguous safe bin from the bottom (stop at first unsafe bin)
   let safeLev = 3;
   for (const bin of bins) {
-    if (bin.blowupRate < 0.05) safeLev = Math.round(bin.midLev);
+    if (bin.blowupRate < 0.05) {
+      safeLev = Math.round(bin.midLev);
+    } else {
+      break; // first unsafe bin -- stop here
+    }
   }
 
   // Find max_lev: lowest bin midpoint where blow-up rate >= 50%
   let maxLev = 15;
   for (const bin of bins) {
     if (bin.blowupRate >= 0.5) { maxLev = Math.round(bin.midLev); break; }
+  }
+  if (!bins.some((b) => b.blowupRate >= 0.5)) {
+    console.log("[fit] WARNING: no bin reached 50% blow-up rate; max_lev defaulting to prior (15)");
   }
 
   // Fit exponent: minimise MSE between observed rates and power-curve predictions
