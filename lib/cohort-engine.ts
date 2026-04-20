@@ -7,6 +7,7 @@ import { createClient } from "@supabase/supabase-js";
 import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from "@/lib/env";
 import { clamp, stddev, mean, groupBy } from "@/lib/utils";
 import type { HlUserFill, HlAllMids, HlClearinghouseState } from "@/lib/hyperliquid-api-client";
+import { computeLevAdjSharpe, computeBlowUpDistanceScore } from "@/lib/leverage-risk";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -255,6 +256,64 @@ export function computeCohortScores(
   );
 
   return { sharpe_proxy, pnl_consistency, drawdown_score, regime_fit, overall_score };
+}
+
+// V2 scoring -- leverage-adjusted formula (Sprint R13 shadow rollout)
+
+export interface CohortScoresV2 {
+  lev_adj_sharpe:      number; // [0,1] Sharpe on lev-normalised PnL, scaled at 2
+  pnl_consistency:     number; // [0,1] unchanged from V1
+  drawdown_score:      number; // [0,1] unchanged from V1
+  regime_fit:          number; // [0,1] defaults to 0.5 when state unavailable
+  blow_up_distance_v2: number; // [0,1] empirically-fit penalty
+  overall_score_v2:    number; // [0,1] composite
+}
+
+/**
+ * V2 formula: 0.30*lev_adj_sharpe + 0.20*pnl_consistency + 0.20*drawdown
+ *             + 0.15*regime_fit + 0.15*blow_up_distance
+ *
+ * state and regime are optional. When omitted (daily-scan shadow context),
+ * regime_fit defaults to 0.5 (neutral, no directional bias assumed).
+ *
+ * @param dailyPnls   30-element PnL array (index 0 = oldest)
+ * @param avgLeverage Average leverage from wallets.avg_leverage_60d (0 if unknown)
+ * @param maxLeverage Max leverage from wallets.max_leverage_60d (0 if unknown)
+ * @param state       Current clearinghouseState (optional)
+ * @param regime      Detected market regime (optional)
+ */
+export function computeCohortScoresV2(
+  dailyPnls:    number[],
+  avgLeverage:  number,
+  maxLeverage:  number,
+  state?:       HlClearinghouseState,
+  regime?:      RegimeDetection["regime"]
+): CohortScoresV2 {
+  const lev_adj_sharpe      = computeLevAdjSharpe(dailyPnls, avgLeverage);
+  const pnl_consistency     = computePnlConsistency(dailyPnls);
+  const drawdown_score      = computeDrawdownScore(dailyPnls);
+  const blow_up_distance_v2 = computeBlowUpDistanceScore(maxLeverage);
+  const regime_fit =
+    state && regime ? computeRegimeFit(state, regime) : 0.5;
+
+  const overall_score_v2 = clamp(
+    0.30 * lev_adj_sharpe  +
+    0.20 * pnl_consistency +
+    0.20 * drawdown_score  +
+    0.15 * regime_fit      +
+    0.15 * blow_up_distance_v2,
+    0,
+    1
+  );
+
+  return {
+    lev_adj_sharpe,
+    pnl_consistency,
+    drawdown_score,
+    regime_fit,
+    blow_up_distance_v2,
+    overall_score_v2,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
