@@ -151,6 +151,53 @@ async function computeIcForDate(dateStr: string): Promise<{
   return { rank_ic: rho, p_value: pv, cohort_size: n, effective_sample_size: ess, top_decile_hit_rate: topHitRate, bottom_decile_avoidance: bottomAvoid };
 }
 
+async function computeShadowIcForDate(dateStr: string): Promise<number | null> {
+  const { data: scores, error: scErr } = await supabase
+    .from("wallet_score_history")
+    .select("wallet_id, overall_score_shadow")
+    .eq("date", dateStr)
+    .not("overall_score_shadow", "is", null);
+
+  if (scErr || !scores || scores.length < 20) return null;
+
+  const dStart = new Date(dateStr);
+  dStart.setDate(dStart.getDate() + 1);
+  const dEnd = new Date(dateStr);
+  dEnd.setDate(dEnd.getDate() + HORIZON_DAYS);
+
+  const walletIds = scores.map((s) => s.wallet_id);
+  const { data: pnlRows } = await supabase
+    .from("wallet_score_history")
+    .select("wallet_id, daily_pnl_usd")
+    .in("wallet_id", walletIds)
+    .gte("date", dStart.toISOString().slice(0, 10))
+    .lte("date", dEnd.toISOString().slice(0, 10));
+
+  if (!pnlRows) return null;
+
+  const returnMap = new Map<string, number>();
+  for (const row of pnlRows) {
+    returnMap.set(row.wallet_id, (returnMap.get(row.wallet_id) ?? 0) + (row.daily_pnl_usd ?? 0));
+  }
+
+  const pairs: Array<{ score: number; ret: number }> = [];
+  for (const s of scores) {
+    const ret = returnMap.get(s.wallet_id);
+    if (ret !== undefined) pairs.push({ score: s.overall_score_shadow as number, ret });
+  }
+
+  if (pairs.length < 20) return null;
+
+  try {
+    return sampleRankCorrelation(
+      pairs.map((p) => p.score),
+      pairs.map((p) => p.ret),
+    );
+  } catch {
+    return null;
+  }
+}
+
 // ── OOCV recipe base-rate comparison ─────────────────────────────────────────
 // Compares weekly signal fire rates (in-cohort vs. out-of-cohort) per recipe.
 // If they diverge materially, wallet selection -- not the recipe -- is driving
@@ -277,10 +324,18 @@ async function main() {
     const result = await computeIcForDate(dateStr);
     if (result) {
       computed++;
+      const shadowIc = await computeShadowIcForDate(dateStr);
+      if (shadowIc !== null) {
+        await supabase
+          .from("rank_ic_history")
+          .update({ rank_ic_shadow: shadowIc })
+          .eq("measurement_date", dateStr);
+      }
       const status = result.rank_ic > MDIC ? "ABOVE MDIC" : result.rank_ic > 0 ? "positive" : "negative";
+      const shadowStr = shadowIc !== null ? ` shadow=${shadowIc.toFixed(4)}` : "";
       console.log(
         `[rank-ic] ${dateStr}: IC=${result.rank_ic.toFixed(4)} ` +
-        `p=${result.p_value.toFixed(4)} n=${result.cohort_size} ess=${result.effective_sample_size} [${status}]`
+        `p=${result.p_value.toFixed(4)} n=${result.cohort_size} ess=${result.effective_sample_size}${shadowStr} [${status}]`
       );
     } else {
       skipped++;
@@ -301,6 +356,22 @@ async function main() {
       console.log(`[rank-ic] Phase 1 gate check: median IC=${median.toFixed(4)}, ${aboveMdic}/30 above MDIC with p<0.05`);
       if (aboveMdic < 15) {
         console.warn("[rank-ic] WARNING: Phase 1 kill criterion approaching. Less than 50% of recent IC measurements above MDIC.");
+      }
+
+      const { data: shadowHistory } = await supabase
+        .from("rank_ic_history")
+        .select("rank_ic_shadow")
+        .order("measurement_date", { ascending: false })
+        .limit(30)
+        .not("rank_ic_shadow", "is", null);
+
+      if (shadowHistory && shadowHistory.length >= 10) {
+        const shadowVals = shadowHistory.map((r) => r.rank_ic_shadow ?? 0).sort((a, b) => a - b);
+        const shadowMedian = shadowVals[Math.floor(shadowVals.length / 2)];
+        console.log(`[rank-ic] Shadow IC (V2 formula): median=${shadowMedian.toFixed(4)} over ${shadowHistory.length} measurements`);
+        if (shadowMedian > median) {
+          console.log("[rank-ic] V2 shadow IC is above V1 IC. V2 showing improvement. Monitor for 30-day cutover.");
+        }
       }
     }
   }
