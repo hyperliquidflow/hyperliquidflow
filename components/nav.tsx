@@ -28,8 +28,7 @@ const NAV: NavEntry[] = [
       { href: "/wallets/discovery",   label: "Discovery"    },
       { href: "/wallets/leaderboard", label: "Leaderboard"  },
       { href: "/wallets/inposition",  label: "In Position"  },
-      { href: "/wallets/following",   label: "Following"    },
-      { href: "/wallets/paper",       label: "Paper Trading"},
+      { href: "/performance/ranking", label: "Scoring"      },
     ],
   },
   {
@@ -43,11 +42,12 @@ const NAV: NavEntry[] = [
     ],
   },
   {
-    section:  "performance",
-    label:    "Accuracy",
-    base:     "/performance",
+    section:  "portfolio",
+    label:    "Portfolio",
+    base:     "/wallets",
     children: [
-      { href: "/performance/ranking", label: "Scoring" },
+      { href: "/wallets/following",   label: "Following"    },
+      { href: "/wallets/paper",       label: "Paper Trading"},
     ],
   },
 ];
