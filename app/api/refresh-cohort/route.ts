@@ -337,16 +337,29 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       ])
     );
 
-    // Load recipe_calibration for the 70% EV base rate (R12 EV decouple)
-    const { data: recipeCalRows } = await supabase
-      .from("recipe_calibration")
-      .select("recipe_id, win_rate, sample_size_30d");
+    // Load recipe_calibration and wallet_signal_stats for R12 EV decouple
+    const [{ data: recipeCalRows }, { data: wssRows }] = await Promise.all([
+      supabase.from("recipe_calibration").select("recipe_id, win_rate, sample_size_30d"),
+      supabase.from("wallet_signal_stats").select("wallet_address, recipe_id, win_rate_net, signal_count"),
+    ]);
     const recipeCalibrationMap = new Map(
       (recipeCalRows ?? []).map((r) => [
         r.recipe_id as string,
         { win_rate: (r.win_rate as number) ?? 0, sample_size_30d: (r.sample_size_30d as number) ?? 0 },
       ])
     );
+    // walletSignalStatsMap keyed as `${wallet_id}:${recipe_id}`. wallet_signal_stats stores
+    // addresses; join to wallets map to get UUIDs for the lookup in enrichWithEv.
+    const addressToId = new Map(wallets.map((w) => [w.address, w.id]));
+    const walletSignalStatsMap = new Map<string, { win_rate_net: number; signal_count: number }>();
+    for (const row of wssRows ?? []) {
+      const walletId = addressToId.get(row.wallet_address as string);
+      if (!walletId) continue;
+      walletSignalStatsMap.set(`${walletId}:${row.recipe_id as string}`, {
+        win_rate_net: (row.win_rate_net as number) ?? 0,
+        signal_count: (row.signal_count as number) ?? 0,
+      });
+    }
 
     const snapshotDetectTs = new Date().toISOString();
     const { events: signalEvents, emittedIds, signal_emit_ts: signalEmitTs } = await runSignalLab({
@@ -360,9 +373,10 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       l2Books,
       recipeWinRates,
       recipeSignalCounts,
-      regime:           regimeResult.regime,
+      regime:              regimeResult.regime,
       walletProfileMap,
       recipeCalibrationMap,
+      walletSignalStatsMap,
     });
 
     // ── Step 10: Fetch recent signals + all-cohort positions in parallel ────────
@@ -378,7 +392,7 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       // Latest snapshot per active wallet — used for accurate full-cohort spotlight
       supabase
         .from("cohort_snapshots")
-        .select("wallet_id, unrealized_pnl, account_value, position_count, overall_score, liq_buffer_pct, snapshot_time")
+        .select("wallet_id, unrealized_pnl, account_value, position_count, overall_score, liq_buffer_pct, snapshot_time, positions")
         .in("wallet_id", allActiveIds)
         .gt("position_count", 0)
         .order("snapshot_time", { ascending: false })
@@ -397,11 +411,15 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       allActive.map((w) => [w.id, w.address] as [string, string])
     );
 
-    // Deduplicate snapRows (keep latest per wallet) and build spotlight list
+    // Deduplicate snapRows (keep latest per wallet), build spotlight list, and aggregate coin notional
+    type RawPos = { position?: { coin?: string; positionValue?: string } };
     const seenSpotlight = new Set<string>();
-    const spotlightPositions: SpotlightWallet[] = (snapRows ?? [])
-      .filter((r) => { if (seenSpotlight.has(r.wallet_id)) return false; seenSpotlight.add(r.wallet_id); return true; })
-      .map((r) => ({
+    const spotlightPositions: SpotlightWallet[] = [];
+    const coinNotionalMap = new Map<string, number>();
+    for (const r of (snapRows ?? [])) {
+      if (seenSpotlight.has(r.wallet_id)) continue;
+      seenSpotlight.add(r.wallet_id);
+      spotlightPositions.push({
         wallet_id:      r.wallet_id,
         address:        walletAddressMap.get(r.wallet_id) ?? "",
         unrealized_pnl: Number(r.unrealized_pnl),
@@ -409,7 +427,20 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
         position_count: r.position_count as number,
         overall_score:  Number(r.overall_score ?? 0),
         liq_buffer_pct: r.liq_buffer_pct != null ? Number(r.liq_buffer_pct) : null,
-      }));
+      });
+      for (const ap of ((r.positions ?? []) as RawPos[])) {
+        const coin = ap.position?.coin;
+        const val  = Math.abs(parseFloat(ap.position?.positionValue ?? "0"));
+        if (coin && Number.isFinite(val) && val > 0) {
+          coinNotionalMap.set(coin, (coinNotionalMap.get(coin) ?? 0) + val);
+        }
+      }
+    }
+    const totalCoinNotional = Array.from(coinNotionalMap.values()).reduce((s, v) => s + v, 0) || 1;
+    const coinExposure = Array.from(coinNotionalMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+      .map(([coin, notional]) => ({ coin, notional: Math.round(notional), pct: Math.round((notional / totalCoinNotional) * 100) }));
 
     const payload: CohortCachePayload = {
       updated_at:           new Date().toISOString(),
@@ -422,6 +453,7 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
         .sort((a, b) => b.overall_score - a.overall_score)
         .slice(0, 200),
       spotlight_positions: spotlightPositions,
+      coin_exposure: coinExposure,
       recent_signals: (recentSignals ?? []).map((s) => ({
         id:             s.id,
         recipe_id:      s.recipe_id,
@@ -704,4 +736,6 @@ export interface CohortCachePayload {
   // All active wallets with open positions, from the latest snapshot per wallet.
   // Always reflects the full cohort (not just the current batch slice).
   spotlight_positions?: SpotlightWallet[];
+  // Top 5 coins by aggregate notional across all wallets with open positions.
+  coin_exposure?: Array<{ coin: string; notional: number; pct: number }>;
 }

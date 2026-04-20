@@ -1027,7 +1027,8 @@ function enrichWithEv(
   events: SignalEvent[],
   backtestMap: Map<string, { win_rate: number; avg_win_usd: number; avg_loss_usd: number }>,
   l2Books: Map<string, HlL2Book>,
-  recipeCalibrationMap: Map<string, { win_rate: number; sample_size_30d: number }>
+  recipeCalibrationMap: Map<string, { win_rate: number; sample_size_30d: number }>,
+  walletSignalStatsMap: Map<string, { win_rate_net: number; signal_count: number }>
 ): SignalEvent[] {
   return events.map((event) => {
     const bt = event.wallet_id ? backtestMap.get(event.wallet_id) : null;
@@ -1037,13 +1038,20 @@ function enrichWithEv(
     const notional = 10_000; // reference notional for EV normalisation
     const cost    = estimateTradeCost(notional, book, event.direction === "LONG" ? "buy" : "sell");
 
-    // Blend recipe base rate (70%) + wallet adjustment (30%) when calibration
-    // data is adequate.  Falls back to wallet-only below RECIPE_MIN_SAMPLE.
+    // Blend recipe base rate (70%) + outcome-measured wallet win rate (30%).
+    // wallet_signal_stats provides the 30% from real resolved outcomes, breaking
+    // the circular path where backtest win_rate drove both cohort rank and EV.
+    // Falls back to backtest win_rate for the wallet component when no outcome data.
     const cal = recipeCalibrationMap.get(event.recipe_id ?? "");
     const recipeWinRate = cal && cal.sample_size_30d >= RECIPE_MIN_SAMPLE ? cal.win_rate : null;
+
+    const walletKey = `${event.wallet_id}:${event.recipe_id ?? ""}`;
+    const wss = walletSignalStatsMap.get(walletKey);
+    const walletWinRate = wss ? wss.win_rate_net : bt.win_rate;
+
     const blendedWinRate = recipeWinRate !== null
-      ? RECIPE_WEIGHT * recipeWinRate + WALLET_WEIGHT * bt.win_rate
-      : bt.win_rate;
+      ? RECIPE_WEIGHT * recipeWinRate + WALLET_WEIGHT * walletWinRate
+      : walletWinRate;
 
     const ev = computeEv({
       win_probability: blendedWinRate,
@@ -1078,6 +1086,10 @@ export interface SignalLabInputs {
   /** Recipe-level calibration from recipe_calibration table (R12). Used for 70% EV base rate.
    *  Optional for backward-compat -- absent = enrichWithEv falls back to wallet-only win_rate. */
   recipeCalibrationMap?: Map<string, { win_rate: number; sample_size_30d: number }>;
+  /** Per-wallet per-recipe outcome stats from wallet_signal_stats (R12). Keyed as
+   *  `${wallet_id}:${recipe_id}`. Used for the 30% wallet component of the EV blend,
+   *  replacing the circular backtest win_rate path. Optional -- absent = falls back. */
+  walletSignalStatsMap?: Map<string, { win_rate_net: number; signal_count: number }>;
 }
 
 /**
@@ -1092,6 +1104,7 @@ export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalLabRe
     backtestMap, l2Books, recipeWinRates, recipeSignalCounts, regime,
     walletProfileMap,
   } = inputs;
+  const walletSignalStatsMap = inputs.walletSignalStatsMap ?? new Map<string, { win_rate_net: number; signal_count: number }>();
 
   // Run recipes 1-7, 10-13 in parallel (all async now); R8 depends on their output
   const [r1, r2, r3, r4, r5, r6, r7, r10, r11, r12, r13] = await Promise.all([
@@ -1125,7 +1138,7 @@ export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalLabRe
   const allEvents = [...dedupedPre, ...r8, ...r9];
 
   // Enrich with EV scores
-  const enriched = enrichWithEv(allEvents, backtestMap, l2Books, inputs.recipeCalibrationMap ?? new Map());
+  const enriched = enrichWithEv(allEvents, backtestMap, l2Books, inputs.recipeCalibrationMap ?? new Map(), walletSignalStatsMap);
 
   // Annotate each signal with wallet regime fit (how well this wallet performs in current regime)
   if (walletProfileMap) {
@@ -1141,31 +1154,6 @@ export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalLabRe
         : null;
       event.metadata = { ...event.metadata, wallet_regime_fit: fit };
     }
-  }
-
-  // Compute intraday recipe performance from recent signals_history (last 6h)
-  const sixHoursAgo = new Date(Date.now() - 6 * 3600 * 1000).toISOString();
-  const { data: recentPerf } = await supabase
-    .from("signals_history")
-    .select("recipe_id, ev_score")
-    .gte("detected_at", sixHoursAgo)
-    .not("ev_score", "is", null);
-
-  if (recentPerf && recentPerf.length > 0) {
-    const byRecipe = new Map<string, number[]>();
-    for (const row of recentPerf) {
-      const list = byRecipe.get(row.recipe_id) ?? [];
-      list.push(row.ev_score as number);
-      byRecipe.set(row.recipe_id, list);
-    }
-    const intradayPerf: Record<string, { avg_ev: number; count: number }> = {};
-    for (const [recipeId, scores] of byRecipe) {
-      intradayPerf[recipeId] = {
-        avg_ev: scores.reduce((a, b) => a + b, 0) / scores.length,
-        count:  scores.length,
-      };
-    }
-    kv.set("recipe:intraday_perf", intradayPerf, { ex: 7 * 3600 }).catch(() => {});
   }
 
   // Persist to Supabase (skip cohort-level events with empty wallet_id)
@@ -1232,6 +1220,30 @@ export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalLabRe
         } else {
           console.log(`[signal-lab] inserted ${outcomeRows.length} outcome seed rows`);
         }
+      }
+
+      // Update intraday KV after insert so this run's signals are included in the count
+      const sixHoursAgo = new Date(Date.now() - 6 * 3600 * 1000).toISOString();
+      const { data: recentPerf } = await supabase
+        .from("signals_history")
+        .select("recipe_id, ev_score")
+        .gte("detected_at", sixHoursAgo)
+        .not("ev_score", "is", null);
+      if (recentPerf && recentPerf.length > 0) {
+        const byRecipe = new Map<string, number[]>();
+        for (const row of recentPerf) {
+          const list = byRecipe.get(row.recipe_id) ?? [];
+          list.push(row.ev_score as number);
+          byRecipe.set(row.recipe_id, list);
+        }
+        const intradayPerf: Record<string, { avg_ev: number; count: number }> = {};
+        for (const [recipeId, scores] of byRecipe) {
+          intradayPerf[recipeId] = {
+            avg_ev: scores.reduce((a, b) => a + b, 0) / scores.length,
+            count:  scores.length,
+          };
+        }
+        kv.set("recipe:intraday_perf", intradayPerf, { ex: 7 * 3600 }).catch(() => {});
       }
     }
   }

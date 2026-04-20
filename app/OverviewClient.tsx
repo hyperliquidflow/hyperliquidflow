@@ -71,12 +71,8 @@ function buildRegimeHistory(
   });
 }
 
-function buildCoinExposure(signals: Signal[]) {
-  const counts: Record<string, number> = {};
-  for (const s of signals) counts[s.coin] = (counts[s.coin] ?? 0) + 1;
-  const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 5);
-  const total = sorted.reduce((s, [, c]) => s + c, 0) || 1;
-  return sorted.map(([coin, count]) => ({ coin, pct: Math.round((count / total) * 100) }));
+function buildCoinExposure(coinExposure: CohortCachePayload["coin_exposure"]) {
+  return coinExposure ?? [];
 }
 
 function buildTopMovers(signals: Signal[]) {
@@ -220,7 +216,7 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
     ? data.top_wallets.reduce((s, w) => s + w.overall_score, 0) / data.top_wallets.length : 0;
   const heatmap      = buildHeatmap(data.recent_signals);
   const regimeHist   = buildRegimeHistory(data.regime_history, regime);
-  const coinExposure = buildCoinExposure(data.recent_signals);
+  const coinExposure = buildCoinExposure(data.coin_exposure);
   const topMovers    = buildTopMovers(data.recent_signals);
 
   return (
@@ -468,7 +464,7 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
           <div style={S.card}>
             <div style={{ ...S.hdr, padding: "10px 16px" }}>
               <span style={S.title}>Smart Money Exposure</span>
-              <span style={{ ...S.link, cursor: "default" }}>by position size</span>
+              <span style={{ ...S.link, cursor: "default" }}>by notional</span>
             </div>
             <div style={{ padding: "8px 12px 10px", display: "flex", flexDirection: "column", gap: "8px" }}>
               {coinExposure.length > 0 ? coinExposure.slice(0, 4).map(({ coin, pct }) => (

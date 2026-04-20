@@ -74,14 +74,15 @@ async function main(): Promise<void> {
   for (let i = 0; i < signalIds.length; i += CHUNK) {
     const { data: sigRows, error: sigErr } = await supabase
       .from("signals_history")
-      .select("id, wallet_ids")
+      .select("id, wallet_id")
       .in("id", signalIds.slice(i, i + CHUNK));
     if (sigErr) {
       console.warn("[wallet-signal-stats] signals_history fetch error:", sigErr.message);
       continue;
     }
     for (const row of sigRows ?? []) {
-      walletIdsBySigId.set(row.id as string, (row.wallet_ids ?? []) as string[]);
+      const wid = row.wallet_id as string | null;
+      walletIdsBySigId.set(row.id as string, wid ? [wid] : []);
     }
   }
 
