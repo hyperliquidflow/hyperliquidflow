@@ -1083,8 +1083,12 @@ async function computeShadowScores(): Promise<{ computed: number }> {
     .eq("is_active", true)
     .not("max_leverage_60d", "is", null);
 
-  if (walletErr || !activeWallets?.length) {
-    console.warn("[shadow] could not fetch wallets:", walletErr?.message);
+  if (walletErr) {
+    console.error("[phase-10b] fetch error:", walletErr.message);
+    return { computed: 0 };
+  }
+  if (!activeWallets?.length) {
+    console.log("[phase-10b] no wallets with leverage data yet; skipping");
     return { computed: 0 };
   }
 
@@ -1102,28 +1106,31 @@ async function computeShadowScores(): Promise<{ computed: number }> {
     ])
   );
 
-  let computed = 0;
-
-  for (const wallet of activeWallets) {
+  const rows = activeWallets.map((wallet) => {
     const dailyPnls   = pnlMap.get(wallet.id) ?? [];
-    const avgLeverage = Number(wallet.avg_leverage_60d ?? 0);
-    const maxLeverage = Number(wallet.max_leverage_60d ?? 0);
+    const v2 = computeCohortScoresV2(
+      dailyPnls,
+      Number(wallet.avg_leverage_60d ?? 0),
+      Number(wallet.max_leverage_60d ?? 0),
+    );
+    return {
+      id:                     wallet.id,
+      overall_score_shadow:   v2.overall_score_v2,
+      shadow_formula_version: SHADOW_FORMULA_VERSION,
+    };
+  });
 
-    const v2 = computeCohortScoresV2(dailyPnls, avgLeverage, maxLeverage);
-    // regime_fit defaults to 0.5 since clearinghouse state is not available in the daily scan
-
+  const CHUNK = 500;
+  let computed = 0;
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const chunk = rows.slice(i, i + CHUNK);
     const { error } = await supabase
       .from("wallets")
-      .update({
-        overall_score_shadow:   v2.overall_score_v2,
-        shadow_formula_version: SHADOW_FORMULA_VERSION,
-      })
-      .eq("id", wallet.id);
-
-    if (!error) computed++;
+      .upsert(chunk, { onConflict: "id" });
+    if (!error) computed += chunk.length;
   }
 
-  console.log(`[shadow] computed shadow scores for ${computed} wallets`);
+  console.log(`[phase-10b] shadow scores: ${computed} computed`);
   return { computed };
 }
 
@@ -1455,6 +1462,7 @@ async function main(): Promise<void> {
     profiles_skipped:          0,
     leverage_computed:         0,
     g10_deactivated:           0,
+    shadow_scores_computed:    0,
     attrition_upserted:        0,
     score_history_written:     0,
     g11_deactivated:           0,
@@ -1722,6 +1730,7 @@ async function main(): Promise<void> {
   summary.g10_deactivated   = leverageResult.g10_deactivated;
   console.log(`[leverage] computed: ${leverageResult.computed}, G10 deactivated: ${leverageResult.g10_deactivated}`);
   const shadowResult = await computeShadowScores();
+  summary.shadow_scores_computed = shadowResult.computed;
   console.log(`[phase-10b] shadow scores: ${shadowResult.computed} computed`);
 
   // ── Phase 10: Cohort attrition upsert ─────────────────────────────────────
