@@ -1204,14 +1204,23 @@ export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalLabRe
     } else {
       emittedIds = rowsWithIds.map((r) => r.id);
       console.log(`[signal-lab] inserted ${rowsWithIds.length} signal events`);
-      const outcomeRows = buildOutcomeRows(rowsWithIds, allMids);
-      if (outcomeRows.length === 0) {
-        const missingCoins = [...new Set(rowsWithIds.map((s) => s.coin))].filter((c) => !allMids[c]);
-        console.warn(
-          `[signal-lab] 0 outcome rows built from ${rowsWithIds.length} signals. allMids keys: ${Object.keys(allMids).length}, coins missing from allMids:`,
-          missingCoins,
-        );
-      } else {
+      // Augment allMids with last-close from candles5m for coins missing a live mid.
+      // Covers the edge case where a coin has open positions (and thus fires signals)
+      // but dropped out of allMids between the position fetch and the mid fetch.
+      const priceMap: Record<string, string> = { ...allMids };
+      for (const [coin, candles] of candles5m) {
+        if (!priceMap[coin] && candles.length > 0) {
+          priceMap[coin] = candles[candles.length - 1].c;
+        }
+      }
+      const outcomeRows = buildOutcomeRows(rowsWithIds, priceMap);
+      if (outcomeRows.length < rowsWithIds.length) {
+        const missingCoins = [...new Set(rowsWithIds.map((s) => s.coin))].filter((c) => !priceMap[c]);
+        if (missingCoins.length > 0) {
+          console.warn(`[signal-lab] ${missingCoins.length} coins missing from allMids+candles5m (likely delisted):`, missingCoins);
+        }
+      }
+      if (outcomeRows.length > 0) {
         const { error: oErr } = await supabase.from("signal_outcomes").insert(outcomeRows);
         if (oErr) {
           console.error("[signal-lab] signal_outcomes insert FAILED:", oErr.message, {
