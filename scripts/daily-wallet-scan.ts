@@ -21,6 +21,8 @@ import {
   computeRegimeStats,
   extractTopCoins,
 } from "../lib/wallet-profile";
+import { computeCohortScoresV2 } from "../lib/cohort-engine";
+import { SHADOW_FORMULA_VERSION } from "../lib/leverage-risk";
 
 // -- Environment validation ----------------------------------------------------
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -1072,6 +1074,59 @@ async function computeLeverageStats(): Promise<{ computed: number; g10_deactivat
   return { computed, g10_deactivated };
 }
 
+// Phase 10b: Shadow scoring (Sprint R13 canary)
+
+async function computeShadowScores(): Promise<{ computed: number }> {
+  const { data: activeWallets, error: walletErr } = await supabase
+    .from("wallets")
+    .select("id, avg_leverage_60d, max_leverage_60d")
+    .eq("is_active", true)
+    .not("max_leverage_60d", "is", null);
+
+  if (walletErr || !activeWallets?.length) {
+    console.warn("[shadow] could not fetch wallets:", walletErr?.message);
+    return { computed: 0 };
+  }
+
+  const walletIds = activeWallets.map((w) => w.id);
+
+  const { data: backtests } = await supabase
+    .from("user_pnl_backtest")
+    .select("wallet_id, daily_pnls")
+    .in("wallet_id", walletIds);
+
+  const pnlMap = new Map<string, number[]>(
+    (backtests ?? []).map((b) => [
+      b.wallet_id as string,
+      Array.isArray(b.daily_pnls) ? (b.daily_pnls as number[]) : [],
+    ])
+  );
+
+  let computed = 0;
+
+  for (const wallet of activeWallets) {
+    const dailyPnls   = pnlMap.get(wallet.id) ?? [];
+    const avgLeverage = Number(wallet.avg_leverage_60d ?? 0);
+    const maxLeverage = Number(wallet.max_leverage_60d ?? 0);
+
+    const v2 = computeCohortScoresV2(dailyPnls, avgLeverage, maxLeverage);
+    // regime_fit defaults to 0.5 since clearinghouse state is not available in the daily scan
+
+    const { error } = await supabase
+      .from("wallets")
+      .update({
+        overall_score_shadow:   v2.overall_score_v2,
+        shadow_formula_version: SHADOW_FORMULA_VERSION,
+      })
+      .eq("id", wallet.id);
+
+    if (!error) computed++;
+  }
+
+  console.log(`[shadow] computed shadow scores for ${computed} wallets`);
+  return { computed };
+}
+
 // -- Cohort attrition ----------------------------------------------------------
 
 function deactivationReasonToState(reason: string | null | undefined): string {
@@ -1666,6 +1721,8 @@ async function main(): Promise<void> {
   summary.leverage_computed = leverageResult.computed;
   summary.g10_deactivated   = leverageResult.g10_deactivated;
   console.log(`[leverage] computed: ${leverageResult.computed}, G10 deactivated: ${leverageResult.g10_deactivated}`);
+  const shadowResult = await computeShadowScores();
+  console.log(`[phase-10b] shadow scores: ${shadowResult.computed} computed`);
 
   // ── Phase 10: Cohort attrition upsert ─────────────────────────────────────
   console.log("\n[Phase 10] Upserting cohort attrition states...");
