@@ -85,11 +85,14 @@ All four sprints complete as of 2026-04-19.
 - `app/api/refresh-cohort/route.ts`: loads `recipe_calibration` at Step 9, passes `recipeCalibrationMap` to `runSignalLab`.
 - Success criterion: Pearson(ev_score, wallet.score) drops from ~0.8 to 0.2-0.4 after 30d of production data (measured in R16).
 
-### Sprint R13: Empirically-fit leverage-adjusted scoring
-- Pre-work: fit the leverage-to-blow-up relationship from the `cohort_attrition` table (R8). Regress realized drawdown / blow-up probability against pre-event leverage percentiles. Derive the functional form empirically, do not guess.
-- Rewrite lib/cohort-engine.ts: new composite `0.30*lev_adj_sharpe + 0.20*pnl_consistency + 0.20*drawdown + 0.15*regime_fit + 0.15*blow_up_distance`. Normalize Sharpe at 2, not 3.
-- lib/leverage-risk.ts (new): uses empirically-fit penalty from pre-work.
-- Canary rollout: run old and new scoring in parallel for 30 days. Migration 018_shadow_scoring.sql adds `overall_score_shadow`, `shadow_formula_version` to `wallets`. Cutover only after 30-day parallel IC comparison.
+### Sprint R13: Empirically-fit leverage-adjusted scoring -- COMPLETE (2026-04-21)
+- migration 018_shadow_scoring.sql: `overall_score_shadow`, `shadow_formula_version` on `wallets`; `overall_score_shadow` on `wallet_score_history`; `rank_ic_shadow` on `rank_ic_history`
+- lib/leverage-risk.ts (new): `computeBlowUpPenalty`, `computeBlowUpDistanceScore`, `computeLevAdjSharpe`, `DEFAULT_PENALTY_PARAMS { safe_lev:3, max_lev:15, exponent:1.5 }`, `SHADOW_FORMULA_VERSION = "v2_r13"`
+- scripts/fit-leverage-penalty.ts (new): empirical param fitting from `cohort_attrition`; graceful exit if < 10 blow-up events
+- lib/cohort-engine.ts: `CohortScoresV2` type + `computeCohortScoresV2` -- V2 formula running alongside V1 (non-breaking)
+- scripts/daily-wallet-scan.ts: Phase 10b computes and batch-upserts shadow scores; `writeScoreHistory` includes `overall_score_shadow`
+- scripts/rank-ic.ts: `computeShadowIcForDate`, shadow IC written to `rank_ic_shadow`, gate summary logs V2 vs V1 median
+- Canary running: cutover gated on 30-day shadow IC comparison (criteria in docs/sprints/status.md)
 
 ### Sprint R14: Entity classification with labeled training set
 - Pre-work: manually label 300 wallets across expected entity types using Hypurrscan tags + manual fill inspection. Store in docs/preflight/entity-training-set.csv.

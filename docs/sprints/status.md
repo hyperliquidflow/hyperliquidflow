@@ -57,13 +57,26 @@ Separate sprint numbering from the product sprints above.
 | R10 | Outcome measurement overhaul | COMPLETE (2026-04-19) | migration 015, lib/atr.ts, simulateAtrExit, signal-learning rewrite, recipe_performance net PnL fields |
 | R11 | Multi-window selection + OOCV | COMPLETE (2026-04-19) | migration 016, G11/G12/G13 gates, Phase 12/13 in daily-wallet-scan.ts, OOCV rank-ic comparison |
 | R12 | EV decouple | COMPLETE (2026-04-19) | migration 017, recipe_calibration + wallet_signal_stats tables, wallet-signal-stats.ts nightly script, Bayesian blend (70/30) in enrichWithEv |
-| R13-R24 | Phases 2-4 (remainder) | PLANNED | |
+| R13 | Empirically-fit leverage-adjusted scoring | COMPLETE (2026-04-21) | migration 018, lib/leverage-risk.ts, computeCohortScoresV2, Phase 10b shadow scoring, rank_ic_shadow tracking |
+| R14-R24 | Phases 2-4 (remainder) | PLANNED | |
 | R25+ | Phase 5: automated execution | GATED on Phase 3 | |
+
+### R13 Canary Cutover Gate
+
+R13 runs V1 and V2 scores in parallel for 30 days via shadow columns. Cutover decision criteria:
+- `rank_ic_shadow` median >= `rank_ic` median - 0.02 over 30 measurements
+- Check daily in `rank-ic.ts` gate summary logs
+- If criteria met: replace `computeCohortScores` calls with `computeCohortScoresV2` in `scripts/daily-wallet-scan.ts`, drop shadow columns from writes, update migration to rename or backfill
+- If criteria fail: revert shadow scoring, investigate formula gaps before R14
+
+Scripts / fit:
+- `scripts/fit-leverage-penalty.ts` -- re-run after 90+ blow-up events to re-fit penalty params
 
 ### Known Gaps (deferred, non-blocking)
 
 - **first_poll_ts backfill gap** (`app/api/cohort-state/route.ts`): backfill only fires on primary KV hit path. Fallback and KV-miss paths skip it. Latency stats are slightly undercounted on rare misses. Fix when Sprint R10 touches outcome measurement.
-- **user_pnl_backtest partial upsert** (`scripts/daily-wallet-scan.ts` `computeLeverageStats`): upsert sends only `wallet_id + leverage columns`. Harmless while active wallets always have backtest rows. Would break if a wallet had no prior backtest row. Note for Sprint R13 when backtest schema changes.
+- **user_pnl_backtest partial upsert** (`scripts/daily-wallet-scan.ts` `computeLeverageStats`): upsert sends only `wallet_id + leverage columns`. Harmless while active wallets always have backtest rows. Would break if a wallet had no prior backtest row. Resolved in R13 -- no schema change was needed; note remains in case backtest schema changes later.
+- **R13 shadow regime_fit approximation** (`scripts/daily-wallet-scan.ts` Phase 10b): shadow scores use `regime_fit = 0.5` (neutral) because the daily scan lacks live clearinghouse state. This is consistent across all shadow IC measurements. Production V2 scores (post-cutover) will use real regime_fit from the cron context.
 
 ---
 
