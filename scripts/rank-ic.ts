@@ -166,13 +166,14 @@ async function computeShadowIcForDate(dateStr: string): Promise<number | null> {
   dEnd.setDate(dEnd.getDate() + HORIZON_DAYS);
 
   const walletIds = scores.map((s) => s.wallet_id);
-  const { data: pnlRows } = await supabase
+  const { data: pnlRows, error: pnlErr } = await supabase
     .from("wallet_score_history")
     .select("wallet_id, daily_pnl_usd")
     .in("wallet_id", walletIds)
     .gte("date", dStart.toISOString().slice(0, 10))
     .lte("date", dEnd.toISOString().slice(0, 10));
 
+  if (pnlErr) console.warn(`[rank-ic] ${dateStr} shadow PnL fetch error:`, pnlErr.message);
   if (!pnlRows) return null;
 
   const returnMap = new Map<string, number>();
@@ -193,7 +194,8 @@ async function computeShadowIcForDate(dateStr: string): Promise<number | null> {
       pairs.map((p) => p.score),
       pairs.map((p) => p.ret),
     );
-  } catch {
+  } catch (e) {
+    console.warn(`[rank-ic] ${dateStr} shadow spearmanCorrelation error:`, e);
     return null;
   }
 }
