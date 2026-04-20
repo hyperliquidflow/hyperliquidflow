@@ -1794,7 +1794,7 @@ async function writeScoreHistory(): Promise<{ written: number }> {
 
   const { data: activeWallets, error: walletErr } = await supabase
     .from("wallets")
-    .select("id, overall_score")
+    .select("id, overall_score, overall_score_shadow")
     .eq("is_active", true)
     .not("overall_score", "is", null);
 
@@ -1821,10 +1821,11 @@ async function writeScoreHistory(): Promise<{ written: number }> {
   }
 
   const rows = activeWallets.map((w) => ({
-    date:          today,
-    wallet_id:     w.id,
-    overall_score: w.overall_score,
-    daily_pnl_usd: pnlMap.get(w.id) ?? 0,
+    date:                  today,
+    wallet_id:             w.id,
+    overall_score:         w.overall_score,
+    overall_score_shadow:  (w as Record<string, unknown>).overall_score_shadow as number | null ?? null,
+    daily_pnl_usd:         pnlMap.get(w.id) ?? 0,
   }));
 
   let written = 0;
