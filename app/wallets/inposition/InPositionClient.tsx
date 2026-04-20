@@ -152,7 +152,7 @@ export function InPositionClient({ initialData }: { initialData: CohortCachePayl
     <div className="page-enter">
       <PageHeader
         title="In Position"
-        subtitle={inPosition ? `${inPosition.length} wallets with open positions right now` : "Wallets with open positions right now"}
+        subtitle={inPosition ? `${inPosition.length} wallets with open positions (current cron batch)` : "Wallets with open positions in the current cron batch"}
       />
       <div style={{ ...S.page, paddingTop: "20px" }}>
 

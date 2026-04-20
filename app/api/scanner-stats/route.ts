@@ -8,22 +8,27 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 export async function GET(): Promise<NextResponse> {
   try {
-    const [walletStats, topWinRates, tierBreakdown] = await Promise.all([
-      supabase.from("wallets").select("is_active, win_rate, last_scanned_at, discovery_source, realized_pnl_30d"),
+    const [walletStats, topWinRates] = await Promise.all([
+      supabase.from("wallets").select("id, is_active, win_rate, last_scanned_at, discovery_source, realized_pnl_30d"),
       supabase.from("wallets").select("address, win_rate, trade_count_30d, realized_pnl_30d")
         .not("win_rate", "is", null)
         .order("win_rate", { ascending: false })
         .limit(20),
-      supabase.from("cohort_snapshots")
-        .select("wallet_id, equity_tier, snapshot_time")
-        .not("equity_tier", "is", null)
-        .order("snapshot_time", { ascending: false })
-        .limit(2000),
     ]);
 
-    const wallets = walletStats.data ?? [];
+    const wallets  = walletStats.data ?? [];
     const active   = wallets.filter((w) => w.is_active);
     const inactive = wallets.filter((w) => !w.is_active);
+
+    const activeIds = active.map((w) => w.id).filter(Boolean);
+    const tierBreakdown = activeIds.length > 0
+      ? await supabase.from("cohort_snapshots")
+          .select("wallet_id, equity_tier, snapshot_time")
+          .in("wallet_id", activeIds)
+          .not("equity_tier", "is", null)
+          .order("snapshot_time", { ascending: false })
+          .limit(activeIds.length * 2)
+      : { data: [] };
     const avgWinRate = active.length > 0
       ? active.reduce((s, w) => s + (w.win_rate ?? 0), 0) / active.length
       : 0;
