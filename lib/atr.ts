@@ -21,8 +21,8 @@ export function computeATR(candles: CandleForAtr[], period = ATR_PERIOD): number
     if (!isFinite(h) || !isFinite(l) || !isFinite(prevC)) continue;
     trs.push(Math.max(h - l, Math.abs(h - prevC), Math.abs(l - prevC)));
   }
+  if (trs.length < period) return null;
   const slice = trs.slice(-period);
-  if (slice.length === 0) return null;
   return slice.reduce((a, b) => a + b, 0) / slice.length;
 }
 
