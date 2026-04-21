@@ -16,11 +16,11 @@ const STALE_AFTER_MS = 5 * 60 * 1000; // 5 minutes
  *  deployment URL, which Deployment Protection gates behind an SSO 401. */
 function triggerBackgroundRefresh(): void {
   const prodHost = process.env.VERCEL_PROJECT_PRODUCTION_URL;
-  const base = prodHost
-    ? `https://${prodHost}`
-    : "http://localhost:3000";
+  const base = prodHost ? `https://${prodHost}` : "http://localhost:3000";
+  const secret = process.env.CRON_SECRET ?? "";
+  const headers: Record<string, string> = secret ? { authorization: `Bearer ${secret}` } : {};
   after(
-    fetch(`${base}/api/refresh-cohort`, { method: "GET" }).catch((e) =>
+    fetch(`${base}/api/refresh-cohort`, { method: "GET", headers }).catch((e) =>
       console.warn("[cohort-state] background refresh failed:", e)
     )
   );
