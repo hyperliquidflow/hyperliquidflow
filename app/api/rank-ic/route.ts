@@ -48,7 +48,7 @@ export async function GET(): Promise<NextResponse> {
   const n    = rows.length;
 
   const latest    = n > 0 ? rows[n - 1] : null;
-  const aboveMdic = rows.filter((r) => (r.rank_ic ?? 0) > MDIC).length;
+  const aboveMdic = rows.filter((r) => r.rank_ic != null && r.rank_ic > MDIC).length;
 
   const payload: RankIcPayload = {
     history:            rows,
