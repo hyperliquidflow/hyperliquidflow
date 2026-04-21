@@ -37,7 +37,10 @@ export function buildOutcomeRows(
   const rows: SignalOutcomeRow[] = [];
   for (const sig of inserted) {
     const priceStr = allMids[sig.coin];
-    if (!priceStr) continue; // coin not in allMids (delisted or unknown)
+    if (!priceStr) {
+      console.warn(`[outcome-helpers] coin ${sig.coin} missing from allMids, skipping signal ${sig.id}`);
+      continue;
+    }
     const price = parseFloat(priceStr);
     if (!isFinite(price) || price <= 0) continue;
     rows.push({

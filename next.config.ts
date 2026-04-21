@@ -9,6 +9,18 @@ const nextConfig: NextConfig = {
         source: "/api/refresh-cohort",
         headers: [{ key: "Cache-Control", value: "no-store" }],
       },
+      {
+        source: "/api/cohort-state",
+        headers: [{ key: "Cache-Control", value: "no-store" }],
+      },
+      {
+        source: "/api/market-ticker",
+        headers: [{ key: "Cache-Control", value: "no-store" }],
+      },
+      {
+        source: "/api/signals-feed",
+        headers: [{ key: "Cache-Control", value: "no-store" }],
+      },
     ];
   },
 };
