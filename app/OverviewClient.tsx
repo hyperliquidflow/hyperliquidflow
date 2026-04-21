@@ -183,7 +183,7 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
     staleTime:        55_000,
   });
 
-  const { data: ticker } = useQuery<MarketTickerEntry[]>({
+  const { data: ticker, error: tickerErr } = useQuery<MarketTickerEntry[]>({
     queryKey: ["market-ticker"],
     queryFn:  () => fetch("/api/market-ticker").then(r => r.json()),
     initialData:      initialTicker ?? undefined,
@@ -192,14 +192,14 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
     staleTime:        55_000,
   });
 
-  const { data: freshness } = useQuery<SignalFreshnessPayload>({
+  const { data: freshness, error: freshErr } = useQuery<SignalFreshnessPayload>({
     queryKey:       ["signal-freshness"],
     queryFn:        () => fetch("/api/signal-freshness").then(r => r.json()),
     refetchInterval: 5 * 60_000,
     staleTime:       4 * 60_000,
   });
 
-  const { data: rankIc } = useQuery<RankIcPayload>({
+  const { data: rankIc, error: rankIcErr } = useQuery<RankIcPayload>({
     queryKey:       ["rank-ic"],
     queryFn:        () => fetch("/api/rank-ic").then(r => r.json()),
     refetchInterval: 10 * 60_000,
@@ -255,7 +255,11 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
               </div>
             </div>
           );
-        }) : Array.from({ length: 6 }).map((_, i) => (
+        }) : tickerErr ? (
+          <div style={{ gridColumn: "1 / -1", padding: "14px 18px", fontSize: "11px", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: color.red }}>
+            Market ticker unavailable
+          </div>
+        ) : Array.from({ length: 6 }).map((_, i) => (
           <div key={i} style={{
             display: "flex", alignItems: "center", gap: "14px", padding: "14px 18px",
             borderRight: i < 5 ? "1px solid rgba(255,255,255,0.05)" : undefined,
@@ -293,8 +297,8 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
                   : `${(freshness.p50_ms / 1000).toFixed(1)}s`
                 : "--"}
             </div>
-            <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.32)", marginTop: "6px" }}>
-              {freshness?.count ? `p50 · ${freshness.count} signals` : "no data yet"}
+            <div style={{ fontSize: "13px", color: freshErr ? color.red : "rgba(255,255,255,0.32)", marginTop: "6px" }}>
+              {freshErr ? "data unavailable" : freshness?.count ? `p50 · ${freshness.count} signals` : "no data yet"}
             </div>
           </div>
           <div style={{ ...S.card, padding: "14px 16px" }}>
@@ -309,8 +313,10 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
             }}>
               {rankIc?.latest_ic != null ? rankIc.latest_ic.toFixed(3) : "--"}
             </div>
-            <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.32)", marginTop: "6px" }}>
-              {rankIc?.total_measurements
+            <div style={{ fontSize: "13px", color: rankIcErr ? color.red : "rgba(255,255,255,0.32)", marginTop: "6px" }}>
+              {rankIcErr
+                ? "data unavailable"
+                : rankIc?.total_measurements
                 ? `${rankIc.total_measurements} measurements`
                 : "no data yet"}
             </div>
