@@ -95,7 +95,11 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
         ? allActive.slice(start, end)
         : [...allActive.slice(start), ...allActive.slice(0, end - allActive.length)];
       const nextOffset = end % allActive.length;
-      kv.set("cohort:cycle_offset", nextOffset, { ex: 25 * 3600 }).catch(() => {});
+      try {
+        await kv.set("cohort:cycle_offset", nextOffset, { ex: 25 * 3600 });
+      } catch (e) {
+        console.error("[refresh-cohort] failed to persist cycle_offset:", e);
+      }
     }
 
     if (wallets.length === 0) {
