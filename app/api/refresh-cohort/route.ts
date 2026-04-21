@@ -44,6 +44,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 // KV payload on the *next* cycle (hygiene fires after the response, in after()).
 let lastHygieneBreakdown: HygieneBreakdown | null = null;
 
+/** Hard cap on cohort_snapshots rows fetched per request. Supabase caps JSON response at 6MB. */
+const MAX_SNAPSHOT_ROWS = 1000;
+
 /** Maximum active wallets processed per cron invocation. */
 const MAX_WALLETS_PER_CYCLE = 100;
 
@@ -397,7 +400,7 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
         .in("wallet_id", allActiveIds)
         .gt("position_count", 0)
         .order("snapshot_time", { ascending: false })
-        .limit(allActiveIds.length * 2),
+        .limit(Math.min(allActiveIds.length * 2, MAX_SNAPSHOT_ROWS)),
     ]);
 
     // ── Step 10b: Enrich cohortSummary with trading styles ───────────────────
