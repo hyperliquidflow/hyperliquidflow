@@ -59,7 +59,8 @@ Separate sprint numbering from the product sprints above.
 | R12 | EV decouple | COMPLETE (2026-04-19) | migration 017, recipe_calibration + wallet_signal_stats tables, wallet-signal-stats.ts nightly script, Bayesian blend (70/30) in enrichWithEv |
 | R13 | Empirically-fit leverage-adjusted scoring | COMPLETE (2026-04-21) | migration 018, lib/leverage-risk.ts, computeCohortScoresV2, Phase 10b shadow scoring, rank_ic_shadow tracking |
 | R14-R24 | Phases 2-4 (remainder) | PLANNED | |
-| R25+ | Phase 5: automated execution | GATED on Phase 3 | |
+| R25 | Audit remediation (Phases 1 to 4) | COMPLETE (2026-04-21) | migrations 019, 020, cron auth hardening, indexes, tokens, eslint CLI migration |
+| R26+ | Phase 5: automated execution | GATED on Phase 3 | |
 
 ### R13 Canary Cutover Gate
 
