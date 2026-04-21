@@ -7,5 +7,5 @@ export default async function StalkerRedirect({
   searchParams: Promise<{ address?: string }>;
 }) {
   const { address } = await searchParams;
-  redirect(address ? `/wallets?address=${address}` : "/wallets");
+  redirect(address ? `/wallets/discovery?address=${address}` : "/wallets/discovery");
 }

@@ -480,5 +480,48 @@ export const selectable = {
   off: { userSelect: "none" as const, cursor: "default" as const },
 } as const;
 
+// CHECKBOX
+// Custom styled checkbox. Render a visually-hidden native <input type="checkbox">
+// alongside a <div style={checked ? checkbox.boxChecked : checkbox.box}> for the
+// visual indicator, wrapped in a <label style={checkbox.wrap}>.
+
+export const checkbox = {
+  wrap: {
+    display:    "flex",
+    alignItems: "center",
+    gap:        "8px",
+    cursor:     "pointer",
+    userSelect: "none",
+  } as React.CSSProperties,
+  box: {
+    width:          "14px",
+    height:         "14px",
+    borderRadius:   radius.tag,
+    border:         `1px solid ${color.inputBorder}`,
+    background:     color.inputBg,
+    flexShrink:     0 as const,
+    display:        "flex",
+    alignItems:     "center",
+    justifyContent: "center",
+    transition:     "border-color 0.15s, background 0.15s",
+  } as React.CSSProperties,
+  boxChecked: {
+    width:          "14px",
+    height:         "14px",
+    borderRadius:   radius.tag,
+    border:         `1px solid ${color.borderHover}`,
+    background:     "rgba(255,255,255,0.10)",
+    flexShrink:     0 as const,
+    display:        "flex",
+    alignItems:     "center",
+    justifyContent: "center",
+    transition:     "border-color 0.15s, background 0.15s",
+  } as React.CSSProperties,
+  label: {
+    fontSize: "13px",
+    color:    "rgba(255,255,255,0.7)",
+  } as React.CSSProperties,
+} as const;
+
 // React import needed for React.CSSProperties in effect.glass
 import type React from "react";

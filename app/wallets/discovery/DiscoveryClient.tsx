@@ -5,6 +5,7 @@ import { useState, useCallback, useEffect } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { formatUsd, formatPct, truncateAddress, timeAgo, isValidAddress } from "@/lib/utils";
 import { color, card as C, type as T, space, radius, anim } from "@/lib/design-tokens";
+import { FollowButton } from "@/components/follow-button";
 
 const S = {
   page:  { padding: space.pagePaddingX },
@@ -138,7 +139,10 @@ function WalletProfileCard({ profile }: { profile: WalletProfile }) {
         <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: profile.verdict_color, flexShrink: 0 }} />
         <div>
           <div style={{ fontSize: "16px", fontWeight: 700, color: profile.verdict_color }}>{profile.verdict}</div>
-          <div style={S.muted}>{truncateAddress(profile.address, 8, 6)}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "2px" }}>
+            <div style={S.muted}>{truncateAddress(profile.address, 8, 6)}</div>
+            <FollowButton address={profile.address} />
+          </div>
         </div>
         <div style={{ marginLeft: "auto", display: "grid", gridTemplateColumns: "repeat(4,auto)", gap: "24px" }}>
           {[

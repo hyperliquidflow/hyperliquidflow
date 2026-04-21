@@ -8,7 +8,6 @@ import { useQuery } from "@tanstack/react-query";
 import { timeAgo } from "@/lib/utils";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 import { color, type as T, shadow, anim } from "@/lib/design-tokens";
-import { AlertBell } from "@/components/alert-bell";
 import { useAlertDetection } from "@/lib/hooks/use-alert-detection";
 
 const LOGO = "HyperliquidFLOW";
@@ -110,13 +109,12 @@ export function Nav() {
           borderRight: `1px solid ${color.borderFaint}`,
           display: "flex", flexDirection: "column",
           position: "fixed", left: 0, top: 0, bottom: 0, zIndex: 100,
-          paddingTop: "24px",
           backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
         }}
       >
         {/* Logo */}
-        <div className="sidenav-logo-wrap" style={{ padding: "0 20px 24px", borderBottom: `1px solid ${color.borderFaint}`, marginBottom: "16px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ fontSize: "16px", fontWeight: 700, letterSpacing: "0.01em", display: "flex", cursor: "default", userSelect: "none" }}>
+        <div className="sidenav-logo-wrap" style={{ padding: "16px 20px", borderBottom: `1px solid ${color.borderFaint}`, marginBottom: "16px" }}>
+          <div style={{ fontSize: "16px", fontWeight: 700, letterSpacing: "0.01em", display: "flex", alignItems: "center", cursor: "default", userSelect: "none" }}>
             {LOGO.split("").map((ch, i) => (
               <span key={i} className="logo-char" style={{
                 display: "inline-block", color: "rgba(255,255,255,0.85)",
@@ -124,7 +122,6 @@ export function Nav() {
               }}>{ch}</span>
             ))}
           </div>
-          <AlertBell />
         </div>
 
         {/* Nav items */}
@@ -186,8 +183,11 @@ export function Nav() {
           })}
         </div>
 
+        {/* Bottom section: live footer */}
+        <div style={{ marginTop: "auto" }}>
+
         {/* Live footer */}
-        <div style={{ marginTop: "auto", padding: "18px 0", borderTop: `1px solid ${color.borderFaint}`, textAlign: "center" }}>
+        <div style={{ padding: "18px 0", borderTop: `1px solid ${color.borderFaint}`, textAlign: "center" }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
             <span style={{
               width: "6px", height: "6px", borderRadius: "50%",
@@ -204,6 +204,7 @@ export function Nav() {
             }
           </div>
         </div>
+        </div>{/* end bottom section */}
       </nav>
     </>
   );

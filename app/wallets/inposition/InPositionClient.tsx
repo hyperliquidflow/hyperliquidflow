@@ -7,6 +7,7 @@ import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { formatUsd, formatPct, truncateAddress } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
+import { FollowButton } from "@/components/follow-button";
 import type { CohortCachePayload, SpotlightWallet } from "@/app/api/refresh-cohort/route";
 import { color, card as C, type as T, space, radius } from "@/lib/design-tokens";
 
@@ -168,7 +169,12 @@ export function InPositionClient({ initialData }: { initialData: CohortCachePayl
                       style={S.spotCard}
                       className="glow-btn"
                       onClick={() => router.push(`/wallets/discovery?address=${w.address}`)}>
-                      <div style={S.spotAddr}>{w.address}</div>
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "8px" }}>
+                        <div style={S.spotAddr}>{w.address}</div>
+                        <div onClick={e => e.stopPropagation()}>
+                          <FollowButton address={w.address} />
+                        </div>
+                      </div>
                       <div style={S.spotBody}>
                         <div style={{ ...S.spotPnl, color: pnlColor }}>
                           {variant === "profit" && w.unrealized_pnl > 0 ? "+" : ""}{formatUsd(w.unrealized_pnl)}
@@ -259,10 +265,13 @@ export function InPositionClient({ initialData }: { initialData: CohortCachePayl
                       onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
                       <td style={{ ...S.td, color: color.textDim }}>{i + 1}</td>
                       <td style={S.td}>
-                        <button onClick={() => router.push(`/wallets/discovery?address=${w.address}`)}
-                          style={{ ...S.mono, color: color.neutral, background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" as const }}>
-                          {truncateAddress(w.address)}
-                        </button>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <button onClick={() => router.push(`/wallets/discovery?address=${w.address}`)}
+                            style={{ ...S.mono, color: color.neutral, background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" as const }}>
+                            {truncateAddress(w.address)}
+                          </button>
+                          <FollowButton address={w.address} />
+                        </div>
                       </td>
                       <td style={S.td}>
                         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>

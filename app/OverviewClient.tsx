@@ -424,7 +424,7 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
                   transition: "background 0.12s",
                 }}>
                   <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.22)", flexShrink: 0 }}>#{i + 1}</span>
-                  <a href={`/wallets?address=${w.address}`} style={{ flex: 1, fontFamily: "var(--font-mono)", fontSize: "13px", color: "rgba(156,163,175,0.8)", textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <a href={`/wallets/discovery?address=${w.address}`} style={{ flex: 1, fontFamily: "var(--font-mono)", fontSize: "13px", color: "rgba(156,163,175,0.8)", textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {truncateAddress(w.address)}
                   </a>
                   <span style={{ fontSize: "13px", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: w.overall_score >= 0.7 ? color.green : color.text, flexShrink: 0 }}>

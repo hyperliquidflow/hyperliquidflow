@@ -1,5 +1,5 @@
 "use client";
-// app/wallets/leaderboard/LeaderboardClient.tsx
+// app/wallets/leaderboard/LeaderboardClient.tsx — follow button enabled
 
 import { useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
