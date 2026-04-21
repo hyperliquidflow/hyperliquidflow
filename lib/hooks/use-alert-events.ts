@@ -1,6 +1,7 @@
 "use client";
 import { useState, useCallback, useEffect } from "react";
 import type { AlertEvent } from "@/lib/alert-engine";
+import { safeReadJson, safeWriteJson } from "./safe-local-storage";
 
 const KEY       = "hl_alert_events";
 const EVT       = "hl:alert-events-changed";
@@ -9,16 +10,13 @@ const EXPIRE_MS = 7 * 86_400_000;
 type NewAlertEvent = Omit<AlertEvent, "id" | "seen">;
 
 function read(): AlertEvent[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const all: AlertEvent[] = JSON.parse(localStorage.getItem(KEY) ?? "[]");
-    return all.filter(e => Date.now() - new Date(e.detected_at).getTime() < EXPIRE_MS);
-  } catch { return []; }
+  const all = safeReadJson<AlertEvent[]>(KEY, []);
+  return all.filter(e => Date.now() - new Date(e.detected_at).getTime() < EXPIRE_MS);
 }
 
 function write(events: AlertEvent[]) {
-  localStorage.setItem(KEY, JSON.stringify(events));
-  window.dispatchEvent(new Event(EVT));
+  safeWriteJson(KEY, events);
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(EVT));
 }
 
 export function useAlertEvents() {
