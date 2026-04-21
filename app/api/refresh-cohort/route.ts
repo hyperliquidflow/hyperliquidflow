@@ -500,48 +500,60 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       })
     );
 
-    // Run background tasks after response: hygiene + prune + enrichment + intraday recipe perf + timing
+    // Run background tasks after response. Use Promise.allSettled so one
+    // failure doesn't mask the others, and log a rollup at the end.
     after(
-      Promise.all([
-        applyHygieneGates(allActive.map((w) => w.id))
-          .then((result) => {
-            lastHygieneBreakdown = result.breakdown;
-            console.log(
-              `[hygiene] deactivated ${result.breakdown.total_deactivated_this_cycle}` +
-              ` low_equity: ${result.breakdown.low_equity},` +
-              ` liq_imminent: ${result.breakdown.liq_imminent},` +
-              ` drawdown_7d: ${result.breakdown.drawdown_7d}`
-            );
-          })
-          .catch((err) => console.error("[hygiene] error:", err)),
-        pruneUnderperformers().catch((err) =>
-          console.error("[refresh-cohort] pruneUnderperformers error:", err)
-        ),
-        runBridgeInflowEnrichment(wallets.map((w) => ({ id: w.id, address: w.address }))).catch((err) =>
-          console.error("[refresh-cohort] bridgeInflowEnrichment error:", err)
-        ),
-        runTwapEnrichment(twapCandidates).catch((err) =>
-          console.error("[refresh-cohort] twapEnrichment error:", err)
-        ),
-        updateIntradayRecipePerformance().catch((err) =>
-          console.error("[refresh-cohort] updateIntradayRecipePerformance error:", err)
-        ),
-        emittedIds.length > 0
-          ? supabase
-              .from("signal_timing")
-              .insert(emittedIds.map((id) => ({
-                signal_id:           id,
-                whale_fill_ts:       null,
-                snapshot_detect_ts:  snapshotDetectTs,
-                signal_emit_ts:      signalEmitTs,
-                kv_write_ts:         kvWriteTs,
-              })))
-              .then(({ error }) => {
-                if (error) console.error("[signal-timing] insert error:", error.message);
-                else console.log(`[signal-timing] inserted ${emittedIds.length} timing rows`);
-              })
-          : Promise.resolve(),
-      ])
+      (async () => {
+        const tasks: Array<{ name: string; p: Promise<unknown> }> = [
+          {
+            name: "hygiene",
+            p: applyHygieneGates(allActive.map((w) => w.id)).then((result) => {
+              lastHygieneBreakdown = result.breakdown;
+              console.log(
+                `[hygiene] deactivated ${result.breakdown.total_deactivated_this_cycle}` +
+                ` low_equity: ${result.breakdown.low_equity},` +
+                ` liq_imminent: ${result.breakdown.liq_imminent},` +
+                ` drawdown_7d: ${result.breakdown.drawdown_7d}`
+              );
+            }),
+          },
+          { name: "pruneUnderperformers",      p: pruneUnderperformers() },
+          { name: "runBridgeInflowEnrichment", p: runBridgeInflowEnrichment(wallets.map((w) => ({ id: w.id, address: w.address }))) },
+          { name: "runTwapEnrichment",         p: runTwapEnrichment(twapCandidates) },
+          { name: "updateIntradayRecipePerformance", p: updateIntradayRecipePerformance() },
+        ];
+
+        if (emittedIds.length > 0) {
+          tasks.push({
+            name: "signal_timing_insert",
+            p: Promise.resolve(
+              supabase
+                .from("signal_timing")
+                .insert(emittedIds.map((id) => ({
+                  signal_id:           id,
+                  whale_fill_ts:       null,
+                  snapshot_detect_ts:  snapshotDetectTs,
+                  signal_emit_ts:      signalEmitTs,
+                  kv_write_ts:         kvWriteTs,
+                })))
+            ).then(({ error }) => {
+              if (error) throw new Error(`signal_timing: ${error.message}`);
+              console.log(`[signal-timing] inserted ${emittedIds.length} timing rows`);
+            }),
+          });
+        }
+
+        const results = await Promise.allSettled(tasks.map((t) => t.p));
+        const failures = results
+          .map((r, i) => (r.status === "rejected" ? { name: tasks[i].name, err: String(r.reason) } : null))
+          .filter((x): x is { name: string; err: string } => x !== null);
+
+        if (failures.length > 0) {
+          console.error(`[refresh-cohort] background failures: ${failures.length}/${tasks.length}`, failures);
+        } else {
+          console.log(`[refresh-cohort] background ok: ${tasks.length}/${tasks.length}`);
+        }
+      })()
     );
 
     return NextResponse.json({
