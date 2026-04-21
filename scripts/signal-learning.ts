@@ -66,11 +66,22 @@ async function fetchAtrForCoin(coin: string): Promise<number | null> {
 // Fetch ATR for multiple coins, rate-limited to avoid hammering the API.
 async function fetchAtrMap(coins: string[]): Promise<Map<string, number>> {
   const map = new Map<string, number>();
+  let successCount = 0;
+  const requestedCount = coins.length;
   for (const coin of coins) {
     const atr = await fetchAtrForCoin(coin);
-    if (atr !== null) map.set(coin, atr);
+    if (atr !== null) {
+      map.set(coin, atr);
+      successCount++;
+    }
     // Small delay to avoid rate-limit
     await new Promise((r) => setTimeout(r, 200));
+  }
+  const coverage = requestedCount > 0 ? successCount / requestedCount : 1;
+  if (requestedCount > 0 && coverage < 0.5) {
+    throw new Error(
+      `fetchAtrMap: only ${successCount}/${requestedCount} coins fetched (${(coverage * 100).toFixed(0)}%). Aborting learning run.`
+    );
   }
   return map;
 }
