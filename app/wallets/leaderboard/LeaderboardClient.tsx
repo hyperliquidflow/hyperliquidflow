@@ -137,7 +137,7 @@ export function LeaderboardClient({ initialData }: { initialData: CohortCachePay
                 cursor: "pointer",
                 background: tierFilter === t ? "rgba(255,255,255,0.10)" : "transparent",
                 borderColor: tierFilter === t ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.10)",
-                color: tierFilter === t ? "#f0f0f0" : "rgba(255,255,255,0.45)",
+                color: tierFilter === t ? color.text : "rgba(255,255,255,0.45)",
                 transition: "all 0.15s",
               }}>
               {t}

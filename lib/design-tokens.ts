@@ -97,6 +97,10 @@ export const color = {
   hmShort:     "rgba(201,36,53,0.5)",
   hmQuiet:     "rgba(255,255,255,0.09)",
 
+  // SVG chart canvases (Coinglass-style deep navy/purple)
+  svgCanvas:   "#050510",
+  svgPlotBg:   "#0b0818",
+
   // Neutral / gray — FLAT direction, SCALE IN/OUT/FLIP pills, loading states
   neutral:       "#9ca3af",
   neutralBg:     "rgba(156,163,175,0.08)",
