@@ -159,7 +159,7 @@ Mocking pattern uses `vi.mock()` for `@vercel/kv`, `@supabase/supabase-js`, and 
 
 No OAuth on data routes. Auth relies on:
 - `SUPABASE_SERVICE_ROLE_KEY` for all server-side reads/writes (backend only — never sent to browser)
-- Optional `CRON_SECRET` header check in `refresh-cohort` to restrict the cron endpoint to Vercel's scheduler
+- `CRON_SECRET` header check in `refresh-cohort` and `measure-outcomes` (required in production). Restricts these endpoints to Vercel's scheduler using a timing-safe Bearer token compare.
 
 ### Adding Signal Recipes
 
@@ -204,7 +204,7 @@ SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
 KV_URL, KV_REST_API_URL, KV_REST_API_TOKEN, KV_REST_API_READ_ONLY_TOKEN
 HYPERLIQUID_API_URL=https://api.hyperliquid.xyz/info
 NEXT_PUBLIC_POLL_INTERVAL_MS=60000
-CRON_SECRET=                    # optional; restricts cron endpoint to Vercel scheduler
+CRON_SECRET=                    # required in production; restricts cron endpoint to Vercel scheduler
 ```
 
 Backend routes use `SUPABASE_SERVICE_ROLE_KEY` (full access). Client uses anon key.

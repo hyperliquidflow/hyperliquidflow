@@ -75,7 +75,7 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
   const startMs = Date.now();
 
   // Verify Vercel Cron secret header in production (timing-safe compare).
-  if (process.env.NODE_ENV === "production" && !verifyCronAuth(req)) {
+  if (!verifyCronAuth(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

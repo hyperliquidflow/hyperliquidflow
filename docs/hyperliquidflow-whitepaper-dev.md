@@ -464,7 +464,7 @@ KV_REST_API_TOKEN=               # KV read/write token
 KV_REST_API_READ_ONLY_TOKEN=     # KV read-only token
 HYPERLIQUID_API_URL=https://api.hyperliquid.xyz/info
 NEXT_PUBLIC_POLL_INTERVAL_MS=60000
-CRON_SECRET=                     # Optional; restricts cron to Vercel scheduler
+CRON_SECRET=                     # Required in production; restricts cron to Vercel scheduler
 ```
 
 ---
@@ -473,7 +473,7 @@ CRON_SECRET=                     # Optional; restricts cron to Vercel scheduler
 
 | Route | Method | Auth | Description |
 |-------|--------|------|-------------|
-| `/api/refresh-cohort` | GET/POST | CRON_SECRET (opt.) | Cron + manual trigger. Runs Stream B, Stream E, writes KV. Must finish in 10s on Hobby. |
+| `/api/refresh-cohort` | GET/POST | CRON_SECRET (required in prod) | Cron + manual trigger. Runs Stream B, Stream E, writes KV. Must finish in 10s on Hobby. |
 | `/api/cohort-state` | GET | None | Primary client poll. Reads `cohort:active` KV. Fires background refresh via `after()` if stale > 5 min. |
 | `/api/contrarian` | GET | None | Reads `contrarian:latest` KV. Fires background refresh if stale. |
 | `/api/market-ticker` | GET | None | Live price and 24h change from `market-ticker:v4` KV. |
@@ -510,7 +510,7 @@ return NextResponse.json(await fetchFromSupabase());
 
 ### Auth Model
 
-Data routes have no OAuth. Server-side reads use `SUPABASE_SERVICE_ROLE_KEY`, which is never exposed to the browser. Client-side Supabase calls (if any) use the anon key. `CRON_SECRET` restricts the cron endpoint to Vercel's scheduler IP range when set.
+Data routes have no OAuth. Server-side reads use `SUPABASE_SERVICE_ROLE_KEY`, which is never exposed to the browser. Client-side Supabase calls (if any) use the anon key. `CRON_SECRET` is required in production and is checked via a timing-safe Bearer token compare on `/api/refresh-cohort` and `/api/measure-outcomes`.
 
 ---
 
