@@ -343,8 +343,16 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
 
     // Load recipe_calibration and wallet_signal_stats for R12 EV decouple
     const [{ data: recipeCalRows }, { data: wssRows }] = await Promise.all([
-      supabase.from("recipe_calibration").select("recipe_id, win_rate, sample_size_30d"),
-      supabase.from("wallet_signal_stats").select("wallet_address, recipe_id, win_rate_net, signal_count"),
+      supabase
+        .from("recipe_calibration")
+        .select("recipe_id, win_rate, sample_size_30d")
+        .order("updated_at", { ascending: false })
+        .limit(500),
+      supabase
+        .from("wallet_signal_stats")
+        .select("wallet_address, recipe_id, win_rate_net, signal_count")
+        .order("updated_at", { ascending: false })
+        .limit(500),
     ]);
     const recipeCalibrationMap = new Map(
       (recipeCalRows ?? []).map((r) => [
