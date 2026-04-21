@@ -96,6 +96,7 @@ export function LeaderboardClient({ initialData }: { initialData: CohortCachePay
   const [asc,  setAsc]  = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [tierFilter, setTierFilter] = useState<string>("All");
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   function handleSort(key: SortKey) {
     if (key === sort) setAsc((a) => !a);
@@ -189,9 +190,13 @@ export function LeaderboardClient({ initialData }: { initialData: CohortCachePay
                 ))
               ) : (
                 displayed.map((w, i) => (
-                  <tr key={w.wallet_id} style={{ transition: "background 0.1s" }}
-                    onMouseEnter={(e) => (e.currentTarget.style.background = color.rowHover)}
-                    onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+                  <tr key={w.wallet_id}
+                    onMouseEnter={() => setHoveredId(w.wallet_id)}
+                    onMouseLeave={() => setHoveredId(null)}
+                    style={{
+                      transition: "background 0.1s",
+                      background: hoveredId === w.wallet_id ? color.rowHover : "transparent",
+                    }}>
                     <td style={{ ...S.td, color: "rgba(255,255,255,0.32)" }}>{i + 1}</td>
                     <td style={S.td}>
                       <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>

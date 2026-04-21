@@ -212,6 +212,7 @@ export function FollowingClient() {
   const { unseenCount } = useAlertEvents();
   const [expanded,     setExpanded]     = useState<string | null>(null);
   const [profileCache, setProfileCache] = useState<Map<string, ProfileState>>(new Map());
+  const [hoveredAddress, setHoveredAddress] = useState<string | null>(null);
 
   const { data } = useQuery<CohortCachePayload>({
     queryKey:        ["cohort-state"],
@@ -259,10 +260,10 @@ export function FollowingClient() {
               return (
                 <div
                   key={fw.address}
-                  style={S.item}
+                  style={{ ...S.item, background: hoveredAddress === fw.address ? color.rowHover : "transparent" }}
                   onClick={() => toggle(fw.address)}
-                  onMouseEnter={e => (e.currentTarget.style.background = color.rowHover)}
-                  onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
+                  onMouseEnter={() => setHoveredAddress(fw.address)}
+                  onMouseLeave={() => setHoveredAddress(null)}
                 >
                   {/* Main row */}
                   <div style={S.row}>
