@@ -113,6 +113,11 @@ async function computeIcForDate(dateStr: string): Promise<{
     return null;
   }
 
+  if (!Number.isFinite(rho)) {
+    console.warn(`[rank-ic] skipping ${dateStr}: correlation not finite`);
+    return null;
+  }
+
   const n   = pairs.length;
   const ess = Math.round(n * ESS_FACTOR);
   const pv  = spearmanPValue(rho, ess);
@@ -190,10 +195,15 @@ async function computeShadowIcForDate(dateStr: string): Promise<number | null> {
   if (pairs.length < 20) return null;
 
   try {
-    return sampleRankCorrelation(
+    const rho = sampleRankCorrelation(
       pairs.map((p) => p.score),
       pairs.map((p) => p.ret),
     );
+    if (!Number.isFinite(rho)) {
+      console.warn(`[rank-ic] skipping ${dateStr} shadow: correlation not finite`);
+      return null;
+    }
+    return rho;
   } catch (e) {
     console.warn(`[rank-ic] ${dateStr} shadow spearmanCorrelation error:`, e);
     return null;
