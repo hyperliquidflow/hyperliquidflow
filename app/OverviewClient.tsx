@@ -11,6 +11,7 @@ import { PageHeader } from "@/components/page-header";
 import { RECIPE_META } from "@/lib/recipe-meta";
 import { OverviewLoadingState } from "@/components/loading-state";
 import { color, card as C, type as T, space } from "@/lib/design-tokens";
+import { ScoreHover, useScoreHover } from "@/components/score-popup";
 
 const S = {
   page:  { padding: space.pagePaddingX },
@@ -22,6 +23,26 @@ const S = {
 };
 
 type Signal = CohortCachePayload["recent_signals"][number];
+
+function AvgScoreCard({ label, value, sub }: { label: string; value: string; sub: string }) {
+  const { triggerProps, popup } = useScoreHover();
+  return (
+    <div {...triggerProps} style={{ ...S.card, padding: "14px 16px", transition: "border-color 0.2s, background 0.2s" }}>
+      <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(255,255,255,0.38)" }}>{label}</div>
+      <div style={{ fontSize: "32px", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: color.text, marginTop: "10px", lineHeight: 1 }}>{value}</div>
+      <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.32)", marginTop: "6px" }}>{sub}</div>
+      {popup}
+    </div>
+  );
+}
+
+function TopWalletScore({ score }: { score: number }) {
+  return (
+    <ScoreHover style={{ fontSize: "13px", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: score >= 0.7 ? color.green : color.text, flexShrink: 0 }}>
+      {score.toFixed(2)}
+    </ScoreHover>
+  );
+}
 
 function buildHeatmap(signals: Signal[]) {
   const now = new Date();
@@ -280,13 +301,17 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
             { label: "Smart Money",    value: `${data.total_active_wallets ?? data.wallet_count}`, sub: "wallets tracked" },
             { label: "Book Value",     value: formatUsd(totalAv),      sub: "across Smart Money" },
             { label: "Unrealised PnL", value: formatUsd(totalPnl), clr: totalPnl >= 0 ? color.green : color.red, sub: "open positions" },
-            { label: "Avg Quality",     value: avgScore.toFixed(2),     sub: "out of 1.00" },
-          ].map(({ label, value, sub, clr }) => (
-            <div key={label} style={{ ...S.card, padding: "14px 16px", transition: "border-color 0.2s, background 0.2s" }}>
-              <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(255,255,255,0.38)" }}>{label}</div>
-              <div style={{ fontSize: "32px", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: clr ?? color.text, marginTop: "10px", lineHeight: 1 }}>{value}</div>
-              <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.32)", marginTop: "6px" }}>{sub}</div>
-            </div>
+            { label: "Avg Score",      value: avgScore.toFixed(2),     sub: "out of 1.00", scoreHover: true },
+          ].map(({ label, value, sub, clr, scoreHover }) => (
+            scoreHover ? (
+              <AvgScoreCard key={label} label={label} value={value} sub={sub} />
+            ) : (
+              <div key={label} style={{ ...S.card, padding: "14px 16px", transition: "border-color 0.2s, background 0.2s" }}>
+                <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(255,255,255,0.38)" }}>{label}</div>
+                <div style={{ fontSize: "32px", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: clr ?? color.text, marginTop: "10px", lineHeight: 1 }}>{value}</div>
+                <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.32)", marginTop: "6px" }}>{sub}</div>
+              </div>
+            )
           ))}
           <div style={{ ...S.card, padding: "14px 16px" }}>
             <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(255,255,255,0.38)" }}>Signal Speed</div>
@@ -433,9 +458,7 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
                   <a href={`/wallets/discovery?address=${w.address}`} style={{ flex: 1, fontFamily: "var(--font-mono)", fontSize: "13px", color: "rgba(156,163,175,0.8)", textDecoration: "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {truncateAddress(w.address)}
                   </a>
-                  <span style={{ fontSize: "13px", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: w.overall_score >= 0.7 ? color.green : color.text, flexShrink: 0 }}>
-                    {w.overall_score.toFixed(2)}
-                  </span>
+                  <TopWalletScore score={w.overall_score} />
                 </div>
               ))}
             </div>

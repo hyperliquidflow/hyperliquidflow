@@ -9,7 +9,8 @@ import { formatUsd, formatPct, truncateAddress } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import { FollowButton } from "@/components/follow-button";
 import type { CohortCachePayload, SpotlightWallet } from "@/app/api/refresh-cohort/route";
-import { color, card as C, type as T, space, radius } from "@/lib/design-tokens";
+import { color, card as C, type as T, space, radius, anim } from "@/lib/design-tokens";
+import { useScoreHover } from "@/components/score-popup";
 
 const S = {
   page:  { padding: space.pagePaddingX },
@@ -67,28 +68,6 @@ const S = {
     margin: "0 12px", flexShrink: 0,
   } as React.CSSProperties,
 
-  // Score row: tertiary indicator below divider
-  spotScoreRow: {
-    display: "flex", alignItems: "center", gap: "8px",
-    marginTop: "12px", paddingTop: "10px",
-    borderTop: `1px solid ${color.divider}`,
-  } as React.CSSProperties,
-
-  spotBarTrack: {
-    flex: 1, height: "3px", borderRadius: radius.bar,
-    background: color.barBg, overflow: "hidden" as const,
-  } as React.CSSProperties,
-
-  spotBarFill: {
-    height: "100%", borderRadius: radius.bar,
-    background: color.neutral,
-  } as React.CSSProperties,
-
-  spotScoreNum: {
-    fontSize: "11px", fontWeight: 600,
-    color: color.textMuted, fontVariantNumeric: "tabular-nums",
-    flexShrink: 0,
-  } as React.CSSProperties,
 };
 
 const bone = (w: string | number, h = 9): React.CSSProperties => ({
@@ -97,6 +76,19 @@ const bone = (w: string | number, h = 9): React.CSSProperties => ({
 const ghost = (delay = 0): React.CSSProperties => ({
   animation: `slide-up-ghost 2.4s ease-in-out ${delay}s infinite`,
 });
+
+function TableScoreCell({ score }: { score: number }) {
+  const { triggerProps, popup } = useScoreHover();
+  return (
+    <div {...triggerProps} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+      <div style={{ width: "48px", height: "3px", background: color.barBg, borderRadius: radius.bar }}>
+        <div style={{ width: `${score * 100}%`, height: "100%", background: color.neutral, borderRadius: radius.bar }} />
+      </div>
+      <span style={{ fontSize: "11px", fontWeight: 600, color: color.text, fontVariantNumeric: "tabular-nums" }}>{score.toFixed(2)}</span>
+      {popup}
+    </div>
+  );
+}
 
 type SortKey = "address" | "overall_score" | "account_value" | "unrealized_pnl" | "win_rate" | "position_count" | "liq_buffer_pct";
 
@@ -135,6 +127,9 @@ export function InPositionClient({ initialData }: { initialData: CohortCachePayl
   const topProfit = spotlightBase?.slice(0, 3) ?? null;
   const topLoss   = spotlightBase ? [...spotlightBase].slice(-3).reverse() : null;
 
+  const tilt = data?.cohort_tilt ?? null;
+  const tiltHistory = data?.tilt_history ?? null;
+
   const inPosition = data
     ? [...data.top_wallets]
         .filter((w) => w.position_count > 0)
@@ -155,7 +150,40 @@ export function InPositionClient({ initialData }: { initialData: CohortCachePayl
         title="In Position"
         subtitle={inPosition ? `${inPosition.length} wallets with open positions (current cron batch)` : "Wallets with open positions in the current cron batch"}
       />
-      <div style={{ ...S.page, paddingTop: "20px" }}>
+      <div style={{ ...S.page, paddingTop: "14px" }}>
+
+        {/* Cohort directional tilt, weighted by notional. Inline, no card. */}
+        <div style={{ marginBottom: space.cardGap }}>
+          {tilt ? (
+            <>
+              <div style={{ display: "flex", width: "100%", height: "6px", borderRadius: radius.bar, overflow: "hidden", background: color.barBg, marginBottom: "8px" }}>
+                <div style={{ width: `${tilt.long_pct}%`, background: color.hmLong, transition: anim.walletBar }} />
+                <div style={{ width: `${tilt.short_pct}%`, background: color.hmShort, transition: anim.walletBar }} />
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "13px", fontVariantNumeric: "tabular-nums" }}>
+                <div style={{ color: color.green }}>
+                  <span style={{ fontWeight: 700 }}>{tilt.long_pct}%</span>
+                  <span style={{ color: color.textMuted, marginLeft: "6px", fontWeight: 500 }}>LONG</span>
+                  <span style={{ color: color.textDim, marginLeft: "8px" }}>{formatUsd(tilt.long_notional)}</span>
+                </div>
+                <TiltSparkline points={tiltHistory} />
+                <div style={{ color: color.red, textAlign: "right" }}>
+                  <span style={{ color: color.textDim, marginRight: "8px" }}>{formatUsd(tilt.short_notional)}</span>
+                  <span style={{ color: color.textMuted, marginRight: "6px", fontWeight: 500 }}>SHORT</span>
+                  <span style={{ fontWeight: 700 }}>{tilt.short_pct}%</span>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ ...bone("100%", 6), ...ghost(), marginBottom: "8px" }} />
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <div style={{ ...bone(120, 13), ...ghost() }} />
+                <div style={{ ...bone(120, 13), ...ghost(0.1) }} />
+              </div>
+            </>
+          )}
+        </div>
 
         {/* Spotlight: top 3 profitable, top 3 underwater */}
         {(["profit", "loss"] as const).map((variant) => {
@@ -185,12 +213,6 @@ export function InPositionClient({ initialData }: { initialData: CohortCachePayl
                           <span>{w.position_count} positions</span>
                         </div>
                       </div>
-                      <div style={S.spotScoreRow}>
-                        <div style={S.spotBarTrack}>
-                          <div style={{ ...S.spotBarFill, width: `${w.overall_score * 100}%` }} />
-                        </div>
-                        <span style={S.spotScoreNum}>{w.overall_score.toFixed(2)}</span>
-                      </div>
                     </div>
                   ))
                 : Array.from({ length: 3 }).map((_, i) => (
@@ -202,9 +224,6 @@ export function InPositionClient({ initialData }: { initialData: CohortCachePayl
                           <div style={{ ...bone(80, 13), ...ghost(i * 0.08) }} />
                           <div style={{ ...bone(60, 13), ...ghost(i * 0.08) }} />
                         </div>
-                      </div>
-                      <div style={{ marginTop: "12px", paddingTop: "10px", borderTop: `1px solid ${color.divider}` }}>
-                        <div style={{ ...bone("100%", 3), ...ghost(i * 0.08) }} />
                       </div>
                     </div>
                   ))}
@@ -274,12 +293,7 @@ export function InPositionClient({ initialData }: { initialData: CohortCachePayl
                         </div>
                       </td>
                       <td style={S.td}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <div style={{ width: "48px", height: "3px", background: color.barBg, borderRadius: radius.bar }}>
-                            <div style={{ width: `${w.overall_score * 100}%`, height: "100%", background: color.neutral, borderRadius: radius.bar }} />
-                          </div>
-                          <span style={{ fontSize: "11px", fontWeight: 600, color: color.text }}>{w.overall_score.toFixed(2)}</span>
-                        </div>
+                        <TableScoreCell score={w.overall_score} />
                       </td>
                       <td style={{ ...S.td, fontVariantNumeric: "tabular-nums" }}>{formatUsd(w.account_value)}</td>
                       <td style={{ ...S.td, color: w.unrealized_pnl >= 0 ? color.green : color.red, fontVariantNumeric: "tabular-nums" }}>{formatUsd(w.unrealized_pnl)}</td>
@@ -297,5 +311,35 @@ export function InPositionClient({ initialData }: { initialData: CohortCachePayl
         </div>
       </div>
     </div>
+  );
+}
+
+// 24h tilt sparkline. Shows long_pct trajectory with a faint 50% midline so
+// "tilted bullish" vs "tilted bearish" reads at a glance.
+function TiltSparkline({ points }: { points: Array<{ t: number; long_pct: number }> | null }) {
+  const W = 140;
+  const H = 24;
+  if (!points || points.length < 2) {
+    return <div style={{ width: W, height: H, flexShrink: 0 }} />;
+  }
+  const now = Date.now();
+  const windowMs = 24 * 3600 * 1000;
+  const start = now - windowMs;
+  const xFor = (t: number) => ((t - start) / windowMs) * W;
+  const yFor = (pct: number) => H - (pct / 100) * H;
+  const d = points
+    .map((p, i) => `${i === 0 ? "M" : "L"}${xFor(p.t).toFixed(1)},${yFor(p.long_pct).toFixed(1)}`)
+    .join(" ");
+  const midY = yFor(50).toFixed(1);
+  const last = points[points.length - 1];
+  const lastX = xFor(last.t);
+  const lastY = yFor(last.long_pct);
+  const lineColor = last.long_pct >= 50 ? color.green : color.red;
+  return (
+    <svg width={W} height={H} style={{ flexShrink: 0, opacity: 0.9 }}>
+      <line x1={0} y1={midY} x2={W} y2={midY} stroke={color.border} strokeWidth={1} strokeDasharray="2,3" />
+      <path d={d} fill="none" stroke={lineColor} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={lastX} cy={lastY} r={2} fill={lineColor} />
+    </svg>
   );
 }

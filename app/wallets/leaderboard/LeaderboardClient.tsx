@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/page-header";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 import { color, card as C, type as T, space } from "@/lib/design-tokens";
 import { FollowButton } from "@/components/follow-button";
+import { useScoreHover } from "@/components/score-popup";
 
 function TierBadge({ tier }: { tier: string | null | undefined }) {
   if (!tier) return null;
@@ -69,11 +70,24 @@ const ghost = (delay = 0): React.CSSProperties => ({
   animation: `slide-up-ghost 2.4s ease-in-out ${delay}s infinite`,
 });
 
+function ScoreCell({ score }: { score: number }) {
+  const { triggerProps, popup } = useScoreHover();
+  return (
+    <div {...triggerProps} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+      <div style={{ width: "48px", height: "3px", background: "rgba(255,255,255,0.08)", borderRadius: "2px" }}>
+        <div style={{ width: `${score * 100}%`, height: "100%", background: color.neutral, borderRadius: "2px" }} />
+      </div>
+      <span style={{ fontSize: "11px", fontWeight: 600, color: color.text, fontVariantNumeric: "tabular-nums" }}>{score.toFixed(2)}</span>
+      {popup}
+    </div>
+  );
+}
+
 type SortKey = "address" | "overall_score" | "account_value" | "unrealized_pnl" | "win_rate" | "position_count" | "liq_buffer_pct";
 
 const COLS: { key: SortKey; label: string }[] = [
   { key: "address",        label: "Wallet"     },
-  { key: "overall_score",  label: "Quality"        },
+  { key: "overall_score",  label: "Score"          },
   { key: "account_value",  label: "AUM"            },
   { key: "unrealized_pnl", label: "Open PnL"       },
   { key: "win_rate",       label: "Win Rate"       },
@@ -210,12 +224,7 @@ export function LeaderboardClient({ initialData }: { initialData: CohortCachePay
                       </div>
                     </td>
                     <td style={S.td}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <div style={{ width: "48px", height: "3px", background: "rgba(255,255,255,0.08)", borderRadius: "2px" }}>
-                          <div style={{ width: `${w.overall_score * 100}%`, height: "100%", background: color.neutral, borderRadius: "2px" }} />
-                        </div>
-                        <span style={{ fontSize: "11px", fontWeight: 600, color: color.text }}>{w.overall_score.toFixed(2)}</span>
-                      </div>
+                      <ScoreCell score={w.overall_score} />
                     </td>
                     <td style={{ ...S.td, fontVariantNumeric: "tabular-nums" }}>{formatUsd(w.account_value)}</td>
                     <td style={{ ...S.td, color: w.unrealized_pnl >= 0 ? color.green : color.red, fontVariantNumeric: "tabular-nums" }}>{formatUsd(w.unrealized_pnl)}</td>

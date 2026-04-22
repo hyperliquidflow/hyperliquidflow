@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/page-header";
 import { formatUsd, timeAgo } from "@/lib/utils";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 import { color, card as C, type as T, space, radius, anim } from "@/lib/design-tokens";
+import { useScoreHover } from "@/components/score-popup";
 
 const ALERT_LABEL: Record<string, string> = {
   open:   "Open",
@@ -219,6 +220,19 @@ const S = {
 
 import type React from "react";
 
+function ScoreCell({ score }: { score: number }) {
+  const { triggerProps, popup } = useScoreHover();
+  return (
+    <div {...triggerProps} style={S.scoreWrap}>
+      <div style={S.barTrack}>
+        <div style={{ ...S.barFill, width: `${score * 100}%` }} />
+      </div>
+      <span style={S.scoreNum}>{score.toFixed(2)}</span>
+      {popup}
+    </div>
+  );
+}
+
 export function FollowingClient() {
   const { wallets } = useFollowedWallets();
   const { events, unseenCount } = useAlertEvents();
@@ -326,12 +340,7 @@ export function FollowingClient() {
                     {/* Cohort stats */}
                     {w ? (
                       <div style={S.stats}>
-                        <div style={S.scoreWrap}>
-                          <div style={S.barTrack}>
-                            <div style={{ ...S.barFill, width: `${w.overall_score * 100}%` }} />
-                          </div>
-                          <span style={S.scoreNum}>{w.overall_score.toFixed(2)}</span>
-                        </div>
+                        <ScoreCell score={w.overall_score} />
                         <span style={{ ...S.stat, color: w.unrealized_pnl >= 0 ? color.green : color.red }}>
                           {formatUsd(w.unrealized_pnl)}
                         </span>
