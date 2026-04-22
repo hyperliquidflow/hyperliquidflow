@@ -6,8 +6,10 @@ import { computeOutcome, computeMovePct } from "@/lib/outcome-helpers";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 const CHUNK_SIZE = 100;
-// 26h = 24h window + 2h buffer for hourly cron granularity
-const HORIZON_MS = 26 * 60 * 60 * 1000;
+// 72h horizon gives the daily cron room to retry rows missed due to
+// allMids failures or a skipped run. Rows older than this are dropped by
+// the 30-day retention cron anyway.
+const HORIZON_MS = 72 * 60 * 60 * 1000;
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const startMs = Date.now();
