@@ -128,7 +128,6 @@ export function InPositionClient({ initialData }: { initialData: CohortCachePayl
   const topLoss   = spotlightBase ? [...spotlightBase].slice(-3).reverse() : null;
 
   const tilt = data?.cohort_tilt ?? null;
-  const tiltHistory = data?.tilt_history ?? null;
 
   const inPosition = data
     ? [...data.top_wallets]
@@ -148,7 +147,7 @@ export function InPositionClient({ initialData }: { initialData: CohortCachePayl
     <div className="page-enter">
       <PageHeader
         title="In Position"
-        subtitle={inPosition ? `${inPosition.length} wallets with open positions (current cron batch)` : "Wallets with open positions in the current cron batch"}
+        subtitle={inPosition ? `${inPosition.length} wallets with open positions right now` : "Wallets with open positions right now"}
       />
       <div style={{ ...S.page, paddingTop: "14px" }}>
 
@@ -166,7 +165,6 @@ export function InPositionClient({ initialData }: { initialData: CohortCachePayl
                   <span style={{ color: color.textMuted, marginLeft: "6px", fontWeight: 500 }}>LONG</span>
                   <span style={{ color: color.textDim, marginLeft: "8px" }}>{formatUsd(tilt.long_notional)}</span>
                 </div>
-                <TiltSparkline points={tiltHistory} />
                 <div style={{ color: color.red, textAlign: "right" }}>
                   <span style={{ color: color.textDim, marginRight: "8px" }}>{formatUsd(tilt.short_notional)}</span>
                   <span style={{ color: color.textMuted, marginRight: "6px", fontWeight: 500 }}>SHORT</span>
@@ -210,7 +208,7 @@ export function InPositionClient({ initialData }: { initialData: CohortCachePayl
                         <div style={S.spotCtx}>
                           <span>{formatUsd(w.account_value)} AUM</span>
                           <div style={S.spotCtxDivider} />
-                          <span>{w.position_count} positions</span>
+                          <span>{w.position_count} {w.position_count === 1 ? "position" : "positions"}</span>
                         </div>
                       </div>
                     </div>
@@ -314,32 +312,3 @@ export function InPositionClient({ initialData }: { initialData: CohortCachePayl
   );
 }
 
-// 24h tilt sparkline. Shows long_pct trajectory with a faint 50% midline so
-// "tilted bullish" vs "tilted bearish" reads at a glance.
-function TiltSparkline({ points }: { points: Array<{ t: number; long_pct: number }> | null }) {
-  const W = 140;
-  const H = 24;
-  if (!points || points.length < 2) {
-    return <div style={{ width: W, height: H, flexShrink: 0 }} />;
-  }
-  const now = Date.now();
-  const windowMs = 24 * 3600 * 1000;
-  const start = now - windowMs;
-  const xFor = (t: number) => ((t - start) / windowMs) * W;
-  const yFor = (pct: number) => H - (pct / 100) * H;
-  const d = points
-    .map((p, i) => `${i === 0 ? "M" : "L"}${xFor(p.t).toFixed(1)},${yFor(p.long_pct).toFixed(1)}`)
-    .join(" ");
-  const midY = yFor(50).toFixed(1);
-  const last = points[points.length - 1];
-  const lastX = xFor(last.t);
-  const lastY = yFor(last.long_pct);
-  const lineColor = last.long_pct >= 50 ? color.green : color.red;
-  return (
-    <svg width={W} height={H} style={{ flexShrink: 0, opacity: 0.9 }}>
-      <line x1={0} y1={midY} x2={W} y2={midY} stroke={color.border} strokeWidth={1} strokeDasharray="2,3" />
-      <path d={d} fill="none" stroke={lineColor} strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
-      <circle cx={lastX} cy={lastY} r={2} fill={lineColor} />
-    </svg>
-  );
-}

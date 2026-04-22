@@ -424,10 +424,12 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
     );
 
     // Deduplicate snapRows (keep latest per wallet), build spotlight list, and aggregate coin notional
-    type RawPos = { position?: { coin?: string; positionValue?: string } };
+    type RawPos = { position?: { coin?: string; positionValue?: string; szi?: string } };
     const seenSpotlight = new Set<string>();
     const spotlightPositions: SpotlightWallet[] = [];
     const coinNotionalMap = new Map<string, number>();
+    let longNotional = 0;
+    let shortNotional = 0;
     for (const r of (snapRows ?? [])) {
       if (seenSpotlight.has(r.wallet_id)) continue;
       seenSpotlight.add(r.wallet_id);
@@ -443,8 +445,11 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       for (const ap of ((r.positions ?? []) as RawPos[])) {
         const coin = ap.position?.coin;
         const val  = Math.abs(parseFloat(ap.position?.positionValue ?? "0"));
+        const szi  = parseFloat(ap.position?.szi ?? "0");
         if (coin && Number.isFinite(val) && val > 0) {
           coinNotionalMap.set(coin, (coinNotionalMap.get(coin) ?? 0) + val);
+          if (szi > 0) longNotional += val;
+          else if (szi < 0) shortNotional += val;
         }
       }
     }
@@ -453,6 +458,22 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 5)
       .map(([coin, notional]) => ({ coin, notional: Math.round(notional), pct: Math.round((notional / totalCoinNotional) * 100) }));
+
+    const tiltTotal = longNotional + shortNotional;
+    const longPct   = tiltTotal > 0 ? (longNotional / tiltTotal) * 100 : 0;
+    const longPctRounded  = Math.round(longPct);
+    const shortPctRounded = tiltTotal > 0 ? 100 - longPctRounded : 0;
+    const tiltLabel: "BULL" | "BEAR" | "BALANCED" =
+      tiltTotal === 0 ? "BALANCED" :
+      longPct >= 60 ? "BULL" :
+      longPct <= 40 ? "BEAR" : "BALANCED";
+    const cohortTilt = {
+      long_notional:  Math.round(longNotional),
+      short_notional: Math.round(shortNotional),
+      long_pct:       longPctRounded,
+      short_pct:      shortPctRounded,
+      label:          tiltLabel,
+    };
 
     const payload: CohortCachePayload = {
       updated_at:           new Date().toISOString(),
@@ -466,6 +487,7 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
         .slice(0, 200),
       spotlight_positions: spotlightPositions,
       coin_exposure: coinExposure,
+      cohort_tilt: cohortTilt,
       recent_signals: (recentSignals ?? []).map((s) => ({
         id:             s.id,
         recipe_id:      s.recipe_id,
@@ -762,4 +784,12 @@ export interface CohortCachePayload {
   spotlight_positions?: SpotlightWallet[];
   // Top 5 coins by aggregate notional across all wallets with open positions.
   coin_exposure?: Array<{ coin: string; notional: number; pct: number }>;
+  // Directional tilt across all open positions in the active cohort, weighted by notional $.
+  cohort_tilt?: {
+    long_notional:  number;
+    short_notional: number;
+    long_pct:       number;
+    short_pct:      number;
+    label:          "BULL" | "BEAR" | "BALANCED";
+  };
 }
