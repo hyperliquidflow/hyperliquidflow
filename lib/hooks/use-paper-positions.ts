@@ -1,6 +1,7 @@
 "use client";
 import { useState, useCallback, useEffect } from "react";
 import type { PaperPosition, PaperSettings, AlertEvent } from "@/lib/alert-engine";
+import { safeReadJson, safeWriteJson } from "./safe-local-storage";
 
 const POS_KEY = "hl_paper_positions";
 const SET_KEY = "hl_paper_settings";
@@ -9,20 +10,16 @@ const POS_EVT = "hl:paper-positions-changed";
 const DEFAULT_SETTINGS: PaperSettings = { default_size_usd: 100, size_mode: "fixed" };
 
 function readPositions(): PaperPosition[] {
-  if (typeof window === "undefined") return [];
-  try { return JSON.parse(localStorage.getItem(POS_KEY) ?? "[]"); }
-  catch { return []; }
+  return safeReadJson<PaperPosition[]>(POS_KEY, []);
 }
 
 function readSettings(): PaperSettings {
-  if (typeof window === "undefined") return DEFAULT_SETTINGS;
-  try { return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem(SET_KEY) ?? "{}") }; }
-  catch { return DEFAULT_SETTINGS; }
+  return { ...DEFAULT_SETTINGS, ...safeReadJson<Partial<PaperSettings>>(SET_KEY, {}) };
 }
 
 function writePositions(positions: PaperPosition[]) {
-  localStorage.setItem(POS_KEY, JSON.stringify(positions));
-  window.dispatchEvent(new Event(POS_EVT));
+  safeWriteJson(POS_KEY, positions);
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(POS_EVT));
 }
 
 export function usePaperPositions() {
@@ -60,7 +57,7 @@ export function usePaperPositions() {
 
   const updateSettings = useCallback((patch: Partial<PaperSettings>) => {
     const next = { ...readSettings(), ...patch };
-    localStorage.setItem(SET_KEY, JSON.stringify(next));
+    safeWriteJson(SET_KEY, next);
     setSettings(next);
   }, []);
 

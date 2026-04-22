@@ -94,4 +94,18 @@ describe("computeLevAdjSharpe", () => {
     const pnls = Array.from({ length: 30 }, (_, i) => (i % 2 === 0 ? 1 : 3));
     expect(computeLevAdjSharpe(pnls, -5)).toBeCloseTo(computeLevAdjSharpe(pnls, 0), 6);
   });
+
+  it("clamps leverage at 20x before applying penalty", () => {
+    const pnls = [100, -50, 80, -30, 120, -40, 60, -20, 90, 10];
+    const at20  = computeLevAdjSharpe(pnls, 20);
+    const at100 = computeLevAdjSharpe(pnls, 100);
+    expect(at100).toBeCloseTo(at20, 6);
+  });
+
+  it("still penalizes 10x relative to 5x", () => {
+    const pnls = [100, -50, 80, -30, 120, -40, 60, -20, 90, 10];
+    const at5  = computeLevAdjSharpe(pnls, 5);
+    const at10 = computeLevAdjSharpe(pnls, 10);
+    expect(at10).toBeLessThan(at5);
+  });
 });

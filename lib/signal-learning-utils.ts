@@ -42,6 +42,15 @@ export function computeTrend(
   return "STABLE";
 }
 
+/**
+ * Expected value from win rate and average win/loss.
+ *
+ * Sign convention: `avgWin` and `avgLoss` are both SIGNED returns.
+ * `avgLoss` is typically negative (e.g. -0.02 for a 2% average losing return),
+ * so the formula adds it directly rather than subtracting. Passing a positive
+ * magnitude for `avgLoss` would flip the EV sign and produce wrong results.
+ * See `supabase/migrations/017_ev_decouple.sql` for the signed storage schema.
+ */
 export function computeMeasuredEV(
   winRate:  number | null,
   avgWin:   number | null,

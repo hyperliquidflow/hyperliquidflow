@@ -188,7 +188,7 @@ const BASE_BACKOFF_MS = 1000;
  */
 async function hlPost<T>(body: unknown, timeoutMs = 8000): Promise<T> {
   const endpoint = (body as Record<string, string>).type ?? "unknown";
-  let lastError: unknown;
+  let lastError: Error = new Error(`[hl-api] ${endpoint} exhausted ${MAX_RETRIES + 1} attempts with no error captured`);
 
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
     const controller = new AbortController();

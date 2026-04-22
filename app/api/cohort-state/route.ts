@@ -9,6 +9,9 @@ import { createClient } from "@supabase/supabase-js";
 import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from "@/lib/env";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 
+/** Hard cap on cohort_snapshots rows fetched per request. Supabase caps JSON response at 6MB. */
+const MAX_SNAPSHOT_ROWS = 1000;
+
 const STALE_AFTER_MS = 5 * 60 * 1000; // 5 minutes
 
 /** Fire-and-forget background refresh so the next poll gets fresh data.
@@ -16,11 +19,11 @@ const STALE_AFTER_MS = 5 * 60 * 1000; // 5 minutes
  *  deployment URL, which Deployment Protection gates behind an SSO 401. */
 function triggerBackgroundRefresh(): void {
   const prodHost = process.env.VERCEL_PROJECT_PRODUCTION_URL;
-  const base = prodHost
-    ? `https://${prodHost}`
-    : "http://localhost:3000";
+  const base = prodHost ? `https://${prodHost}` : "http://localhost:3000";
+  const secret = process.env.CRON_SECRET ?? "";
+  const headers: Record<string, string> = secret ? { authorization: `Bearer ${secret}` } : {};
   after(
-    fetch(`${base}/api/refresh-cohort`, { method: "GET" }).catch((e) =>
+    fetch(`${base}/api/refresh-cohort`, { method: "GET", headers }).catch((e) =>
       console.warn("[cohort-state] background refresh failed:", e)
     )
   );
@@ -103,7 +106,7 @@ export async function GET(): Promise<NextResponse> {
       .select("*")
       .in("wallet_id", walletIds)
       .order("snapshot_time", { ascending: false })
-      .limit(walletIds.length * 2);
+      .limit(Math.min(walletIds.length * 2, MAX_SNAPSHOT_ROWS));
 
     const latestByWallet = new Map<string, Record<string, unknown>>();
     for (const snap of snapshots ?? []) {

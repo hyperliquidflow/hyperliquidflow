@@ -60,7 +60,8 @@ export function computeBlowUpDistanceScore(
  */
 export function computeLevAdjSharpe(dailyPnls: number[], avgLeverage: number): number {
   if (dailyPnls.length === 0) return 0;
-  const lev = Math.max(0, avgLeverage);
+  const LEV_MAX = 20;
+  const lev = Math.max(0, Math.min(LEV_MAX, avgLeverage));
   const adjPnls = dailyPnls.map((p) => p / (1 + lev));
   const m = mean(adjPnls);
   const s = stddev(adjPnls);

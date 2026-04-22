@@ -616,7 +616,7 @@ function Design6({ data }: { data: TimeseriesResponse }) {
     <div style={{ position: "relative" }}>
       <svg
         viewBox={`0 0 ${W} ${H}`}
-        style={{ display: "block", width: "100%", height: "auto", background: "#050510", borderRadius: 6 }}
+        style={{ display: "block", width: "100%", height: "auto", background: color.svgCanvas, borderRadius: 6 }}
         onMouseMove={onMove}
         onMouseLeave={() => setHover(null)}
       >
@@ -627,7 +627,7 @@ function Design6({ data }: { data: TimeseriesResponse }) {
         </defs>
 
         {/* Plot background (deep purple-black, like Coinglass) */}
-        <rect x={PAD_L} y={PAD_T} width={plotW} height={plotH} fill="#0b0818" />
+        <rect x={PAD_L} y={PAD_T} width={plotW} height={plotH} fill={color.svgPlotBg} />
 
         {/* Subtle horizontal gridlines */}
         {Array.from({ length: yTickCount }, (_, i) => {
@@ -688,7 +688,7 @@ function Design6({ data }: { data: TimeseriesResponse }) {
         <line x1={PAD_L} y1={yCurrent} x2={PAD_L + plotW} y2={yCurrent}
               stroke={color.accent} strokeWidth={1} strokeDasharray="5 3" opacity={0.9} />
         <rect x={PAD_L + plotW + 3} y={yCurrent - 9} width={72} height={18} rx={3}
-              fill="#050510" stroke={color.accent} strokeWidth={0.8} />
+              fill={color.svgCanvas} stroke={color.accent} strokeWidth={0.8} />
         <text x={PAD_L + plotW + 39} y={yCurrent + 4} textAnchor="middle"
               fontSize={10} fontWeight={700} fill={color.accent}>
           {formatPrice(current_price)}

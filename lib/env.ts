@@ -64,5 +64,17 @@ export const POLL_INTERVAL_MS = parseInt(
   10
 );
 
-/** Vercel Cron secret (optional) – set if you want to restrict cron calls */
-export const CRON_SECRET = process.env.CRON_SECRET ?? "";
+function requireInProd(name: string): string {
+  const v = process.env[name];
+  if (!v) {
+    if (process.env.NEXT_PHASE === "phase-production-build") return "";
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(`[env] Missing required environment variable in production: ${name}`);
+    }
+    return ""; // dev convenience
+  }
+  return v;
+}
+
+/** Vercel Cron secret. Required in production, optional in dev/test. */
+export const CRON_SECRET = requireInProd("CRON_SECRET");

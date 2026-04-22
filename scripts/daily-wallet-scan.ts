@@ -1478,7 +1478,7 @@ async function main(): Promise<void> {
   // Step 1: Discover addresses
   let leaderboardMap: Map<string, LeaderboardEntry> = new Map();
   let addresses: string[] = [];
-  const source: "leaderboard_api" = "leaderboard_api";
+  const source = "leaderboard_api" as const;
 
   try {
     leaderboardMap = await fetchLeaderboardAddresses();

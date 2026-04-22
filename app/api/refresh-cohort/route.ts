@@ -12,8 +12,8 @@ import { createClient } from "@supabase/supabase-js";
 import {
   SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY,
-  CRON_SECRET,
 } from "@/lib/env";
+import { verifyCronAuth } from "@/lib/auth/cron";
 import {
   fetchBatchClearinghouseStates,
   fetchAllMids,
@@ -43,6 +43,9 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 // Persists the breakdown from the last hygiene run so it can be included in the
 // KV payload on the *next* cycle (hygiene fires after the response, in after()).
 let lastHygieneBreakdown: HygieneBreakdown | null = null;
+
+/** Hard cap on cohort_snapshots rows fetched per request. Supabase caps JSON response at 6MB. */
+const MAX_SNAPSHOT_ROWS = 1000;
 
 /** Maximum active wallets processed per cron invocation. */
 const MAX_WALLETS_PER_CYCLE = 100;
@@ -74,12 +77,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 async function handleRefresh(req: NextRequest): Promise<NextResponse> {
   const startMs = Date.now();
 
-  // Optional: verify Vercel Cron secret header to prevent unauthorised calls
-  if (CRON_SECRET) {
-    const authHeader = req.headers.get("authorization");
-    if (authHeader !== `Bearer ${CRON_SECRET}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  // Verify Vercel Cron secret header in production (timing-safe compare).
+  if (!verifyCronAuth(req)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   let cycleWeight = 0;
@@ -98,7 +98,11 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
         ? allActive.slice(start, end)
         : [...allActive.slice(start), ...allActive.slice(0, end - allActive.length)];
       const nextOffset = end % allActive.length;
-      kv.set("cohort:cycle_offset", nextOffset, { ex: 25 * 3600 }).catch(() => {});
+      try {
+        await kv.set("cohort:cycle_offset", nextOffset, { ex: 25 * 3600 });
+      } catch (e) {
+        console.error("[refresh-cohort] failed to persist cycle_offset:", e);
+      }
     }
 
     if (wallets.length === 0) {
@@ -339,8 +343,16 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
 
     // Load recipe_calibration and wallet_signal_stats for R12 EV decouple
     const [{ data: recipeCalRows }, { data: wssRows }] = await Promise.all([
-      supabase.from("recipe_calibration").select("recipe_id, win_rate, sample_size_30d"),
-      supabase.from("wallet_signal_stats").select("wallet_address, recipe_id, win_rate_net, signal_count"),
+      supabase
+        .from("recipe_calibration")
+        .select("recipe_id, win_rate, sample_size_30d")
+        .order("updated_at", { ascending: false })
+        .limit(500),
+      supabase
+        .from("wallet_signal_stats")
+        .select("wallet_address, recipe_id, win_rate_net, signal_count")
+        .order("updated_at", { ascending: false })
+        .limit(500),
     ]);
     const recipeCalibrationMap = new Map(
       (recipeCalRows ?? []).map((r) => [
@@ -396,7 +408,7 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
         .in("wallet_id", allActiveIds)
         .gt("position_count", 0)
         .order("snapshot_time", { ascending: false })
-        .limit(allActiveIds.length * 2),
+        .limit(Math.min(allActiveIds.length * 2, MAX_SNAPSHOT_ROWS)),
     ]);
 
     // ── Step 10b: Enrich cohortSummary with trading styles ───────────────────
@@ -499,48 +511,60 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       })
     );
 
-    // Run background tasks after response: hygiene + prune + enrichment + intraday recipe perf + timing
+    // Run background tasks after response. Use Promise.allSettled so one
+    // failure doesn't mask the others, and log a rollup at the end.
     after(
-      Promise.all([
-        applyHygieneGates(allActive.map((w) => w.id))
-          .then((result) => {
-            lastHygieneBreakdown = result.breakdown;
-            console.log(
-              `[hygiene] deactivated ${result.breakdown.total_deactivated_this_cycle}` +
-              ` low_equity: ${result.breakdown.low_equity},` +
-              ` liq_imminent: ${result.breakdown.liq_imminent},` +
-              ` drawdown_7d: ${result.breakdown.drawdown_7d}`
-            );
-          })
-          .catch((err) => console.error("[hygiene] error:", err)),
-        pruneUnderperformers().catch((err) =>
-          console.error("[refresh-cohort] pruneUnderperformers error:", err)
-        ),
-        runBridgeInflowEnrichment(wallets.map((w) => ({ id: w.id, address: w.address }))).catch((err) =>
-          console.error("[refresh-cohort] bridgeInflowEnrichment error:", err)
-        ),
-        runTwapEnrichment(twapCandidates).catch((err) =>
-          console.error("[refresh-cohort] twapEnrichment error:", err)
-        ),
-        updateIntradayRecipePerformance().catch((err) =>
-          console.error("[refresh-cohort] updateIntradayRecipePerformance error:", err)
-        ),
-        emittedIds.length > 0
-          ? supabase
-              .from("signal_timing")
-              .insert(emittedIds.map((id) => ({
-                signal_id:           id,
-                whale_fill_ts:       null,
-                snapshot_detect_ts:  snapshotDetectTs,
-                signal_emit_ts:      signalEmitTs,
-                kv_write_ts:         kvWriteTs,
-              })))
-              .then(({ error }) => {
-                if (error) console.error("[signal-timing] insert error:", error.message);
-                else console.log(`[signal-timing] inserted ${emittedIds.length} timing rows`);
-              })
-          : Promise.resolve(),
-      ])
+      (async () => {
+        const tasks: Array<{ name: string; p: Promise<unknown> }> = [
+          {
+            name: "hygiene",
+            p: applyHygieneGates(allActive.map((w) => w.id)).then((result) => {
+              lastHygieneBreakdown = result.breakdown;
+              console.log(
+                `[hygiene] deactivated ${result.breakdown.total_deactivated_this_cycle}` +
+                ` low_equity: ${result.breakdown.low_equity},` +
+                ` liq_imminent: ${result.breakdown.liq_imminent},` +
+                ` drawdown_7d: ${result.breakdown.drawdown_7d}`
+              );
+            }),
+          },
+          { name: "pruneUnderperformers",      p: pruneUnderperformers() },
+          { name: "runBridgeInflowEnrichment", p: runBridgeInflowEnrichment(wallets.map((w) => ({ id: w.id, address: w.address }))) },
+          { name: "runTwapEnrichment",         p: runTwapEnrichment(twapCandidates) },
+          { name: "updateIntradayRecipePerformance", p: updateIntradayRecipePerformance() },
+        ];
+
+        if (emittedIds.length > 0) {
+          tasks.push({
+            name: "signal_timing_insert",
+            p: Promise.resolve(
+              supabase
+                .from("signal_timing")
+                .insert(emittedIds.map((id) => ({
+                  signal_id:           id,
+                  whale_fill_ts:       null,
+                  snapshot_detect_ts:  snapshotDetectTs,
+                  signal_emit_ts:      signalEmitTs,
+                  kv_write_ts:         kvWriteTs,
+                })))
+            ).then(({ error }) => {
+              if (error) throw new Error(`signal_timing: ${error.message}`);
+              console.log(`[signal-timing] inserted ${emittedIds.length} timing rows`);
+            }),
+          });
+        }
+
+        const results = await Promise.allSettled(tasks.map((t) => t.p));
+        const failures = results
+          .map((r, i) => (r.status === "rejected" ? { name: tasks[i].name, err: String(r.reason) } : null))
+          .filter((x): x is { name: string; err: string } => x !== null);
+
+        if (failures.length > 0) {
+          console.error(`[refresh-cohort] background failures: ${failures.length}/${tasks.length}`, failures);
+        } else {
+          console.log(`[refresh-cohort] background ok: ${tasks.length}/${tasks.length}`);
+        }
+      })()
     );
 
     return NextResponse.json({

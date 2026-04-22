@@ -1,7 +1,8 @@
 // app/api/measure-outcomes/route.ts
 import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, HYPERLIQUID_API_URL, CRON_SECRET } from "@/lib/env";
+import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, HYPERLIQUID_API_URL } from "@/lib/env";
+import { verifyCronAuth } from "@/lib/auth/cron";
 import { computeOutcome, computeMovePct } from "@/lib/outcome-helpers";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -14,12 +15,9 @@ const HORIZON_MS = 72 * 60 * 60 * 1000;
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const startMs = Date.now();
 
-  // Optional: verify Vercel Cron secret header to prevent unauthorised calls
-  if (CRON_SECRET) {
-    const authHeader = req.headers.get("authorization");
-    if (authHeader !== `Bearer ${CRON_SECRET}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  // Verify Vercel Cron secret header in production (timing-safe compare).
+  if (!verifyCronAuth(req)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   // 1. Fetch pending rows: missing price_24h and within resolution horizon

@@ -1,19 +1,18 @@
 "use client";
 import { useState, useCallback, useEffect } from "react";
 import type { FollowedWallet } from "@/lib/alert-engine";
+import { safeReadJson, safeWriteJson } from "./safe-local-storage";
 
 const KEY = "hl_followed_wallets";
 const EVT = "hl:followed-wallets-changed";
 
 function read(): FollowedWallet[] {
-  if (typeof window === "undefined") return [];
-  try { return JSON.parse(localStorage.getItem(KEY) ?? "[]"); }
-  catch { return []; }
+  return safeReadJson<FollowedWallet[]>(KEY, []);
 }
 
 function write(wallets: FollowedWallet[]) {
-  localStorage.setItem(KEY, JSON.stringify(wallets));
-  window.dispatchEvent(new Event(EVT));
+  safeWriteJson(KEY, wallets);
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(EVT));
 }
 
 export function useFollowedWallets() {
