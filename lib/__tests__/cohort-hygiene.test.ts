@@ -294,8 +294,7 @@ describe("applyHygieneGates", () => {
     expect(counterUpdate?.ids).toEqual(["w1"]);
   });
 
-  it("skips wallets with no recent snapshot without deactivating", async () => {
-    // Wallet is in activeIds but there is no snapshot row for it at all.
+  it("deactivates wallet with no snapshot row as idle with no grace", async () => {
     mockSnapshotResponses = [
       { data: [], error: null },
       { data: [], error: null },
@@ -309,10 +308,75 @@ describe("applyHygieneGates", () => {
 
     const result = await applyHygieneGates(["w-missing"]);
 
-    expect(result.deactivated).toEqual([]);
-    expect(result.breakdown.cohort_size_post).toBe(1);
-    // no counter update written for wallets without snapshot (the loop does `continue` before grace math)
-    expect(mockWalletUpdates).toHaveLength(0);
+    expect(result.deactivated).toEqual([{ wallet_id: "w-missing", reason: "idle" }]);
+    expect(result.breakdown.idle).toBe(1);
+    expect(result.breakdown.cohort_size_post).toBe(0);
+    const deactivate = mockWalletUpdates.find(
+      (u) => u.payload.is_active === false && u.payload.deactivation_reason === "idle",
+    );
+    expect(deactivate).toBeDefined();
+    expect(deactivate?.ids).toEqual(["w-missing"]);
+  });
+
+  it("deactivates wallet whose latest snapshot is 4 days old as idle", async () => {
+    const FOUR_DAYS = 4 * 24 * 60 * 60_000;
+    mockSnapshotResponses = [
+      {
+        data: [
+          {
+            wallet_id: "w-stale",
+            account_value: 50_000,
+            liq_buffer_pct: 0.4,
+            position_count: 0,
+            snapshot_time: ago(FOUR_DAYS),
+          },
+        ],
+        error: null,
+      },
+      { data: [], error: null },
+    ];
+    mockWalletResponses = [
+      {
+        data: [{ id: "w-stale", low_equity_cycles: 0, low_buffer_cycles: 0 }],
+        error: null,
+      },
+    ];
+
+    const result = await applyHygieneGates(["w-stale"]);
+
+    expect(result.deactivated).toEqual([{ wallet_id: "w-stale", reason: "idle" }]);
+    expect(result.breakdown.idle).toBe(1);
+  });
+
+  it("idle gate runs before equity: idle-and-low-equity wallet is tagged idle, not low_equity", async () => {
+    const FOUR_DAYS = 4 * 24 * 60 * 60_000;
+    mockSnapshotResponses = [
+      {
+        data: [
+          {
+            wallet_id: "w-both",
+            account_value: 0,
+            liq_buffer_pct: null,
+            position_count: 0,
+            snapshot_time: ago(FOUR_DAYS),
+          },
+        ],
+        error: null,
+      },
+      { data: [], error: null },
+    ];
+    mockWalletResponses = [
+      {
+        data: [{ id: "w-both", low_equity_cycles: 2, low_buffer_cycles: 0 }],
+        error: null,
+      },
+    ];
+
+    const result = await applyHygieneGates(["w-both"]);
+
+    expect(result.deactivated).toEqual([{ wallet_id: "w-both", reason: "idle" }]);
+    expect(result.breakdown.idle).toBe(1);
+    expect(result.breakdown.low_equity).toBe(0);
   });
 
   it("deactivates immediately on 7d drawdown breach (no grace)", async () => {

@@ -187,7 +187,14 @@ export async function applyHygieneGates(
     const snap  = latestByWallet.get(walletId);
     const grace = graceByWallet.get(walletId) ?? { low_equity_cycles: 0, low_buffer_cycles: 0 };
 
-    if (!snap) continue;
+    // 1. Idle gate: missing snapshot OR latest snapshot older than IDLE_THRESHOLD_MS.
+    // Runs first so every downstream gate can trust snap is present and recent.
+    if (failsIdleGate(snap?.snapshot_time, nowMs)) {
+      toDeactivate.push({ wallet_id: walletId, reason: "idle" });
+      continue;
+    }
+
+    if (!snap) continue; // defensive; idle gate above already covered this
 
     const fresh  = isSnapshotFresh(snap.snapshot_time, nowMs);
     const series = seriesByWallet.get(walletId) ?? [];
