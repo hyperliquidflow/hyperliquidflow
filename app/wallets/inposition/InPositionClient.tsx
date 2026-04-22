@@ -40,6 +40,8 @@ const S = {
     textOverflow: "ellipsis" as const,
     whiteSpace: "nowrap" as const,
     marginTop: 0,
+    userSelect: "text" as const,
+    cursor: "text",
   } as React.CSSProperties,
 
   // Body row: PnL left, AUM + positions right
@@ -144,7 +146,7 @@ export function InPositionClient({ initialData }: { initialData: CohortCachePayl
     : null;
 
   return (
-    <div className="page-enter">
+    <div className="page-enter" style={{ userSelect: "none", WebkitUserSelect: "none" }}>
       <PageHeader
         title="In Position"
         subtitle={inPosition ? `${inPosition.length} wallets with open positions right now` : "Wallets with open positions right now"}
