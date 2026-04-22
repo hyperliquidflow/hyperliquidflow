@@ -137,7 +137,9 @@ Empty-cohort early return also needs the `idle: 0` field.
 - Sanity guard throws when >25% of cohort would deactivate; test asserts `mockWalletUpdates.length === 0`.
 - Breakdown includes `idle: N` and `total_deactivated_this_cycle` sums correctly.
 
-**Existing orchestrator tests:** update breakdown assertions to include `idle: 0` where relevant. No mock rewrite needed (the snapshot query shape is unchanged).
+**Existing orchestrator tests:**
+- **Rewrite** `"skips wallets with no recent snapshot without deactivating"` at [lib/__tests__/cohort-hygiene.test.ts:193](../../../lib/__tests__/cohort-hygiene.test.ts#L193). Its assertions directly contradict the new idle-gate behavior. Replace with the new "Wallet missing from the latest-snapshot query result entirely deactivates as idle" test above; the setup (empty snapshot response for a wallet in `activeWalletIds`) is reused.
+- Update breakdown assertions in every other orchestrator test to include `idle: 0` where relevant. No mock rewrite needed (the snapshot query shape is unchanged).
 
 ## Risks and mitigations
 
@@ -160,6 +162,6 @@ Resurrect the drawdown gate. Options to brainstorm when that work starts:
 - Lower `MIN_DRAWDOWN_SNAPSHOTS` to 2 and live with noisier signal.
 - Raise `cohort_snapshots` retention to N days (DB-size tradeoff on free tier).
 - Add a new table or materialized view that keeps daily equity rollups per wallet for 30d, driven by the daily scan.
-- Derive drawdown from `user_pnl_backtest`'s daily PnL series via cumulative equity curve.
+- Derive drawdown from an existing daily PnL series (migration 004 added a daily-backtest table; schema needs verification before committing to this path) via cumulative equity curve.
 
 No option is obviously correct. Deserves its own brainstorm and a product decision about drawdown sensitivity vs storage cost.
