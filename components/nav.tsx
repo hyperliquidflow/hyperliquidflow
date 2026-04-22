@@ -116,7 +116,7 @@ export function Nav() {
       >
         {/* Logo */}
         <div className="sidenav-logo-wrap" style={{ padding: "16px 20px", borderBottom: `1px solid ${color.borderFaint}`, marginBottom: "16px" }}>
-          <div style={{ fontSize: "16px", fontWeight: 700, letterSpacing: "0.01em", display: "flex", alignItems: "center", cursor: "default", userSelect: "none" }}>
+          <div style={{ fontSize: "18px", fontWeight: 700, letterSpacing: "0.01em", display: "flex", alignItems: "center", justifyContent: "center", cursor: "default", userSelect: "none" }}>
             {LOGO.split("").map((ch, i) => (
               <span key={i} className="logo-char" style={{
                 display: "inline-block", color: "rgba(255,255,255,0.85)",
