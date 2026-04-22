@@ -38,16 +38,16 @@ export async function GET(): Promise<NextResponse> {
       .from("signal_outcomes")
       .select("id", { count: "exact", head: true }),
     supabase
-      .from("signals_history")
-      .select("detected_at")
-      .order("detected_at", { ascending: true })
+      .from("signal_outcomes")
+      .select("created_at")
+      .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle(),
   ]);
 
   const outcomes_resolved = resolvedRes.count ?? 0;
   const outcomes_total    = totalRes.count ?? 0;
-  const oldest_event_at   = oldestRes.data?.detected_at ?? null;
+  const oldest_event_at   = oldestRes.data?.created_at ?? null;
 
   const oldest_event_age_days = oldest_event_at
     ? (Date.now() - new Date(oldest_event_at).getTime()) / (1000 * 60 * 60 * 24)
