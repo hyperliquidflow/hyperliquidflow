@@ -63,17 +63,24 @@ Browser (React)
 | `signal-lab.ts` | 13 pluggable signal recipes — each takes `SnapshotPair → SignalEvent[]` |
 | `risk-engine.ts` | EV calculation, liquidation price, margin ratio, Hyperliquid fee schedule |
 | `hyperliquid-api-client.ts` | Raw Hyperliquid API: clearinghouse states, market data, fill history |
-| `cohort-hygiene.ts` | Stream B hygiene gates — deactivates wallets that go quiet, blow up, or stop trading |
-| `wash-sybil.ts` | Stream C — wash-trading and Sybil cluster detection |
-| `wallet-profile.ts` | Stream D — per-wallet behavior profiling (style, conviction, regime tendency) |
+| `cohort-hygiene.ts` | Stream B hygiene gates; deactivates wallets that go quiet, blow up, or stop trading |
+| `wash-sybil.ts` | Stream C, wash-trading and Sybil cluster detection |
+| `wallet-profile.ts` | Stream D, per-wallet behavior profiling (style, conviction, regime tendency) |
 | `signal-learning-utils.ts` | Outcome tracking helpers for the daily learning loop |
 | `recipe-config.ts` | Per-recipe tunable config (thresholds, window sizes) |
 | `radar-utils.ts` | Aggregation helpers for the Market Radar view |
 | `hypurrscan-api-client.ts` | Hypurrscan name/label index client |
 | `hypurrscan-enrichment.ts` | Enriches wallet addresses with Hypurrscan labels |
-| `env.ts` | Central env var access — never read `process.env` directly elsewhere |
+| `alert-engine.ts` | Core types for wallet-following alerts: `AlertEvent`, `FollowedWallet`, `PaperPosition`, `PositionSnapshot` |
+| `leverage-risk.ts` | Leverage penalty math for scoring V2 (`LeveragePenaltyParams`, blow-up curve) |
+| `signal-validation.ts` | Pure functions for per-wallet and per-signal regime fit scoring |
+| `atr.ts` | ATR computation for 4h candles, pure functions, used by `signal-learning.ts` |
+| `outcome-helpers.ts` | Helpers for signal outcome resolution (used by `measure-outcomes` route) |
+| `env.ts` | Central env var access; never read `process.env` directly elsewhere |
 | `recipe-meta.ts` | Single source of truth for signal recipe `label` + `desc` strings (used by Overview, Signals, Edge) |
 | `design-tokens.ts` | All visual design tokens: `color`, `type`, `space`, `radius`, `shadow`, `effect`, `layout`, `anim`, `card`, `row` |
+
+Client-side hooks live in `lib/hooks/`: `use-followed-wallets`, `use-alert-events`, `use-alert-detection`, `use-paper-positions`.
 
 ### Pages (`app/`)
 
@@ -85,17 +92,23 @@ Browser (React)
 | `/wallets/inposition` | Wallets with open positions right now |
 | `/signals/feed` | Live signal event feed |
 | `/signals/divergence` | Contrarian/divergence signals |
-| `/signals/radar` | Market Radar — per-token cohort positioning view (Sprint 4) |
-| `/signals/performance` | Signal recipe performance analytics — 24h directional accuracy ranked |
+| `/signals/radar` | Market Radar, per-token cohort positioning view |
+| `/signals/performance` | Signal recipe performance analytics, 24h directional accuracy ranked |
+| `/wallets/following` | Followed wallets with alert configuration |
+| `/wallets/paper` | Paper trading, auto-copies positions from followed wallets |
+| `/performance/ranking` | Rank IC history; requires 30+ days of `wallet_score_history` data |
 
 Old routes (`/scanner`, `/stalker`, `/contrarian`, `/imbalance`, `/recipes`, `/edge`, `/performance`) redirect to their current equivalents.
 
 ### API Routes (`app/api/`)
 
-- `refresh-cohort` — Vercel Cron endpoint (and manual trigger target); scores cohort, runs recipes, writes KV. Calls `pruneUnderperformers` in background via `after()`.
-- `cohort-state` — Client polls this; reads KV, fires background refresh if stale >5 min
-- `contrarian` — Powers the Divergence tab; reads KV, fires background refresh if stale
-- `market-ticker` — Live price/change data for the ticker strip
+- `refresh-cohort`: Vercel Cron endpoint (and manual trigger target); scores cohort, runs recipes, writes KV. Calls `pruneUnderperformers` in background via `after()`.
+- `cohort-state`: Client polls this; reads KV, fires background refresh if stale >5 min
+- `contrarian`: Powers the Divergence tab; reads KV, fires background refresh if stale
+- `market-ticker`: Live price/change data for the ticker strip
+- `wallet-positions`: Real-time open positions for a single wallet (used by alert engine)
+- `signal-freshness`: Rolling 1h latency stats from `signal_timing` table (Overview stat card)
+- `rank-ic`: Rank IC history from `wallet_score_history` (returns empty state until 30+ days accumulate)
 - `wallet-profile`, `scanner-stats`, `recipe-performance`, `top-markets`, `deep-dive`, `signals-feed`, `market-radar`, `measure-outcomes`
 
 ### Server-Side Data Fetching
@@ -116,6 +129,16 @@ The `after()` Next.js API is used for fire-and-forget background work (e.g., tri
 | 006 | Signal intelligence tables |
 | 007 | Signal outcomes (drives the daily learning loop) |
 | 008 | Recipe calibration |
+| 009 | Wallet hygiene columns (deactivation_reason, deactivated_at, low_equity_cycles) |
+| 010 | Wash/sybil detection tables |
+| 011 | Wallet profiles table |
+| 012 | Signal timing table (latency tracking) |
+| 013 | Leverage columns on wallets + `cohort_attrition` table |
+| 014 | `wallet_score_history` for rank IC measurement |
+| 015 | Signal outcome overhaul |
+| 016 | Multi-window and out-of-cohort validation (OOCV) |
+| 017 | EV decoupling from scoring |
+| 018 | Shadow scoring columns (`overall_score_shadow`) for V2 canary rollout |
 
 ### Key Data Separation
 
