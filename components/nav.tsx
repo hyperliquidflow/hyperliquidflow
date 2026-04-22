@@ -7,8 +7,9 @@ import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { timeAgo } from "@/lib/utils";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
-import { color, type as T, shadow, anim } from "@/lib/design-tokens";
+import { color, type as T, shadow, anim, radius } from "@/lib/design-tokens";
 import { useAlertDetection } from "@/lib/hooks/use-alert-detection";
+import { useAlertEvents } from "@/lib/hooks/use-alert-events";
 
 const LOGO = "HyperliquidFLOW";
 
@@ -70,6 +71,7 @@ export function Nav() {
   });
 
   useAlertDetection();
+  const { unseenCount } = useAlertEvents();
 
   return (
     <>
@@ -162,6 +164,7 @@ export function Nav() {
                 {/* Children */}
                 {entry.children.map((child) => {
                   const childActive = pathname === child.href || pathname.startsWith(child.href + "/");
+                  const showBadge   = child.href === "/wallets/following" && unseenCount > 0;
                   return (
                     <Link key={child.href} href={child.href} className="glow-btn" draggable={false} style={{
                       display: "flex", alignItems: "center",
@@ -174,7 +177,23 @@ export function Nav() {
                       transition: anim.nav,
                       userSelect: "none",
                     }}>
-                      {child.label}
+                      <span>{child.label}</span>
+                      {showBadge && (
+                        <span style={{
+                          marginLeft:         "auto",
+                          fontSize:           "11px",
+                          fontWeight:         700,
+                          padding:            "1px 6px",
+                          borderRadius:       radius.tag,
+                          background:         `${color.amber}26`,
+                          color:              color.amber,
+                          border:             `1px solid ${color.amber}4d`,
+                          fontVariantNumeric: "tabular-nums",
+                          flexShrink:         0,
+                        }}>
+                          {unseenCount > 99 ? "99+" : unseenCount}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}

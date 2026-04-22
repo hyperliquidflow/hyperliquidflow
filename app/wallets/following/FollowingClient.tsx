@@ -104,6 +104,18 @@ const S = {
     color:         color.amber,
   },
 
+  alertBadge: {
+    fontSize:           "11px",
+    fontWeight:         700,
+    letterSpacing:      "0.04em",
+    padding:            "2px 6px",
+    borderRadius:       radius.tag,
+    background:         `${color.amber}26`,
+    border:             `1px solid ${color.amber}4d`,
+    color:              color.amber,
+    fontVariantNumeric: "tabular-nums" as const,
+  },
+
   metaDot: {
     width:       "3px",
     height:      "3px",
@@ -209,7 +221,13 @@ import type React from "react";
 
 export function FollowingClient() {
   const { wallets } = useFollowedWallets();
-  const { unseenCount } = useAlertEvents();
+  const { events, unseenCount } = useAlertEvents();
+
+  const unseenByWallet = new Map<string, number>();
+  for (const e of events) {
+    if (e.seen) continue;
+    unseenByWallet.set(e.wallet_address, (unseenByWallet.get(e.wallet_address) ?? 0) + 1);
+  }
   const [expanded,     setExpanded]     = useState<string | null>(null);
   const [profileCache, setProfileCache] = useState<Map<string, ProfileState>>(new Map());
 
@@ -285,6 +303,12 @@ export function FollowingClient() {
                         {fw.address}
                       </Link>
                       <div style={S.meta}>
+                        {(() => {
+                          const n = unseenByWallet.get(fw.address) ?? 0;
+                          return n > 0 ? (
+                            <span style={S.alertBadge}>{n} new</span>
+                          ) : null;
+                        })()}
                         {fw.alert_on.map(t => (
                           <span key={t} style={S.alertPill}>{ALERT_LABEL[t] ?? t}</span>
                         ))}
