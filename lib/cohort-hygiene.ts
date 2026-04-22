@@ -17,12 +17,13 @@ const IDLE_THRESHOLD_MS            = 3 * 24 * 60 * 60_000;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type DeactivationReason = "low_equity" | "liq_imminent" | "drawdown_7d";
+export type DeactivationReason = "low_equity" | "liq_imminent" | "drawdown_7d" | "idle";
 
 export interface HygieneBreakdown {
   low_equity:                   number;
   liq_imminent:                 number;
   drawdown_7d:                  number;
+  idle:                         number;
   total_deactivated_this_cycle: number;
   cohort_size_pre:              number;
   cohort_size_post:             number;
@@ -112,7 +113,7 @@ export async function applyHygieneGates(
     return {
       deactivated: [],
       breakdown: {
-        low_equity: 0, liq_imminent: 0, drawdown_7d: 0,
+        low_equity: 0, liq_imminent: 0, drawdown_7d: 0, idle: 0,
         total_deactivated_this_cycle: 0,
         cohort_size_pre: 0, cohort_size_post: 0,
       },
@@ -298,6 +299,7 @@ export async function applyHygieneGates(
     low_equity:                   byReason.get("low_equity")?.length   ?? 0,
     liq_imminent:                 byReason.get("liq_imminent")?.length  ?? 0,
     drawdown_7d:                  byReason.get("drawdown_7d")?.length   ?? 0,
+    idle:                         byReason.get("idle")?.length          ?? 0,
     total_deactivated_this_cycle: toDeactivate.length,
     cohort_size_pre:              cohortSizePre,
     cohort_size_post:             cohortSizePre - toDeactivate.length,
