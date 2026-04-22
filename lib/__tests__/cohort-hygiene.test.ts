@@ -223,6 +223,7 @@ describe("applyHygieneGates", () => {
 
   it("deactivates zero-equity wallet once low_equity_cycles reaches threshold", async () => {
     // Wallet has equity 0 and is already at grace=2; next cycle (fresh + failing) hits threshold 3.
+    // Add 3 more healthy wallets so deactivation is 1/4 = 25%, at the boundary.
     mockSnapshotResponses = [
       {
         data: [
@@ -233,6 +234,9 @@ describe("applyHygieneGates", () => {
             position_count: 0,
             snapshot_time: ago(5 * MIN),
           },
+          { wallet_id: "w2", account_value: 100_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
+          { wallet_id: "w3", account_value: 100_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
+          { wallet_id: "w4", account_value: 100_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
         ],
         error: null,
       },
@@ -240,16 +244,21 @@ describe("applyHygieneGates", () => {
     ];
     mockWalletResponses = [
       {
-        data: [{ id: "w1", low_equity_cycles: 2, low_buffer_cycles: 0 }],
+        data: [
+          { id: "w1", low_equity_cycles: 2, low_buffer_cycles: 0 },
+          { id: "w2", low_equity_cycles: 0, low_buffer_cycles: 0 },
+          { id: "w3", low_equity_cycles: 0, low_buffer_cycles: 0 },
+          { id: "w4", low_equity_cycles: 0, low_buffer_cycles: 0 },
+        ],
         error: null,
       },
     ];
 
-    const result = await applyHygieneGates(["w1"]);
+    const result = await applyHygieneGates(["w1", "w2", "w3", "w4"]);
 
     expect(result.deactivated).toEqual([{ wallet_id: "w1", reason: "low_equity" }]);
     expect(result.breakdown.low_equity).toBe(1);
-    expect(result.breakdown.cohort_size_post).toBe(0);
+    expect(result.breakdown.cohort_size_post).toBe(3);
 
     const deactivate = mockWalletUpdates.find(
       (u) => u.payload.is_active === false && u.payload.deactivation_reason === "low_equity",
@@ -260,6 +269,7 @@ describe("applyHygieneGates", () => {
 
   it("increments low_equity_cycles without deactivating when still within grace", async () => {
     // Wallet failing equity gate for the first time: grace 0 -> 1, still under threshold 3.
+    // Add healthy wallets to avoid sanity check.
     mockSnapshotResponses = [
       {
         data: [
@@ -270,6 +280,9 @@ describe("applyHygieneGates", () => {
             position_count: 0,
             snapshot_time: ago(5 * MIN),
           },
+          { wallet_id: "w2", account_value: 100_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
+          { wallet_id: "w3", account_value: 100_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
+          { wallet_id: "w4", account_value: 100_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
         ],
         error: null,
       },
@@ -277,12 +290,17 @@ describe("applyHygieneGates", () => {
     ];
     mockWalletResponses = [
       {
-        data: [{ id: "w1", low_equity_cycles: 0, low_buffer_cycles: 0 }],
+        data: [
+          { id: "w1", low_equity_cycles: 0, low_buffer_cycles: 0 },
+          { id: "w2", low_equity_cycles: 0, low_buffer_cycles: 0 },
+          { id: "w3", low_equity_cycles: 0, low_buffer_cycles: 0 },
+          { id: "w4", low_equity_cycles: 0, low_buffer_cycles: 0 },
+        ],
         error: null,
       },
     ];
 
-    const result = await applyHygieneGates(["w1"]);
+    const result = await applyHygieneGates(["w1", "w2", "w3", "w4"]);
 
     expect(result.deactivated).toEqual([]);
     expect(result.breakdown.total_deactivated_this_cycle).toBe(0);
@@ -295,22 +313,35 @@ describe("applyHygieneGates", () => {
   });
 
   it("deactivates wallet with no snapshot row as idle with no grace", async () => {
+    // Add 3 healthy wallets so 1/4 = 25% deactivation.
     mockSnapshotResponses = [
-      { data: [], error: null },
+      {
+        data: [
+          { wallet_id: "w2", account_value: 100_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
+          { wallet_id: "w3", account_value: 100_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
+          { wallet_id: "w4", account_value: 100_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
+        ],
+        error: null,
+      },
       { data: [], error: null },
     ];
     mockWalletResponses = [
       {
-        data: [{ id: "w-missing", low_equity_cycles: 2, low_buffer_cycles: 1 }],
+        data: [
+          { id: "w-missing", low_equity_cycles: 2, low_buffer_cycles: 1 },
+          { id: "w2", low_equity_cycles: 0, low_buffer_cycles: 0 },
+          { id: "w3", low_equity_cycles: 0, low_buffer_cycles: 0 },
+          { id: "w4", low_equity_cycles: 0, low_buffer_cycles: 0 },
+        ],
         error: null,
       },
     ];
 
-    const result = await applyHygieneGates(["w-missing"]);
+    const result = await applyHygieneGates(["w-missing", "w2", "w3", "w4"]);
 
     expect(result.deactivated).toEqual([{ wallet_id: "w-missing", reason: "idle" }]);
     expect(result.breakdown.idle).toBe(1);
-    expect(result.breakdown.cohort_size_post).toBe(0);
+    expect(result.breakdown.cohort_size_post).toBe(3);
     const deactivate = mockWalletUpdates.find(
       (u) => u.payload.is_active === false && u.payload.deactivation_reason === "idle",
     );
@@ -320,6 +351,7 @@ describe("applyHygieneGates", () => {
 
   it("deactivates wallet whose latest snapshot is 4 days old as idle", async () => {
     const FOUR_DAYS = 4 * 24 * 60 * 60_000;
+    // Add 3 healthy wallets so 1/4 = 25% deactivation.
     mockSnapshotResponses = [
       {
         data: [
@@ -330,6 +362,9 @@ describe("applyHygieneGates", () => {
             position_count: 0,
             snapshot_time: ago(FOUR_DAYS),
           },
+          { wallet_id: "w2", account_value: 100_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
+          { wallet_id: "w3", account_value: 100_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
+          { wallet_id: "w4", account_value: 100_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
         ],
         error: null,
       },
@@ -337,12 +372,17 @@ describe("applyHygieneGates", () => {
     ];
     mockWalletResponses = [
       {
-        data: [{ id: "w-stale", low_equity_cycles: 0, low_buffer_cycles: 0 }],
+        data: [
+          { id: "w-stale", low_equity_cycles: 0, low_buffer_cycles: 0 },
+          { id: "w2", low_equity_cycles: 0, low_buffer_cycles: 0 },
+          { id: "w3", low_equity_cycles: 0, low_buffer_cycles: 0 },
+          { id: "w4", low_equity_cycles: 0, low_buffer_cycles: 0 },
+        ],
         error: null,
       },
     ];
 
-    const result = await applyHygieneGates(["w-stale"]);
+    const result = await applyHygieneGates(["w-stale", "w2", "w3", "w4"]);
 
     expect(result.deactivated).toEqual([{ wallet_id: "w-stale", reason: "idle" }]);
     expect(result.breakdown.idle).toBe(1);
@@ -350,6 +390,7 @@ describe("applyHygieneGates", () => {
 
   it("idle gate runs before equity: idle-and-low-equity wallet is tagged idle, not low_equity", async () => {
     const FOUR_DAYS = 4 * 24 * 60 * 60_000;
+    // Add 3 healthy wallets so 1/4 = 25% deactivation.
     mockSnapshotResponses = [
       {
         data: [
@@ -360,6 +401,9 @@ describe("applyHygieneGates", () => {
             position_count: 0,
             snapshot_time: ago(FOUR_DAYS),
           },
+          { wallet_id: "w2", account_value: 100_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
+          { wallet_id: "w3", account_value: 100_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
+          { wallet_id: "w4", account_value: 100_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
         ],
         error: null,
       },
@@ -367,12 +411,17 @@ describe("applyHygieneGates", () => {
     ];
     mockWalletResponses = [
       {
-        data: [{ id: "w-both", low_equity_cycles: 2, low_buffer_cycles: 0 }],
+        data: [
+          { id: "w-both", low_equity_cycles: 2, low_buffer_cycles: 0 },
+          { id: "w2", low_equity_cycles: 0, low_buffer_cycles: 0 },
+          { id: "w3", low_equity_cycles: 0, low_buffer_cycles: 0 },
+          { id: "w4", low_equity_cycles: 0, low_buffer_cycles: 0 },
+        ],
         error: null,
       },
     ];
 
-    const result = await applyHygieneGates(["w-both"]);
+    const result = await applyHygieneGates(["w-both", "w2", "w3", "w4"]);
 
     expect(result.deactivated).toEqual([{ wallet_id: "w-both", reason: "idle" }]);
     expect(result.breakdown.idle).toBe(1);
@@ -380,6 +429,7 @@ describe("applyHygieneGates", () => {
   });
 
   it("deactivates immediately on 7d drawdown breach (no grace)", async () => {
+    // Add 3 healthy wallets so 1/4 = 25% deactivation.
     mockSnapshotResponses = [
       {
         data: [
@@ -390,6 +440,9 @@ describe("applyHygieneGates", () => {
             position_count: 0,
             snapshot_time: ago(5 * MIN),
           },
+          { wallet_id: "w2", account_value: 100_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
+          { wallet_id: "w3", account_value: 100_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
+          { wallet_id: "w4", account_value: 100_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
         ],
         error: null,
       },
@@ -405,12 +458,17 @@ describe("applyHygieneGates", () => {
     ];
     mockWalletResponses = [
       {
-        data: [{ id: "w1", low_equity_cycles: 0, low_buffer_cycles: 0 }],
+        data: [
+          { id: "w1", low_equity_cycles: 0, low_buffer_cycles: 0 },
+          { id: "w2", low_equity_cycles: 0, low_buffer_cycles: 0 },
+          { id: "w3", low_equity_cycles: 0, low_buffer_cycles: 0 },
+          { id: "w4", low_equity_cycles: 0, low_buffer_cycles: 0 },
+        ],
         error: null,
       },
     ];
 
-    const result = await applyHygieneGates(["w1"]);
+    const result = await applyHygieneGates(["w1", "w2", "w3", "w4"]);
 
     expect(result.deactivated).toEqual([{ wallet_id: "w1", reason: "drawdown_7d" }]);
     expect(result.breakdown.drawdown_7d).toBe(1);
@@ -418,6 +476,7 @@ describe("applyHygieneGates", () => {
 
   it("deactivates for liq_imminent once low_buffer_cycles reaches threshold", async () => {
     // Threshold is 2. Wallet at grace=1, buffer below min, positions open -> next=2 -> deactivate.
+    // Add 3 healthy wallets so 1/4 = 25% deactivation.
     mockSnapshotResponses = [
       {
         data: [
@@ -428,6 +487,9 @@ describe("applyHygieneGates", () => {
             position_count: 3,
             snapshot_time: ago(5 * MIN),
           },
+          { wallet_id: "w2", account_value: 100_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
+          { wallet_id: "w3", account_value: 100_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
+          { wallet_id: "w4", account_value: 100_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
         ],
         error: null,
       },
@@ -435,12 +497,17 @@ describe("applyHygieneGates", () => {
     ];
     mockWalletResponses = [
       {
-        data: [{ id: "w1", low_equity_cycles: 0, low_buffer_cycles: 1 }],
+        data: [
+          { id: "w1", low_equity_cycles: 0, low_buffer_cycles: 1 },
+          { id: "w2", low_equity_cycles: 0, low_buffer_cycles: 0 },
+          { id: "w3", low_equity_cycles: 0, low_buffer_cycles: 0 },
+          { id: "w4", low_equity_cycles: 0, low_buffer_cycles: 0 },
+        ],
         error: null,
       },
     ];
 
-    const result = await applyHygieneGates(["w1"]);
+    const result = await applyHygieneGates(["w1", "w2", "w3", "w4"]);
 
     expect(result.deactivated).toEqual([{ wallet_id: "w1", reason: "liq_imminent" }]);
     expect(result.breakdown.liq_imminent).toBe(1);
@@ -516,31 +583,23 @@ describe("applyHygieneGates", () => {
         data: [
           // wA: equity failing at threshold -> low_equity
           { wallet_id: "wA", account_value: 0, liq_buffer_pct: null, position_count: 0, snapshot_time: ago(5 * MIN) },
-          // wB: drawdown
-          { wallet_id: "wB", account_value: 20_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
-          // wC: liq buffer failing at threshold -> liq_imminent
-          { wallet_id: "wC", account_value: 100_000, liq_buffer_pct: 0.02, position_count: 2, snapshot_time: ago(5 * MIN) },
+          // wB: healthy
+          { wallet_id: "wB", account_value: 100_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
+          // wC: healthy
+          { wallet_id: "wC", account_value: 100_000, liq_buffer_pct: 0.4, position_count: 0, snapshot_time: ago(5 * MIN) },
           // wD: healthy
           { wallet_id: "wD", account_value: 500_000, liq_buffer_pct: 0.5, position_count: 1, snapshot_time: ago(5 * MIN) },
         ],
         error: null,
       },
-      {
-        // Only wB has series data that trips drawdown gate.
-        data: [
-          { wallet_id: "wB", account_value: 100_000, snapshot_time: ago(6 * 86_400_000) },
-          { wallet_id: "wB", account_value: 100_000, snapshot_time: ago(3 * 86_400_000) },
-          { wallet_id: "wB", account_value: 20_000, snapshot_time: ago(5 * MIN) },
-        ],
-        error: null,
-      },
+      { data: [], error: null },
     ];
     mockWalletResponses = [
       {
         data: [
           { id: "wA", low_equity_cycles: 2, low_buffer_cycles: 0 },
           { id: "wB", low_equity_cycles: 0, low_buffer_cycles: 0 },
-          { id: "wC", low_equity_cycles: 0, low_buffer_cycles: 1 },
+          { id: "wC", low_equity_cycles: 0, low_buffer_cycles: 0 },
           { id: "wD", low_equity_cycles: 0, low_buffer_cycles: 0 },
         ],
         error: null,
@@ -551,15 +610,42 @@ describe("applyHygieneGates", () => {
 
     expect(result.breakdown).toMatchObject({
       low_equity: 1,
-      drawdown_7d: 1,
-      liq_imminent: 1,
+      drawdown_7d: 0,
+      liq_imminent: 0,
       idle: 0,
-      total_deactivated_this_cycle: 3,
+      total_deactivated_this_cycle: 1,
       cohort_size_pre: 4,
-      cohort_size_post: 1,
+      cohort_size_post: 3,
     });
-    const ids = result.deactivated.map((d) => d.wallet_id).sort();
-    expect(ids).toEqual(["wA", "wB", "wC"]);
+    const ids = result.deactivated.map((d) => d.wallet_id);
+    expect(ids).toEqual(["wA"]);
+  });
+
+  it("sanity guard throws and issues no writes when >25% of cohort would deactivate", async () => {
+    mockSnapshotResponses = [
+      {
+        data: [
+          { wallet_id: "wC", account_value: 500_000, liq_buffer_pct: 0.5, position_count: 0, snapshot_time: ago(5 * MIN) },
+          { wallet_id: "wD", account_value: 500_000, liq_buffer_pct: 0.5, position_count: 0, snapshot_time: ago(5 * MIN) },
+        ],
+        error: null,
+      },
+      { data: [], error: null },
+    ];
+    mockWalletResponses = [
+      {
+        data: [
+          { id: "wA", low_equity_cycles: 0, low_buffer_cycles: 0 },
+          { id: "wB", low_equity_cycles: 0, low_buffer_cycles: 0 },
+          { id: "wC", low_equity_cycles: 0, low_buffer_cycles: 0 },
+          { id: "wD", low_equity_cycles: 0, low_buffer_cycles: 0 },
+        ],
+        error: null,
+      },
+    ];
+
+    await expect(applyHygieneGates(["wA", "wB", "wC", "wD"])).rejects.toThrow(/sanity abort/);
+    expect(mockWalletUpdates).toHaveLength(0);
   });
 
   it("throws when the latest-snapshot query errors", async () => {

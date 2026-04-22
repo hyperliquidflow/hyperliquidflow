@@ -236,12 +236,13 @@ export async function applyHygieneGates(
     }
   }
 
-  // 5. Sanity check
+  // 5. Sanity check: abort if too many wallets would be deactivated in one cycle.
   const deactivationPct = toDeactivate.length / cohortSizePre;
   if (deactivationPct > MAX_CYCLE_DEACTIVATION_PCT) {
-    console.warn(
-      `[hygiene] WARNING: deactivating ${toDeactivate.length}/${cohortSizePre}` +
-      ` (${(deactivationPct * 100).toFixed(1)}%), exceeds ${MAX_CYCLE_DEACTIVATION_PCT * 100}% sanity threshold. Investigate gate logic.`
+    throw new Error(
+      `[hygiene] sanity abort: would deactivate ${toDeactivate.length}/${cohortSizePre}` +
+      ` (${(deactivationPct * 100).toFixed(1)}%), exceeds ${MAX_CYCLE_DEACTIVATION_PCT * 100}% threshold.` +
+      ` No writes issued. Investigate gate logic before retrying.`,
     );
   }
 
