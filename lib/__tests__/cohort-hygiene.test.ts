@@ -578,47 +578,71 @@ describe("applyHygieneGates", () => {
   });
 
   it("aggregates breakdown across mixed deactivation reasons", async () => {
+    // 12-wallet cohort: 3 deactivations = exactly 25% (boundary, no sanity throw)
+    const healthySnaps = ["w1", "w2", "w3", "w4", "w5", "w6", "w7", "w8"].map((id) => ({
+      wallet_id: id,
+      account_value: 500_000,
+      liq_buffer_pct: 0.5,
+      position_count: 0,
+      snapshot_time: ago(5 * MIN),
+    }));
+    const healthyGrace = ["w1", "w2", "w3", "w4", "w5", "w6", "w7", "w8"].map((id) => ({
+      id,
+      low_equity_cycles: 0,
+      low_buffer_cycles: 0,
+    }));
+
     mockSnapshotResponses = [
       {
         data: [
           // wA: equity failing at threshold -> low_equity
           { wallet_id: "wA", account_value: 0, liq_buffer_pct: null, position_count: 0, snapshot_time: ago(5 * MIN) },
-          // wB: healthy
-          { wallet_id: "wB", account_value: 100_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
-          // wC: healthy
-          { wallet_id: "wC", account_value: 100_000, liq_buffer_pct: 0.4, position_count: 0, snapshot_time: ago(5 * MIN) },
+          // wB: drawdown (peak 100k, current 20k = 80% drawdown)
+          { wallet_id: "wB", account_value: 20_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
+          // wC: liq buffer failing at threshold -> liq_imminent
+          { wallet_id: "wC", account_value: 100_000, liq_buffer_pct: 0.02, position_count: 2, snapshot_time: ago(5 * MIN) },
           // wD: healthy
           { wallet_id: "wD", account_value: 500_000, liq_buffer_pct: 0.5, position_count: 1, snapshot_time: ago(5 * MIN) },
+          ...healthySnaps,
         ],
         error: null,
       },
-      { data: [], error: null },
+      {
+        // Only wB has series data that trips drawdown gate.
+        data: [
+          { wallet_id: "wB", account_value: 100_000, snapshot_time: ago(6 * 86_400_000) },
+          { wallet_id: "wB", account_value: 100_000, snapshot_time: ago(3 * 86_400_000) },
+          { wallet_id: "wB", account_value: 20_000, snapshot_time: ago(5 * MIN) },
+        ],
+        error: null,
+      },
     ];
     mockWalletResponses = [
       {
         data: [
           { id: "wA", low_equity_cycles: 2, low_buffer_cycles: 0 },
           { id: "wB", low_equity_cycles: 0, low_buffer_cycles: 0 },
-          { id: "wC", low_equity_cycles: 0, low_buffer_cycles: 0 },
+          { id: "wC", low_equity_cycles: 0, low_buffer_cycles: 1 },
           { id: "wD", low_equity_cycles: 0, low_buffer_cycles: 0 },
+          ...healthyGrace,
         ],
         error: null,
       },
     ];
 
-    const result = await applyHygieneGates(["wA", "wB", "wC", "wD"]);
+    const result = await applyHygieneGates(["wA", "wB", "wC", "wD", "w1", "w2", "w3", "w4", "w5", "w6", "w7", "w8"]);
 
     expect(result.breakdown).toMatchObject({
       low_equity: 1,
-      drawdown_7d: 0,
-      liq_imminent: 0,
+      drawdown_7d: 1,
+      liq_imminent: 1,
       idle: 0,
-      total_deactivated_this_cycle: 1,
-      cohort_size_pre: 4,
-      cohort_size_post: 3,
+      total_deactivated_this_cycle: 3,
+      cohort_size_pre: 12,
+      cohort_size_post: 9,
     });
-    const ids = result.deactivated.map((d) => d.wallet_id);
-    expect(ids).toEqual(["wA"]);
+    const ids = result.deactivated.map((d) => d.wallet_id).sort();
+    expect(ids).toEqual(["wA", "wB", "wC"]);
   });
 
   it("sanity guard throws and issues no writes when >25% of cohort would deactivate", async () => {
