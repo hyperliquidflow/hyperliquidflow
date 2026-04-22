@@ -13,6 +13,7 @@ const MAX_7D_DRAWDOWN              = 0.50;
 const MIN_DRAWDOWN_SNAPSHOTS       = 3;
 const MAX_CYCLE_DEACTIVATION_PCT   = 0.25;
 const SNAPSHOT_FRESHNESS_MS        = 30 * 60_000;
+const IDLE_THRESHOLD_MS            = 3 * 24 * 60 * 60_000;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -40,6 +41,15 @@ export function isSnapshotFresh(
   maxAgeMs:     number = SNAPSHOT_FRESHNESS_MS,
 ): boolean {
   return nowMs - new Date(snapshotTime).getTime() <= maxAgeMs;
+}
+
+export function failsIdleGate(
+  snapshotTime: string | null | undefined,
+  nowMs:        number,
+  maxIdleMs:    number = IDLE_THRESHOLD_MS,
+): boolean {
+  if (!snapshotTime) return true;
+  return nowMs - new Date(snapshotTime).getTime() > maxIdleMs;
 }
 
 export function failsEquityGate(

@@ -54,6 +54,7 @@ import {
   failsEquityGate,
   failsLiqBufferGate,
   failsDrawdownGate,
+  failsIdleGate,
   nextGraceCycles,
   applyHygieneGates,
 } from "../cohort-hygiene";
@@ -138,6 +139,33 @@ describe("failsDrawdownGate", () => {
   it("respects custom threshold", () => {
     expect(failsDrawdownGate([100, 100, 70], 0.30, 3)).toBe(true);
     expect(failsDrawdownGate([100, 100, 70], 0.31, 3)).toBe(false);
+  });
+});
+
+describe("failsIdleGate", () => {
+  const DAY = 24 * 60 * 60_000;
+
+  it("returns true for null snapshot time", () => {
+    expect(failsIdleGate(null, NOW)).toBe(true);
+  });
+  it("returns true for undefined snapshot time", () => {
+    expect(failsIdleGate(undefined, NOW)).toBe(true);
+  });
+  it("returns true for empty-string snapshot time", () => {
+    expect(failsIdleGate("", NOW)).toBe(true);
+  });
+  it("returns false at 0 ms age", () => {
+    expect(failsIdleGate(ago(0), NOW)).toBe(false);
+  });
+  it("returns false at exactly 3 days (boundary, not exceeded)", () => {
+    expect(failsIdleGate(ago(3 * DAY), NOW)).toBe(false);
+  });
+  it("returns true at 3 days + 1 ms", () => {
+    expect(failsIdleGate(ago(3 * DAY + 1), NOW)).toBe(true);
+  });
+  it("respects custom maxIdleMs", () => {
+    expect(failsIdleGate(ago(2 * DAY), NOW, 1 * DAY)).toBe(true);
+    expect(failsIdleGate(ago(2 * DAY), NOW, 3 * DAY)).toBe(false);
   });
 });
 
