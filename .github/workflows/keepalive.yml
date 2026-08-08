@@ -1,0 +1,29 @@
+name: Keepalive
+
+# GitHub auto-disables scheduled workflows after 60 days without repo activity.
+# That silent disable killed the entire data pipeline on 2026-06-22 (audit
+# 2026-08-08, root cause 2). A monthly heartbeat commit resets the counter
+# for every workflow in this repo, including this one.
+
+on:
+  schedule:
+    - cron: '0 4 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Commit heartbeat
+        run: |
+          date -u +%Y-%m-%dT%H:%M:%SZ > .github/keepalive
+          git config user.name "keepalive"
+          git config user.email "actions@users.noreply.github.com"
+          git add .github/keepalive
+          git commit -m "chore: monthly keepalive heartbeat"
+          git push
