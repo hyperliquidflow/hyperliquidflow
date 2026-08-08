@@ -28,17 +28,33 @@ export interface RankIcPayload {
   total_measurements:  number;
   pct_above_mdic:      number | null;
   mdic:                number;
+  /** Earliest day of accumulated wallet scores, or null if none exist yet. */
+  score_history_start: string | null;
+  /** Days of forward return each measurement waits on. */
+  horizon_days:        number;
 }
 
+const HORIZON_DAYS = 30;
+
 export async function GET(): Promise<NextResponse> {
-  const { data, error } = await supabase
-    .from("rank_ic_history")
-    .select(
-      "measurement_date, rank_ic, p_value, cohort_size, effective_sample_size, " +
-      "top_decile_hit_rate, bottom_decile_avoidance"
-    )
-    .order("measurement_date", { ascending: true })
-    .limit(180);
+  // The projected first-measurement date has to come from real accumulated
+  // scores. It used to be Date.now() + 31 days, so it slid forward every day
+  // and never arrived (audit 2026-08-08).
+  const [{ data, error }, scoreStart] = await Promise.all([
+    supabase
+      .from("rank_ic_history")
+      .select(
+        "measurement_date, rank_ic, p_value, cohort_size, effective_sample_size, " +
+        "top_decile_hit_rate, bottom_decile_avoidance"
+      )
+      .order("measurement_date", { ascending: true })
+      .limit(180),
+    supabase
+      .from("wallet_score_history")
+      .select("date")
+      .order("date", { ascending: true })
+      .limit(1),
+  ]);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -57,6 +73,8 @@ export async function GET(): Promise<NextResponse> {
     total_measurements: n,
     pct_above_mdic:     n > 0 ? aboveMdic / n : null,
     mdic:               MDIC,
+    score_history_start: (scoreStart.data?.[0]?.date as string | undefined) ?? null,
+    horizon_days:        HORIZON_DAYS,
   };
 
   return NextResponse.json(payload, {

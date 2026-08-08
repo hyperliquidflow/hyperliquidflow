@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { getEquityTier, computeCohortScoresV2 } from "../cohort-engine";
+import { getEquityTier, computeCohortScores, computeCohortScoresV2 } from "../cohort-engine";
+import type { HlClearinghouseState, HlAssetPosition } from "../hyperliquid-api-client";
 
 describe("getEquityTier", () => {
   it("returns Elite for $5M+", () => {
@@ -48,6 +49,91 @@ describe("getEquityTier", () => {
     expect(getEquityTier(null)).toBeNull();
     expect(getEquityTier(undefined)).toBeNull();
     expect(getEquityTier(-1)).toBeNull();
+  });
+});
+
+describe("computeCohortScores", () => {
+  // V1 weights: 0.35 sharpe | 0.25 consistency | 0.25 drawdown | 0.15 regime_fit
+  const FLAT_PNLS  = new Array(30).fill(0);
+  const STEADY_WIN = new Array(30).fill(10); // zero variance, monotonic equity curve
+
+  function makeState(positions: Array<{ szi: number; notional: number }>): HlClearinghouseState {
+    const assetPositions: HlAssetPosition[] = positions.map((p, i) => ({
+      position: {
+        coin:          `C${i}`,
+        szi:           String(p.szi),
+        entryPx:       "100",
+        positionValue: String(p.notional),
+        unrealizedPnl: "0",
+        returnOnEquity: "0",
+        liquidationPx: null,
+        leverage:      { type: "cross", value: 3 },
+        cumFunding:    { allTime: "0", sinceChange: "0", sinceOpen: "0" },
+      },
+      type: "oneWay",
+    }));
+    const summary = {
+      accountValue:    "1000000",
+      totalNtlPos:     "0",
+      totalRawUsd:     "1000000",
+      totalMarginUsed: "0",
+    };
+    return {
+      assetPositions,
+      crossMarginSummary: summary,
+      marginSummary:      summary,
+      withdrawable:       "1000000",
+    };
+  }
+
+  const FLAT_WALLET = makeState([]);
+
+  it("gives a flat wallet the neutral 0.5 regime_fit baseline in every regime", () => {
+    for (const regime of ["BULL", "BEAR", "RANGING"] as const) {
+      expect(computeCohortScores(STEADY_WIN, FLAT_WALLET, regime).regime_fit).toBe(0.5);
+    }
+  });
+
+  it("scores a flat-PnL flat-position wallet at 0.325", () => {
+    // sharpe=0, consistency=0 (all windows have no data), drawdown=1 (no peak),
+    // regime_fit=0.5 => 0.35*0 + 0.25*0 + 0.25*1 + 0.15*0.5 = 0.325
+    const r = computeCohortScores(FLAT_PNLS, FLAT_WALLET, "RANGING");
+    expect(r.sharpe_proxy).toBe(0);
+    expect(r.pnl_consistency).toBe(0);
+    expect(r.drawdown_score).toBe(1);
+    expect(r.regime_fit).toBe(0.5);
+    expect(r.overall_score).toBeCloseTo(0.325, 6);
+  });
+
+  it("applies the 35/25/25/15 weighted sum", () => {
+    // Steady $10/day: sharpe clamps to 1, every 7d window is positive so
+    // consistency=1, the equity curve never draws down so drawdown=1.
+    // Flat wallet keeps regime_fit at 0.5.
+    // => 0.35 + 0.25 + 0.25 + 0.075 = 0.925
+    const r = computeCohortScores(STEADY_WIN, FLAT_WALLET, "BULL");
+    expect(r.sharpe_proxy).toBe(1);
+    expect(r.pnl_consistency).toBe(1);
+    expect(r.drawdown_score).toBe(1);
+    expect(r.overall_score).toBeCloseTo(0.925, 6);
+  });
+
+  it("rewards a long-biased wallet in BULL and penalises it in BEAR", () => {
+    const allLong = makeState([{ szi: 2, notional: 200_000 }, { szi: 1, notional: 100_000 }]);
+
+    const bull = computeCohortScores(STEADY_WIN, allLong, "BULL");
+    expect(bull.regime_fit).toBeCloseTo(1, 3);
+    expect(bull.overall_score).toBeCloseTo(1, 3);   // 0.35 + 0.25 + 0.25 + 0.15
+
+    const bear = computeCohortScores(STEADY_WIN, allLong, "BEAR");
+    expect(bear.regime_fit).toBeCloseTo(0, 3);
+    expect(bear.overall_score).toBeCloseTo(0.85, 3); // 0.35 + 0.25 + 0.25 + 0
+  });
+
+  it("clamps overall_score into [0,1]", () => {
+    const losing = new Array(30).fill(-10);
+    const r = computeCohortScores(losing, FLAT_WALLET, "BEAR");
+    expect(r.overall_score).toBeGreaterThanOrEqual(0);
+    expect(r.overall_score).toBeLessThanOrEqual(1);
   });
 });
 

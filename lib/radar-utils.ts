@@ -40,6 +40,8 @@ export interface RadarResponse {
   buckets:       RadarBucket[];
   stats:         RadarStats;
   top_assets:    string[];
+  /** Newest snapshot time behind these buckets. Absent on older cached payloads. */
+  updated_at?:   string | null;
 }
 
 function makeEmptyBuckets(min: number, max: number): RadarBucket[] {

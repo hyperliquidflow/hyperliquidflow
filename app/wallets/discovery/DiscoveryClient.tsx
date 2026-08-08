@@ -24,6 +24,7 @@ interface ScannerStats {
   total_inactive: number;
   avg_win_rate: number;
   last_scan_at: string | null;
+  last_snapshot_at: string | null;
   discovery_source: string | null;
   top_win_rates: Array<{ address: string; win_rate: number; trade_count_30d: number; realized_pnl_30d: number }>;
   scan_pipeline: Array<{ step: string; status: "ok" | "warn" | "error"; detail: string }>;
@@ -360,11 +361,12 @@ export function DiscoveryClient({ initialScannerData }: { initialScannerData: Sc
                 <div style={{ padding: "20px" }}>
                   <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                     {[
-                      { label: "Last Run",    value: scannerData.last_scan_at ? timeAgo(scannerData.last_scan_at) : "Never" },
-                      { label: "Source",      value: scannerData.discovery_source ?? "n/a" },
-                      { label: "Schedule",    value: "00:00 UTC daily (GitHub Actions)" },
-                      { label: "Filter",      value: "win_rate 52%+ and 30+ trades in 30 days" },
-                      { label: "Max Wallets", value: "2,000 discovered, top 500 active" },
+                      { label: "Last Run",       value: scannerData.last_scan_at ? timeAgo(scannerData.last_scan_at) : "Never" },
+                      { label: "Positions Read", value: scannerData.last_snapshot_at ? timeAgo(scannerData.last_snapshot_at) : "Never" },
+                      { label: "Source",         value: scannerData.discovery_source ?? "unknown" },
+                      { label: "Schedule",       value: "Once daily at 00:00 UTC" },
+                      { label: "Quality Bar",    value: "52%+ winning trades and 30+ trades in 30 days" },
+                      { label: "Capacity",       value: "Up to 5,000 candidates, top 500 tracked" },
                     ].map(({ label, value }) => (
                       <div key={label} style={{ display: "flex", justifyContent: "space-between" }}>
                         <span style={S.muted}>{label}</span>

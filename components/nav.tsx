@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { timeAgo } from "@/lib/utils";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
-import { color, type as T, shadow, anim, radius } from "@/lib/design-tokens";
+import { color, type as T, anim, radius } from "@/lib/design-tokens";
 import { useAlertDetection } from "@/lib/hooks/use-alert-detection";
 import { useAlertEvents } from "@/lib/hooks/use-alert-events";
 
@@ -38,6 +38,7 @@ const NAV: NavEntry[] = [
     children: [
       { href: "/signals/feed",        label: "Feed"        },
       { href: "/signals/divergence",  label: "Divergence"  },
+      { href: "/signals/radar",       label: "Radar"       },
       { href: "/signals/performance", label: "Signal Scores" },
     ],
   },
@@ -56,6 +57,27 @@ function isSection(e: NavEntry): e is NavSection {
   return "section" in e;
 }
 
+const FRESH_MS   = 15 * 60 * 1000;
+const DELAYED_MS = 60 * 60 * 1000;
+
+/**
+ * Status of the footer dot, derived from how old the payload actually is.
+ * The dot used to pulse green permanently, which read as healthy through
+ * months of dead data (audit 2026-08-08).
+ */
+function connectionStatus(updatedAt: string | undefined): {
+  label: string; dot: string; pulse: boolean; glow: boolean;
+} {
+  const ms = updatedAt ? new Date(updatedAt).getTime() : NaN;
+  if (!Number.isFinite(ms)) {
+    return { label: "Connecting", dot: color.neutral, pulse: false, glow: false };
+  }
+  const age = Math.max(0, Date.now() - ms);
+  if (age < FRESH_MS)   return { label: "Monitoring", dot: color.accent, pulse: true,  glow: true  };
+  if (age < DELAYED_MS) return { label: "Delayed",    dot: color.amber,  pulse: false, glow: false };
+  return { label: "Out of date", dot: color.red, pulse: false, glow: false };
+}
+
 export function Nav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false); // mobile drawer
@@ -72,6 +94,8 @@ export function Nav() {
 
   useAlertDetection();
   const { unseenCount } = useAlertEvents();
+
+  const status = connectionStatus(data?.updated_at);
 
   return (
     <>
@@ -209,11 +233,14 @@ export function Nav() {
         <div style={{ padding: "18px 0", borderTop: `1px solid ${color.borderFaint}`, textAlign: "center" }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: "8px" }}>
             <span style={{
-              width: "6px", height: "6px", borderRadius: "50%",
-              background: color.green, ...shadow.liveDot,
-              display: "inline-block", animation: anim.glowPulse, flexShrink: 0,
+              width: "6px", height: "6px", borderRadius: radius.dot,
+              background: status.dot,
+              boxShadow: status.glow ? `0 0 6px ${color.accent}` : undefined,
+              display: "inline-block",
+              animation: status.pulse ? anim.glowPulse : undefined,
+              flexShrink: 0,
             }} />
-            <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.5)", userSelect: "none" }}>Monitoring</span>
+            <span style={{ fontSize: "13px", color: "rgba(255,255,255,0.5)", userSelect: "none" }}>{status.label}</span>
           </div>
           {/* Reserved space - shimmer until timestamp loads */}
           <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.28)", marginTop: "4px", minHeight: "14px", display: "flex", justifyContent: "center", alignItems: "center", userSelect: "none" }}>

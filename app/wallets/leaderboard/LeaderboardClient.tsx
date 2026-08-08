@@ -140,6 +140,7 @@ export function LeaderboardClient({ initialData }: { initialData: CohortCachePay
       <PageHeader
         title="Leaderboard"
         subtitle={data ? `Smart Money ranked by composite score · ${data.total_active_wallets ?? data.wallet_count} active` : "Smart Money ranked by composite score"}
+        updatedAt={data?.updated_at}
       />
       <div style={{ ...S.page, paddingTop: "20px" }}>
         <div style={{ display: "flex", gap: "6px", marginBottom: "12px", flexWrap: "wrap" as const }}>

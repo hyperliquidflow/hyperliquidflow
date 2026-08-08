@@ -595,6 +595,23 @@ async function recipe8(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Test-only exports
+// ─────────────────────────────────────────────────────────────────────────────
+// Production callers must go through runSignalLab, which sequences the recipes,
+// enriches with EV, and persists. These aliases exist so each recipe can be
+// driven in isolation from a golden fixture without also exercising the
+// Supabase and KV write path.
+
+export {
+  recipe1 as momentumStackRecipe,
+  recipe2 as divergenceSqueezeRecipe,
+  recipe3 as accumulationReentryRecipe,
+  recipe4 as rotationCarryRecipe,
+  recipe7 as fundingDivergenceRecipe,
+  recipe8 as whaleValidatedRecipe,
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 // EV enrichment — attach EV scores where backtest data is available
 // ─────────────────────────────────────────────────────────────────────────────
 

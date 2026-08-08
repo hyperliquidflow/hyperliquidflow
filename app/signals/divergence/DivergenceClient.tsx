@@ -34,6 +34,8 @@ interface ImbalanceData {
       risk_reward: string; kelly_size: string; funding_rate: string;
     };
   }>;
+  /** Coins with usable cohort positioning behind this scan. */
+  coins_measured?: number;
   updated_at: string;
 }
 
@@ -53,7 +55,7 @@ export function DivergenceClient({ initialData }: { initialData: unknown }) {
 
   return (
     <div className="page-enter">
-      <PageHeader title="Divergence" subtitle="Smart money vs retail positioning gaps" />
+      <PageHeader title="Divergence" subtitle="Smart money vs retail positioning gaps" updatedAt={data?.updated_at} />
       <div style={{ ...S.page, paddingTop: "20px" }}>
         <div style={{ display: "grid", gridTemplateColumns: selected ? "1fr 1fr" : "1fr", gap: "16px" }}>
 
@@ -84,7 +86,13 @@ export function DivergenceClient({ initialData }: { initialData: unknown }) {
                 </div>
               ))
             ) : data.ideas.length === 0 ? (
-              <div style={{ padding: "48px", textAlign: "center", ...S.muted }}>No significant divergences at current threshold</div>
+              <div style={{ padding: "48px", textAlign: "center", ...S.muted }}>
+                {data.coins_measured === 0
+                  ? "No cohort positioning available to compare against right now."
+                  : data.coins_measured != null
+                  ? `Nothing crossed the divergence threshold across ${data.coins_measured} coins.`
+                  : "Nothing crossed the divergence threshold."}
+              </div>
             ) : (
               data.ideas.map((idea) => {
                 const isSelected = selected === idea.coin;

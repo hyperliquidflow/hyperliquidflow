@@ -118,6 +118,7 @@ export function RadarClient({ initialData, initialAsset, initialTier }: Props) {
       <PageHeader
         title="Market Radar"
         subtitle="Where cohort wallets cluster entries and liquidations along the price axis"
+        updatedAt={data?.updated_at}
       />
       <div style={S.page}>
         <div style={S.card}>

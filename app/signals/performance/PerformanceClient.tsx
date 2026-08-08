@@ -20,12 +20,12 @@ function accuracyColor(rate: number): string {
 }
 
 function fmt(val: number | null | undefined, decimals = 1): string {
-  if (val == null) return "\u2014";
+  if (val == null) return "--";
   return `${val >= 0 ? "+" : ""}${val.toFixed(decimals)}%`;
 }
 
 function fmtAcc(val: number | null | undefined): string {
-  if (val == null) return "\u2014";
+  if (val == null) return "--";
   return `${(val * 100).toFixed(1)}%`;
 }
 
@@ -114,7 +114,9 @@ export function PerformanceClient({ initialData }: { initialData: RecipeStats[] 
                     </div>
                     <div style={T.statLabel}>Signal Quality</div>
                     <div style={S.fallbackNote}>
-                      Outcome tracking is live. Accuracy data accumulates over 7 days.
+                      {signals > 0
+                        ? `0 of ${signals} signals graded so far. A signal is graded 24 hours after it fires.`
+                        : "No signals from this recipe yet. Grading starts 24 hours after the first one fires."}
                     </div>
                     <div style={{ ...T.statSub, marginTop: "12px" }}>{desc}</div>
                   </div>

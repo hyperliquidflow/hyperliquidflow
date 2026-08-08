@@ -242,7 +242,7 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
 
   return (
     <div className="page-enter" style={{ height: "100vh", overflow: "hidden", display: "flex", flexDirection: "column" }}>
-      <PageHeader title="Overview" regime={regime} btcReturn={data.btc_return_24h} />
+      <PageHeader title="Overview" regime={regime} btcReturn={data.btc_return_24h} updatedAt={data.updated_at} />
 
       <div style={{
         display: "grid", gridTemplateColumns: "repeat(6, 1fr)",
@@ -403,7 +403,7 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
                 </div>
               ))}
               {data.recent_signals.length === 0 && (
-                <div style={{ padding: "32px 20px", textAlign: "center", ...S.muted }}>No signals yet, waiting for next refresh cycle</div>
+                <div style={{ padding: "32px 20px", textAlign: "center", ...S.muted }}>No signals in the last 24 hours</div>
               )}
             </div>
           </div>

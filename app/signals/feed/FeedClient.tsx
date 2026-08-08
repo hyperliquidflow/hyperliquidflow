@@ -530,9 +530,13 @@ export function FeedClient({ initialData }: { initialData: CohortCachePayload | 
     const observer = new IntersectionObserver(([entry]) => {
       if (!entry.isIntersecting || fetchingRef.current) return;
       const allSigs = [...(data?.recent_signals ?? []), ...extra];
-      if (allSigs.length === 0) return;
-      const oldest = allSigs.reduce((min, s) => s.detected_at < min ? s.detected_at : min, allSigs[0].detected_at);
-      fetchMore(oldest);
+      // An empty 24h window has no oldest signal to page back from. Bailing out
+      // here meant history could never load on a quiet day (audit 2026-08-08),
+      // so page back from now instead.
+      const cursor = allSigs.length > 0
+        ? allSigs.reduce((min, s) => s.detected_at < min ? s.detected_at : min, allSigs[0].detected_at)
+        : new Date().toISOString();
+      fetchMore(cursor);
     }, { threshold: 0.1 });
     observer.observe(sentinel);
     return () => observer.disconnect();
@@ -583,7 +587,7 @@ export function FeedClient({ initialData }: { initialData: CohortCachePayload | 
 
   return (
     <div className="page-enter">
-      <PageHeader title="Feed" subtitle="Live signals from tracked smart money wallets" />
+      <PageHeader title="Feed" subtitle="Signals from tracked smart money wallets" updatedAt={data?.updated_at} />
       <div style={S.page}>
         <div style={S.body}>
 
@@ -687,17 +691,24 @@ export function FeedClient({ initialData }: { initialData: CohortCachePayload | 
                     </div>
                   ))
                 ) : filtered.length === 0 ? (
-                  <div style={{ padding: "48px", textAlign: "center", ...S.muted }}>No signals match your filters</div>
+                  <div style={{ padding: "48px", textAlign: "center", ...S.muted }}>
+                    {allSignals.length > 0
+                      ? "No signals match the current filters."
+                      : hasMore
+                      ? "Nothing fired in the last 24 hours. Loading earlier signals."
+                      : "No signals have been recorded yet."}
+                  </div>
                 ) : (
                   filtered.map((sig, i) => (
                     <SignalRow key={`${sig.detected_at}-${sig.recipe_id}-${sig.coin}-${i}`} sig={sig} />
                   ))
                 )}
 
-                {/* Infinite scroll sentinel */}
-                {data && filtered.length > 0 && (
+                {/* Infinite scroll sentinel. Rendered whenever the payload has
+                    arrived, including on an empty 24h window, so history loads. */}
+                {data && (
                   <div ref={sentinelRef} style={S.scrollFooter}>
-                    {isFetching ? "scroll for more" : hasMore ? " " : "all signals loaded"}
+                    {isFetching ? "loading earlier signals" : hasMore ? " " : "all signals loaded"}
                   </div>
                 )}
               </div>

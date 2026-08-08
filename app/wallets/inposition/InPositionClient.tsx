@@ -149,7 +149,8 @@ export function InPositionClient({ initialData }: { initialData: CohortCachePayl
     <div className="page-enter" style={{ userSelect: "none", WebkitUserSelect: "none" }}>
       <PageHeader
         title="In Position"
-        subtitle={inPosition ? `${inPosition.length} wallets with open positions right now` : "Wallets with open positions right now"}
+        subtitle={inPosition ? `${inPosition.length} wallets with open positions` : "Wallets with open positions"}
+        updatedAt={data?.updated_at}
       />
       <div style={{ ...S.page, paddingTop: "14px" }}>
 

@@ -48,20 +48,32 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       .limit(2500);
     if (tier !== "all") query = query.eq("equity_tier", tier);
 
-    const { data, error } = await query;
+    // Deactivated wallets keep their last snapshot under retention. Counting
+    // those frozen rows as current positioning inflates the radar, so the
+    // active-wallet set is applied in memory (a 500-id .in() would blow past
+    // PostgREST's request-line limit).
+    const [{ data, error }, activeRes] = await Promise.all([
+      query,
+      supabase.from("wallets").select("id").eq("is_active", true),
+    ]);
     if (error) throw new Error(error.message);
-    const snapshots = (data ?? []) as Array<{
+    const activeIds = new Set((activeRes.data ?? []).map((w) => w.id as string));
+    const snapshots = ((data ?? []) as Array<{
       wallet_id:    string;
       equity_tier:  string | null;
       positions:    HlAssetPosition[];
       snapshot_time:string;
-    }>;
+    }>).filter((s) => activeIds.has(s.wallet_id));
 
     const latestByWallet = new Map<string, typeof snapshots[number]>();
     for (const s of snapshots) {
       if (!latestByWallet.has(s.wallet_id)) latestByWallet.set(s.wallet_id, s);
     }
     const latest = [...latestByWallet.values()];
+    const newestSnapshot = latest.reduce<string | null>(
+      (max, s) => (max == null || s.snapshot_time > max ? s.snapshot_time : max),
+      null,
+    );
 
     // Price from live mids
     const mids = await fetchAllMids();
@@ -107,6 +119,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       buckets,
       stats,
       top_assets: topAssets,
+      updated_at: newestSnapshot,
     };
 
     await kv.set(cacheKey, JSON.stringify(response), { ex: CACHE_TTL });

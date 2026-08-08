@@ -101,6 +101,18 @@ export function RankingClient() {
   const n = data?.total_measurements ?? 0;
   const hasData = n > 0;
 
+  // Projected first measurement, anchored to the first day of collected scores
+  // rather than to today, so the date stops sliding forward every render.
+  const horizonDays  = data?.horizon_days ?? 30;
+  const startMs      = data?.score_history_start ? new Date(data.score_history_start).getTime() : NaN;
+  const hasStart     = Number.isFinite(startMs);
+  const daysAccumulated = hasStart
+    ? Math.max(0, Math.floor((Date.now() - startMs) / 86400_000))
+    : 0;
+  const firstMeasurement = hasStart
+    ? new Date(startMs + horizonDays * 86400_000).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    : null;
+
   const chartData = (data?.history ?? []).map((r) => ({
     ...r,
     date: r.measurement_date.slice(5), // MM-DD for brevity
@@ -172,8 +184,11 @@ export function RankingClient() {
                 border: `1px solid ${color.borderFaint}`,
                 borderRadius: radius.tag,
                 padding: "6px 12px", marginTop: "8px",
+                fontVariantNumeric: "tabular-nums",
               }}>
-                First measurement available ~{new Date(Date.now() + 31 * 86400_000).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                {firstMeasurement
+                  ? `${daysAccumulated} of ${horizonDays} days of scores collected, first measurement ${firstMeasurement}`
+                  : "First measurement dates from the day score collection starts"}
               </div>
             </div>
           )}

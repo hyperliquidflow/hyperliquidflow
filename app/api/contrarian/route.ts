@@ -27,7 +27,9 @@ export async function GET(): Promise<NextResponse> {
     // Load cohort state from KV
     const cohortRaw = await kv.get<string>("cohort:active");
     if (!cohortRaw) {
-      return NextResponse.json({ ideas: [], updated_at: new Date().toISOString() });
+      // coins_measured lets the UI say "no positioning data" instead of
+      // "nothing crossed the threshold" (audit 2026-08-08).
+      return NextResponse.json({ ideas: [], coins_measured: 0, updated_at: new Date().toISOString() });
     }
     const cohort: CohortCachePayload =
       typeof cohortRaw === "string" ? JSON.parse(cohortRaw) : cohortRaw;
@@ -135,6 +137,7 @@ export async function GET(): Promise<NextResponse> {
       ideas: enrichedIdeas
         .map((r) => (r.status === "fulfilled" ? r.value : null))
         .filter(Boolean),
+      coins_measured: cohortNet.size,
       updated_at: new Date().toISOString(),
     };
 
@@ -142,6 +145,6 @@ export async function GET(): Promise<NextResponse> {
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: message, ideas: [], updated_at: new Date().toISOString() }, { status: 500 });
+    return NextResponse.json({ error: message, ideas: [], coins_measured: 0, updated_at: new Date().toISOString() }, { status: 500 });
   }
 }

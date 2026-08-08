@@ -154,20 +154,95 @@ export interface ScannerStats {
   total_inactive: number;
   avg_win_rate: number;
   last_scan_at: string | null;
+  last_snapshot_at: string | null;
   discovery_source: string | null;
   top_win_rates: Array<{ address: string; win_rate: number; trade_count_30d: number; realized_pnl_30d: number }>;
   scan_pipeline: Array<{ step: string; status: "ok" | "warn" | "error"; detail: string }>;
   tier_breakdown: Array<{ tier: string; count: number }>;
 }
 
+const HOUR_MS = 60 * 60 * 1000;
+
+function ageHours(iso: string | null): number | null {
+  if (!iso) return null;
+  const ms = new Date(iso).getTime();
+  if (!Number.isFinite(ms)) return null;
+  return Math.max(0, Date.now() - ms) / HOUR_MS;
+}
+
+/** "4 hours ago" style phrasing for pipeline detail lines. */
+function agePhrase(hours: number): string {
+  if (hours < 1)  return `${Math.round(hours * 60)} minutes ago`;
+  if (hours < 48) return `${Math.round(hours)} hours ago`;
+  return `${Math.round(hours / 24)} days ago`;
+}
+
+/**
+ * Pipeline health computed from the newest scan, the newest position snapshot
+ * and the live wallet counts. These five rows used to be hardcoded strings with
+ * two permanent "ok" statuses, which reported a healthy pipeline for months
+ * while nothing ran (audit 2026-08-08).
+ */
+function buildScanPipeline(args: {
+  discovered: number;
+  active: number;
+  scored: number;
+  lastScanAt: string | null;
+  lastSnapshotAt: string | null;
+}): ScannerStats["scan_pipeline"] {
+  const { discovered, active, scored, lastScanAt, lastSnapshotAt } = args;
+  const scanAge = ageHours(lastScanAt);
+  const snapAge = ageHours(lastSnapshotAt);
+
+  const scanStatus: "ok" | "warn" | "error" =
+    scanAge == null ? "error" : scanAge <= 36 ? "ok" : scanAge <= 72 ? "warn" : "error";
+
+  const snapStatus: "ok" | "warn" | "error" =
+    snapAge == null ? "error" : snapAge <= 0.25 ? "ok" : snapAge <= 1 ? "warn" : "error";
+
+  return [
+    {
+      step:   "Wallet discovery",
+      status: discovered > 4 ? scanStatus : "error",
+      detail: discovered > 4
+        ? `${discovered.toLocaleString("en-US")} candidate wallets on file. Last search ${scanAge == null ? "never completed" : agePhrase(scanAge)}.`
+        : "Only the starter wallets are on file. The daily search has not completed yet.",
+    },
+    {
+      step:   "Trade history review",
+      status: scored > 0 ? scanStatus : "error",
+      detail: scored > 0
+        ? `${scored.toLocaleString("en-US")} wallets have a scored trade record.`
+        : "No wallet has been scored yet.",
+    },
+    {
+      step:   "Cohort selection",
+      status: active >= 4 ? "ok" : "error",
+      detail: active >= 4
+        ? `${active.toLocaleString("en-US")} wallets passed the quality checks and are being tracked.`
+        : `Only ${active} wallets passed the quality checks, below the minimum of 4.`,
+    },
+    {
+      step:   "Position tracking",
+      status: snapStatus,
+      detail: snapAge == null
+        ? "No positions have been recorded yet."
+        : `Positions last recorded ${agePhrase(snapAge)}.`,
+    },
+  ];
+}
+
 export async function fetchScannerStats(): Promise<ScannerStats | null> {
   try {
-    const [walletStats, topWinRates] = await Promise.all([
+    const [walletStats, topWinRates, newestSnapshot] = await Promise.all([
       supabase.from("wallets").select("id, is_active, win_rate, last_scanned_at, discovery_source, realized_pnl_30d"),
       supabase.from("wallets").select("address, win_rate, trade_count_30d, realized_pnl_30d")
         .not("win_rate", "is", null)
         .order("win_rate", { ascending: false })
         .limit(20),
+      supabase.from("cohort_snapshots").select("snapshot_time")
+        .order("snapshot_time", { ascending: false })
+        .limit(1),
     ]);
     const wallets  = walletStats.data ?? [];
     const active   = wallets.filter((w) => w.is_active);
@@ -185,19 +260,15 @@ export async function fetchScannerStats(): Promise<ScannerStats | null> {
     const avgWinRate = active.length > 0
       ? active.reduce((s, w) => s + (w.win_rate ?? 0), 0) / active.length : 0;
     const lastScan = wallets.map((w) => w.last_scanned_at).filter(Boolean).sort().reverse()[0] ?? null;
+    const lastSnapshot = newestSnapshot.data?.[0]?.snapshot_time ?? null;
     const source = wallets.find((w) => w.last_scanned_at)?.discovery_source ?? null;
-    const pipeline = [
-      { step: "Leaderboard Discovery", status: (wallets.length > 4 ? "ok" : "warn") as "ok" | "warn",
-        detail: wallets.length > 4 ? `${wallets.length} addresses discovered via leaderboard API or scrape` : "Only seed wallets present. Daily scan has not run yet." },
-      { step: "Fill Scoring (userFillsByTime)", status: (active.length > 0 ? "ok" : "warn") as "ok" | "warn",
-        detail: active.length > 0 ? `${active.length} wallets qualified (win_rate >= 52%, >= 30 trades)` : "No wallets have been scored yet" },
-      { step: "Cohort Activation", status: (active.length >= 4 ? "ok" : "warn") as "ok" | "warn",
-        detail: active.length >= 4 ? `${active.length} wallets active in signal cohort` : "Cohort below minimum (4). Check daily scan logs." },
-      { step: "Vercel Cron (refresh-cohort)", status: "ok" as const,
-        detail: "Runs every 60s, defined in vercel.json, processes top 100 active wallets" },
-      { step: "Supabase pg_cron Cleanup", status: "ok" as const,
-        detail: "Retains 2 snapshots/wallet, 30d signals, 90d recipe perf. Keeps DB under 500 MB." },
-    ];
+    const pipeline = buildScanPipeline({
+      discovered:     wallets.length,
+      active:         active.length,
+      scored:         wallets.filter((w) => w.win_rate != null).length,
+      lastScanAt:     lastScan,
+      lastSnapshotAt: lastSnapshot,
+    });
     const TIERS = ["Elite", "Major", "Large", "Mid", "Small", "Micro", "Dust"] as const;
     const latestTierByWallet = new Map<string, string>();
     for (const row of tierSnaps.data ?? []) {
@@ -213,7 +284,8 @@ export async function fetchScannerStats(): Promise<ScannerStats | null> {
     const tier_breakdown = TIERS.map((t) => ({ tier: t, count: tierCounts[t] }));
     return {
       total_discovered: wallets.length, total_active: active.length, total_inactive: inactive.length,
-      avg_win_rate: avgWinRate, last_scan_at: lastScan, discovery_source: source,
+      avg_win_rate: avgWinRate, last_scan_at: lastScan, last_snapshot_at: lastSnapshot,
+      discovery_source: source,
       top_win_rates: (topWinRates.data ?? []) as ScannerStats["top_win_rates"],
       scan_pipeline: pipeline,
       tier_breakdown,
