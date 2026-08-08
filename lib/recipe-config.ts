@@ -37,7 +37,7 @@ export async function getRecipeConfig(
 
 /**
  * Snapshot all configs for a list of recipe IDs at signal-fire time.
- * Returns a plain object suitable for storing as signal_events.active_config.
+ * Returns a plain object snapshot of the active per-recipe config values.
  */
 export async function snapshotAllConfigs(
   recipeIds: string[]
