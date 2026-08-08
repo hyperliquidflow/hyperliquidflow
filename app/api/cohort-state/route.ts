@@ -134,8 +134,16 @@ export async function GET(): Promise<NextResponse> {
       .select("id", { count: "exact", head: true })
       .eq("is_active", true);
 
+    // Honest freshness: report the age of the data we are actually serving.
+    // Fabricating updated_at = now here blinded every freshness monitor.
+    const newestSnapshotTime =
+      [...latestByWallet.values()]
+        .map((s) => s.snapshot_time as string)
+        .sort()
+        .pop() ?? new Date(0).toISOString();
+
     const fallbackPayload: CohortCachePayload = {
-      updated_at:           new Date().toISOString(),
+      updated_at:           newestSnapshotTime,
       wallet_count:         wallets?.length ?? 0,
       total_active_wallets: totalActiveCount ?? wallets?.length ?? 0,
       regime:               "RANGING",
