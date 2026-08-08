@@ -70,6 +70,8 @@ Browser (React)
 | `signal-learning-utils.ts` | Outcome tracking helpers for the daily learning loop |
 | `recipe-config.ts` | Per-recipe tunable config (thresholds, window sizes) |
 | `radar-utils.ts` | Aggregation helpers for the Market Radar view |
+| `watchdog.ts` | Pure health-check evaluation and alert state transitions, no I/O |
+| `telegram.ts` | Telegram transport plus every bot message string |
 | `hypurrscan-api-client.ts` | Hypurrscan name/label index client |
 | `alert-engine.ts` | Core types for wallet-following alerts: `AlertEvent`, `FollowedWallet`, `PaperPosition`, `PositionSnapshot` |
 | `leverage-risk.ts` | Leverage penalty math for scoring V2 (`LeveragePenaltyParams`, blow-up curve) |
@@ -109,6 +111,8 @@ Old routes (`/scanner`, `/stalker`, `/contrarian`, `/imbalance`, `/recipes`, `/e
 - `wallet-positions`: Real-time open positions for a single wallet (used by alert engine)
 - `signal-freshness`: Rolling 1h latency stats from `signal_timing` table (Overview stat card)
 - `rank-ic`: Rank IC history from `wallet_score_history` (returns empty state until 30+ days accumulate)
+- `telegram/webhook`: inbound Telegram commands (`/status`, `/check`, `/cohort`, `/signals`, `/scan`). Read only, single authorized chat, all others silently ignored.
+- `telegram/watchdog`: runs the five health checks, sends a Telegram message only on a state change. Triggered every 15 min by `freshness-check.yml`.
 - `wallet-profile`, `scanner-stats`, `recipe-performance`, `top-markets`, `deep-dive`, `signals-feed`, `market-radar`, `measure-outcomes`, `agent-readiness`
 
 ### Server-Side Data Fetching
@@ -168,7 +172,7 @@ Fallback chain on cache miss: primary key → fallback key → Supabase query.
 
 Four workflows:
 
-- **`freshness-check.yml`**: every 15 min. Three checks: `/api/cohort-state` age (>1200s fails), latest `cohort_snapshots.snapshot_time` (>2700s fails, catches heartbeat death), latest `wallet_score_history.date` (>48h fails, catches scan or Phase 11 death). Relies on GitHub's default failure email.
+- **`freshness-check.yml`**: every 15 min. Calls `/api/telegram/watchdog`, which owns all five check definitions and sends a Telegram message only when a check changes state. A failed curl means the app itself is unreachable, and GitHub's default failure email covers that case.
 - **`keepalive.yml`**: monthly. Commits a heartbeat file so GitHub's 60-day inactivity rule can never silently disable the scheduled workflows again (it did on 2026-06-22; see docs/audit/2026-08-08-full-audit.md).
 - **`daily-wallet-scan.yml`** — `0 0 * * *` UTC. Discovery, Streams A/C/D, backtests, full scoring for ~500 active wallets (up to 5,000 candidates). Writes Supabase + uploads `scan-summary.json` artifact (7d retention). 50-minute timeout.
 - **`signal-learning.yml`** — `0 1 * * *` UTC (after scan finishes). Runs `scripts/signal-learning.ts` to update outcome stats. 20-minute timeout. Uploads `learning-summary.json` (14d retention).
@@ -233,6 +237,9 @@ KV_URL, KV_REST_API_URL, KV_REST_API_TOKEN, KV_REST_API_READ_ONLY_TOKEN
 HYPERLIQUID_API_URL=https://api.hyperliquid.xyz/info
 NEXT_PUBLIC_POLL_INTERVAL_MS=60000
 CRON_SECRET=                    # required in production; restricts cron endpoint to Vercel scheduler
+TELEGRAM_BOT_TOKEN=             # BotFather token, required in production
+TELEGRAM_CHAT_ID=               # the single authorized chat, all others ignored
+TELEGRAM_WEBHOOK_SECRET=        # registered at setWebhook time
 ```
 
 Backend routes use `SUPABASE_SERVICE_ROLE_KEY` (full access). Client uses anon key.
