@@ -7,7 +7,7 @@
 export const RECIPE_META: Record<string, { label: string; desc: string }> = {
   momentum_stack: {
     label: "Whale Convergence",
-    desc:  "3+ wallets add $500K+ (BTC/ETH) | $250K+ (SOL/HYPE) | $100K+ (alts) same direction in under 5 min",
+    desc:  "3+ wallets add $500K+ (BTC/ETH) | $250K+ (SOL/HYPE) | $100K+ (alts) same direction inside the current detection window",
   },
   divergence_squeeze: {
     label: "Silent Loading",
@@ -19,15 +19,7 @@ export const RECIPE_META: Record<string, { label: string; desc: string }> = {
   },
   rotation_carry: {
     label: "Funded Edge",
-    desc:  "New position in positive-funding perp with >0.03%/hr funding. Win-rate filter activates after 10 signals.",
-  },
-  liq_rebound: {
-    label: "Liquidation Flush",
-    desc:  "Smart Money exposure drops sharply with price move, possible cascade (approx.)",
-  },
-  streak_continuation: {
-    label: "Hot Streak",
-    desc:  "3+ trade win streak with Sharpe proxy above 0.6",
+    desc:  "New position in positive-funding perp with >0.03%/hr funding. Net win-rate filter activates after 10 graded signals.",
   },
   funding_divergence: {
     label: "Smart Money vs. Retail",
@@ -36,33 +28,5 @@ export const RECIPE_META: Record<string, { label: string; desc: string }> = {
   whale_validated: {
     label: "Alpha Confirmation",
     desc:  "Signal confirmed by 3+ high-score wallets (score 0.75+) with fresh position activity",
-  },
-  anti_whale_trap: {
-    label: "Smart Exit Signal",
-    desc:  "High-score wallet cutting 20%+ exposure with low regime fit",
-  },
-  position_aging: {
-    label: "Patience Trap",
-    desc:  "High-score wallet holding losing position 2+ cycles without reducing (re-alerts after 4h)",
-  },
-  concentration_risk: {
-    label: "Crowded Coin",
-    desc:  "60%+ of cohort notional concentrated in one coin (70%+ for ETH)",
-  },
-  wallet_churn: {
-    label: "Coordinated Exit",
-    desc:  "3+ wallets reducing same position, $500K+ (BTC/ETH) | $250K+ (SOL/HYPE) | $100K+ (alts) combined",
-  },
-  funding_trend: {
-    label: "Funding Surge",
-    desc:  "Funding rate rising 3+ consecutive cycles above 0.03%/hr, longs overextended",
-  },
-  bridge_inflow: {
-    label: "Capital Inflow",
-    desc:  "Tracked whale bridged $100K+ into Hyperliquid",
-  },
-  twap_accumulation: {
-    label: "Whale TWAP Active",
-    desc:  "Tracked whale running an active TWAP order",
   },
 };

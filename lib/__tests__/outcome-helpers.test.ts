@@ -45,7 +45,7 @@ describe("buildOutcomeRows", () => {
   it("builds one row per inserted signal using the signal id and allMids price", () => {
     const inserted = [
       { id: "uuid-1", recipe_id: "momentum_stack", coin: "BTC", direction: "LONG" },
-      { id: "uuid-2", recipe_id: "funding_trend",  coin: "ETH", direction: "SHORT" },
+      { id: "uuid-2", recipe_id: "funding_divergence", coin: "ETH", direction: "SHORT" },
     ];
     const allMids: Record<string, string> = { BTC: "65000", ETH: "3200" };
     const rows = buildOutcomeRows(inserted, allMids);

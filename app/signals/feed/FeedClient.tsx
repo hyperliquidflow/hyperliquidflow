@@ -199,8 +199,7 @@ const S = {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const COHORT_RECIPES = new Set([
-  "divergence_squeeze", "liq_rebound", "concentration_risk",
-  "funding_divergence", "funding_trend",
+  "divergence_squeeze", "funding_divergence",
 ]);
 
 const SIGNAL_TYPE_LABEL: Record<string, string> = {
@@ -229,10 +228,9 @@ const EV_COLOR = (score: number) =>
 const STATIC_COINS = ["BTC", "ETH", "SOL", "HYPE", "XMR"];
 
 const RECIPE_GROUPS: Array<{ label: string; ids: string[] }> = [
-  { label: "Momentum",       ids: ["momentum_stack", "accumulation_reentry", "streak_continuation", "whale_validated"] },
-  { label: "Smart Money",     ids: ["divergence_squeeze", "anti_whale_trap", "wallet_churn"] },
-  { label: "Risk",           ids: ["liq_rebound", "position_aging", "concentration_risk"] },
-  { label: "Carry & Funding",ids: ["rotation_carry", "funding_divergence", "funding_trend"] },
+  { label: "Momentum",       ids: ["momentum_stack", "accumulation_reentry"] },
+  { label: "Smart Money",     ids: ["divergence_squeeze", "whale_validated"] },
+  { label: "Carry & Funding",ids: ["rotation_carry", "funding_divergence"] },
 ];
 
 // ─── Portal popup components ───────────────────────────────────────────────────

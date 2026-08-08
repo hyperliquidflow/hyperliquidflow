@@ -75,7 +75,12 @@ const MAX_PROFILE_COINS            = 5;      // top N coins by notional from lat
 // -- Multi-window gates (G11/G12/G13, Sprint R11) ------------------------------
 // Fetch 180d fills only for wallets that already passed G1-G10 (controls API cost).
 const SCORE_STABILITY_THRESHOLD    = 0.25;   // G11 -- reject if max-min score across three windows > this
-const MIN_REGIME_DAYS_G12          = 10;     // G12 -- require >=10 active trading days per regime bucket (180d)
+const MIN_REGIME_DAYS_G12          = 5;      // G12 -- require >=5 active trading days per regime bucket (180d).
+                                             // Was 10, which rejected 134 wallets on 2026-08-08. A regime bucket
+                                             // can be thin simply because BTC spent few days in it.
+const MIN_HISTORY_DAYS_FOR_G12     = 120;    // G12 -- skip the gate entirely for wallets with less than 120 days
+                                             // of fill history. A short-history wallet cannot cover three regimes,
+                                             // so the gate would measure age, not quality.
 const MULTI_WINDOW_DAYS            = 180;    // G13 -- fills window to fetch for G11/G12
 const MULTI_WINDOW_CONCURRENCY     = 4;      // higher throughput is safe here (secondary, post-activation pass)
 const OOCV_TARGET_SIZE             = 400;    // target held-out OOCV sample: stratified random from rejected-but-prequalified
@@ -171,11 +176,31 @@ async function fetchHypurrscanAliases(): Promise<Record<string, string>> {
 
 // -- HTTP helper ---------------------------------------------------------------
 
+// Backoff schedule for HTTP 429 responses: three retries at 2s, 8s, 20s. The
+// 2026-08-08 scan used a single fixed 5s retry and silently dropped 97 wallets
+// on rate limits, which biases the cohort rather than just adding noise.
+const RATE_LIMIT_BACKOFF_MS = [2_000, 8_000, 20_000];
+// Non-429 failures (timeout, transport error) keep the prior single retry.
+const MAX_TRANSIENT_RETRIES = 1;
+
+/** Thrown when every 429 retry is used up, so callers can count these apart from other errors. */
+class RateLimitExhaustedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RateLimitExhaustedError";
+  }
+}
+
+function isRateLimitExhausted(err: unknown): boolean {
+  return err instanceof Error && err.name === "RateLimitExhaustedError";
+}
+
 async function hlPost<T>(body: unknown, timeoutMs = 15_000): Promise<T> {
-  // One retry on 429 with 5s backoff, then give up — ~30% of scored wallets hit 429s
-  // at 3 req/s in the previous run; a single retry after a brief pause recovers most
-  // without killing the budget.
-  for (let attempt = 0; attempt < 2; attempt++) {
+  const maxAttempts = 1 + RATE_LIMIT_BACKOFF_MS.length + MAX_TRANSIENT_RETRIES;
+  let rateLimitRetries = 0;
+  let transientRetries = 0;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
     await new Promise((r) => setTimeout(r, DELAY_BETWEEN_MS));
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -187,16 +212,23 @@ async function hlPost<T>(body: unknown, timeoutMs = 15_000): Promise<T> {
         signal: controller.signal,
       });
       clearTimeout(timer);
-      if (res.status === 429 && attempt === 0) {
-        await new Promise((r) => setTimeout(r, 5000));
+      if (res.status === 429) {
+        if (rateLimitRetries >= RATE_LIMIT_BACKOFF_MS.length) {
+          throw new RateLimitExhaustedError(
+            `HTTP 429: rate limit retries exhausted after ${RATE_LIMIT_BACKOFF_MS.length} backoffs`
+          );
+        }
+        await new Promise((r) => setTimeout(r, RATE_LIMIT_BACKOFF_MS[rateLimitRetries]));
+        rateLimitRetries++;
         continue;
       }
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text()}`);
       return res.json() as Promise<T>;
     } catch (err) {
       clearTimeout(timer);
-      if (attempt === 0) continue;
-      throw err;
+      if (isRateLimitExhausted(err)) throw err;
+      if (transientRetries >= MAX_TRANSIENT_RETRIES) throw err;
+      transientRetries++;
     }
   }
   throw new Error("hlPost: exhausted retries");
@@ -1161,12 +1193,16 @@ async function upsertAttritionStates(): Promise<{ upserted: number }> {
 // Phase 12: For every currently-active wallet, fetch 180d fills (G13 condition),
 // compute score_30d/score_90d/score_180d + regime day counts, then apply:
 //   G11 (score_stability > 0.25) -> deactivate as "score_unstable"
-//   G12 (< 10 active days in any regime bucket) -> deactivate as "low_regime_coverage"
+//   G12 (< 5 active days in any regime bucket) -> deactivate as "low_regime_coverage",
+//        skipped entirely for wallets with less than MIN_HISTORY_DAYS_FOR_G12 of history
 // Stores multi-window score columns and regime_at_day on user_pnl_backtest.
 async function computeMultiWindowGates(): Promise<{
   computed: number;
   g11_deactivated: number;
   g12_deactivated: number;
+  g12_skipped_short_history: number;
+  active_before: number;
+  active_after: number;
 }> {
   // Fetch 180d BTC candles for regime label alignment.
   const windowStart = Date.now() - MULTI_WINDOW_DAYS * 86_400_000;
@@ -1178,7 +1214,15 @@ async function computeMultiWindowGates(): Promise<{
     });
   } catch (err) {
     console.warn("[multi-window] BTC candle fetch failed, skipping Phase 12:", err);
-    return { computed: 0, g11_deactivated: 0, g12_deactivated: 0 };
+    const active = await countActiveWallets();
+    return {
+      computed: 0,
+      g11_deactivated: 0,
+      g12_deactivated: 0,
+      g12_skipped_short_history: 0,
+      active_before: active,
+      active_after: active,
+    };
   }
 
   // Build regime label array aligned oldest-first (matches buildDailyPnlsForWindow index).
@@ -1196,10 +1240,20 @@ async function computeMultiWindowGates(): Promise<{
     .select("id, address")
     .eq("is_active", true);
 
-  if (!activeWallets?.length) return { computed: 0, g11_deactivated: 0, g12_deactivated: 0 };
+  if (!activeWallets?.length) {
+    return {
+      computed: 0,
+      g11_deactivated: 0,
+      g12_deactivated: 0,
+      g12_skipped_short_history: 0,
+      active_before: 0,
+      active_after: 0,
+    };
+  }
 
+  const active_before = activeWallets.length;
   const mwSem = new Semaphore(MULTI_WINDOW_CONCURRENCY);
-  let computed = 0, g11_deactivated = 0, g12_deactivated = 0;
+  let computed = 0, g11_deactivated = 0, g12_deactivated = 0, g12_skipped_short_history = 0;
 
   await Promise.allSettled(
     activeWallets.map(async (wallet) => {
@@ -1240,14 +1294,26 @@ async function computeMultiWindowGates(): Promise<{
 
         computed++;
 
+        // History span drives whether G12 applies at all. A wallet whose first
+        // fill is only weeks old cannot have days in all three regime buckets,
+        // so the gate would reject it for being young rather than for being bad.
+        let earliestFillMs = Date.now();
+        for (const f of fills180) {
+          if (f.time < earliestFillMs) earliestFillMs = f.time;
+        }
+        const historyDays = Math.floor((Date.now() - earliestFillMs) / 86_400_000);
+        const g12Applies  = historyDays >= MIN_HISTORY_DAYS_FOR_G12;
+        if (!g12Applies) g12_skipped_short_history++;
+
+        const regimeShortfall =
+          bull_days    < MIN_REGIME_DAYS_G12 ||
+          bear_days    < MIN_REGIME_DAYS_G12 ||
+          ranging_days < MIN_REGIME_DAYS_G12;
+
         let deactivationReason: string | null = null;
         if (stability > SCORE_STABILITY_THRESHOLD) {
           deactivationReason = "score_unstable";
-        } else if (
-          bull_days    < MIN_REGIME_DAYS_G12 ||
-          bear_days    < MIN_REGIME_DAYS_G12 ||
-          ranging_days < MIN_REGIME_DAYS_G12
-        ) {
+        } else if (g12Applies && regimeShortfall) {
           deactivationReason = "low_regime_coverage";
         }
 
@@ -1286,7 +1352,25 @@ async function computeMultiWindowGates(): Promise<{
     })
   );
 
-  return { computed, g11_deactivated, g12_deactivated };
+  const active_after = await countActiveWallets();
+
+  return {
+    computed,
+    g11_deactivated,
+    g12_deactivated,
+    g12_skipped_short_history,
+    active_before,
+    active_after,
+  };
+}
+
+/** Current count of active wallets. Used for the pre-gate / post-gate figures in the summary. */
+async function countActiveWallets(): Promise<number> {
+  const { count } = await supabase
+    .from("wallets")
+    .select("id", { count: "exact", head: true })
+    .eq("is_active", true);
+  return count ?? 0;
 }
 
 // Phase 13: Stratified random sample from wallets that passed the leaderboard
@@ -1378,6 +1462,9 @@ async function main(): Promise<void> {
     deactivated:  0,
     top_win_rate: 0,
     scan_errors:  0,
+    // Wallets dropped because every 429 retry was used up. Counted apart from
+    // scan_errors so rate limiting is visible as selection bias, not noise.
+    rate_limit_dropped: 0,
     duration_ms:  0,
     discovery_source: "" as string,
     errors:       [] as string[],
@@ -1407,6 +1494,11 @@ async function main(): Promise<void> {
     score_history_written:     0,
     g11_deactivated:           0,
     g12_deactivated:           0,
+    g12_skipped_short_history: 0,
+    // Active wallet counts either side of the Phase 12 G11/G12 gates, so the
+    // cost of gate calibration stays visible run over run.
+    active_before_gates:       0,
+    active_after_gates:        0,
     oocv_sampled:              0,
   };
 
@@ -1562,9 +1654,13 @@ async function main(): Promise<void> {
 
   for (const r of results) {
     if (r.status === "rejected") {
-      summary.scan_errors++;
-      if (summary.errors.length < 20) {
-        summary.errors.push(String(r.reason).slice(0, 200));
+      if (isRateLimitExhausted(r.reason)) {
+        summary.rate_limit_dropped++;
+      } else {
+        summary.scan_errors++;
+        if (summary.errors.length < 20) {
+          summary.errors.push(String(r.reason).slice(0, 200));
+        }
       }
     } else if (r.value.rejection_reason) {
       const reason = r.value.rejection_reason;
@@ -1689,13 +1785,21 @@ async function main(): Promise<void> {
   // (regime_coverage) gates.
   console.log("\n[Phase 12] Multi-window scoring and G11/G12 gates...");
   const mwResult = await computeMultiWindowGates();
-  summary.g11_deactivated = mwResult.g11_deactivated;
-  summary.g12_deactivated = mwResult.g12_deactivated;
+  summary.g11_deactivated           = mwResult.g11_deactivated;
+  summary.g12_deactivated           = mwResult.g12_deactivated;
+  summary.g12_skipped_short_history = mwResult.g12_skipped_short_history;
+  summary.active_before_gates       = mwResult.active_before;
+  summary.active_after_gates        = mwResult.active_after;
   summary.rejection_breakdown.score_unstable      += mwResult.g11_deactivated;
   summary.rejection_breakdown.low_regime_coverage += mwResult.g12_deactivated;
   console.log(
     `[multi-window] computed: ${mwResult.computed}, ` +
-    `G11 deactivated: ${mwResult.g11_deactivated}, G12 deactivated: ${mwResult.g12_deactivated}`
+    `G11 deactivated: ${mwResult.g11_deactivated}, G12 deactivated: ${mwResult.g12_deactivated}, ` +
+    `G12 skipped (short history): ${mwResult.g12_skipped_short_history}`
+  );
+  console.log(
+    `[multi-window] active before gates: ${mwResult.active_before}, ` +
+    `after gates: ${mwResult.active_after}`
   );
 
   // ── Phase 13: OOCV sample ─────────────────────────────────────────────────
@@ -1714,6 +1818,9 @@ async function main(): Promise<void> {
   console.log(`  activated:   ${summary.activated}`);
   console.log(`  rejected:    ${total_rejected}`);
   console.log(`  scan errors: ${summary.scan_errors}`);
+  console.log(`  rate-limit dropped: ${summary.rate_limit_dropped}`);
+  console.log(`  active before gates: ${summary.active_before_gates}`);
+  console.log(`  active after gates:  ${summary.active_after_gates}`);
   console.log("[cohort-quality] Rejection breakdown:");
   for (const [reason, count] of Object.entries(summary.rejection_breakdown)) {
     if (count > 0) console.log(`    ${reason.padEnd(22)} ${count}`);

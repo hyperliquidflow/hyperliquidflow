@@ -1,9 +1,15 @@
 // lib/signal-lab.ts
-// All 9 signal recipes. Each recipe receives the two most recent cohort
-// snapshots for every active wallet and emits zero or more SignalEvent objects.
+// The six surviving signal recipes. Each recipe receives the two most recent
+// cohort snapshots for every active wallet and emits zero or more SignalEvent
+// objects.
+//
+// The 2026-08-08 audit cut nine recipes that were either ungradeable or had
+// negative measured expectancy: position_aging, concentration_risk,
+// funding_trend, streak_continuation, liq_rebound, wallet_churn,
+// anti_whale_trap, bridge_inflow, twap_accumulation.
 //
 // IMPORTANT: Snapshot deltas measure CHANGES IN OPEN POSITIONS, not realized PnL.
-// Realized PnL comes exclusively from userFills.closedPnl — never conflate these.
+// Realized PnL comes exclusively from userFills.closedPnl, never conflate these.
 
 import { randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
@@ -97,6 +103,28 @@ function sign(szi: string): "LONG" | "SHORT" | "FLAT" {
   return "FLAT";
 }
 
+/** Hard ceiling on any cadence-derived pair window. A long outage must not
+ *  stretch the window until "same window" stops meaning anything. */
+export const MAX_PAIR_WINDOW_MS = 2 * 60 * 60 * 1000; // 2 hours
+
+/**
+ * Median gap between prev and curr snapshot times across the pairs given.
+ * This is the real detection cadence. Returns 0 when no pair has a prev
+ * snapshot, which leaves the configured window untouched.
+ */
+export function medianPairGap(pairs: SnapshotPair[]): number {
+  const gaps: number[] = [];
+  for (const { curr, prev } of pairs) {
+    if (!prev) continue;
+    const gap = new Date(curr.snapshot_time).getTime() - new Date(prev.snapshot_time).getTime();
+    if (Number.isFinite(gap) && gap > 0) gaps.push(gap);
+  }
+  if (gaps.length === 0) return 0;
+  gaps.sort((a, b) => a - b);
+  const mid = Math.floor(gaps.length / 2);
+  return gaps.length % 2 === 1 ? gaps[mid] : (gaps[mid - 1] + gaps[mid]) / 2;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Recipe 1 — High-Conviction Momentum Stack
 // ─────────────────────────────────────────────────────────────────────────────
@@ -104,14 +132,22 @@ function sign(szi: string): "LONG" | "SHORT" | "FLAT" {
 // exceeds $500K within the snapshot window. Previously used a per-wallet
 // $500K threshold which was unreachable for most cohort account sizes.
 
-async function recipe1(pairs: SnapshotPair[]): Promise<SignalEvent[]> {
+async function recipe1(pairs: SnapshotPair[], medianPairGapMs: number): Promise<SignalEvent[]> {
   const cfg = await getRecipeConfig("momentum_stack");
   const MIN_WALLETS         = cfg["MIN_WALLETS"]         ?? 3;
   const WALLET_THRESHOLD    = MIN_WALLETS;
   const COMBINED_NOTIONAL   = cfg["COMBINED_NOTIONAL"]   ?? 500_000;
-  const WINDOW_MS           = cfg["WINDOW_MS"]            ?? 300_000;
   const LARGE_MULT          = cfg["NOTIONAL_LARGE_MULT"]  ?? 0.5;
   const SMALL_MULT          = cfg["NOTIONAL_SMALL_MULT"]  ?? 0.2;
+
+  // The pair gap is the real detection cadence. A fixed 300s window meant this
+  // recipe could only fire if two snapshots landed inside 5 minutes, which the
+  // schedule never guaranteed (audit 2026-08-08).
+  const WINDOW_MS       = cfg["WINDOW_MS"] ?? 300_000;
+  const effectiveWindow = Math.min(
+    Math.max(WINDOW_MS, 2 * medianPairGapMs),
+    MAX_PAIR_WINDOW_MS,
+  );
 
   // Coin → direction → { walletIds, totalDelta }
   const buckets = new Map<string, { LONG: { ids: string[]; delta: number }; SHORT: { ids: string[]; delta: number } }>();
@@ -119,7 +155,7 @@ async function recipe1(pairs: SnapshotPair[]): Promise<SignalEvent[]> {
   for (const { walletId, curr, prev } of pairs) {
     if (!prev) continue;
     const timeDiff = new Date(curr.snapshot_time).getTime() - new Date(prev.snapshot_time).getTime();
-    if (timeDiff > WINDOW_MS) continue;
+    if (timeDiff > effectiveWindow) continue;
 
     const currPos = posMap(curr);
     const prevPos = posMap(prev);
@@ -372,8 +408,8 @@ async function recipe3(
 async function recipe4(
   pairs: SnapshotPair[],
   assetCtxMap: Map<string, HlAssetCtx>,
-  recipeWinRates: Map<string, number>,
-  recipeSignalCounts: Map<string, number>
+  recipeNetWinRates: Map<string, number>,
+  recipeGradedCounts: Map<string, number>
 ): Promise<SignalEvent[]> {
   const cfg = await getRecipeConfig("rotation_carry");
   const MIN_FUNDING = cfg["MIN_FUNDING"] ?? 0.0003;           // 0.03%/hr minimum positive funding
@@ -398,11 +434,15 @@ async function recipe4(
       if (funding < MIN_FUNDING) continue; // funding too low
 
       // Check historical follow-through for this recipe.
-      // recipeWinRates keys are recipe IDs only (e.g. "rotation_carry"), not "recipe:coin".
-      // Bootstrap: fire freely until we have 10 historical signals.
-      // After bootstrap, apply the win-rate filter — prevents tuning on zero data.
-      const histWinRate  = recipeWinRates.get("rotation_carry");
-      const histCount    = recipeSignalCounts.get("rotation_carry") ?? 0;
+      // Source is win_rate_net from the newest nightly recipe_performance row,
+      // the fraction of graded outcomes with positive net PnL. The old source,
+      // win_rate, is the intraday ev_score > 0 proxy, so the gate was measuring
+      // our own EV assignment rather than realized outcomes (audit 2026-08-08).
+      // Keys are recipe IDs only (e.g. "rotation_carry"), not "recipe:coin".
+      // Bootstrap: fire freely until 10 graded signals exist, then apply the
+      // filter, which prevents tuning on zero data.
+      const histWinRate  = recipeNetWinRates.get("rotation_carry");
+      const histCount    = recipeGradedCounts.get("rotation_carry") ?? 0;
       const bootstrapped = histCount >= 10;
       if (bootstrapped && (histWinRate ?? 1) < MIN_HISTORICAL_WINRATE) continue;
 
@@ -421,137 +461,6 @@ async function recipe4(
         },
       });
     }
-  }
-  return events;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Recipe 5 — Post-Liquidation Rebound (approximated)
-// ─────────────────────────────────────────────────────────────────────────────
-// Large fills (>$2M notional) within 60s of a cohort-wide >5% position reduction.
-//
-// NOTE: True liquidation cascade detection requires the Hyperliquid WebSocket
-// (orderbook + liquidation stream). This approximation uses cohort position
-// shrinkage + fill volume spike as a proxy. Tagged Phase 3 for WS upgrade.
-
-async function recipe5(
-  pairs: SnapshotPair[],
-  allMids: Record<string, string>,
-  priorAllMids: Record<string, string> | null
-): Promise<SignalEvent[]> {
-  const cfg = await getRecipeConfig("liq_rebound");
-  const POSITION_SHRINK_PCT      = cfg["POSITION_SHRINK_PCT"]   ?? 0.05;   // cohort net notional drops >5%
-  const PRICE_SPIKE_PCT_MAJOR    = cfg["PRICE_SPIKE_PCT_MAJOR"] ?? 0.015;  // BTC/ETH: cascade-level only (was 0.02 flat)
-  const PRICE_SPIKE_PCT_ALT      = cfg["PRICE_SPIKE_PCT_ALT"]   ?? 0.035;  // alts: filter routine volatility
-  const MIN_BEFORE_NOTIONAL      = cfg["MIN_BEFORE_NOTIONAL"]   ?? 1_000_000;
-  const LARGE_MULT               = cfg["NOTIONAL_LARGE_MULT"]   ?? 0.5;
-  const SMALL_MULT               = cfg["NOTIONAL_SMALL_MULT"]   ?? 0.2;
-  const MAJOR_COINS_R5           = new Set(["BTC", "ETH"]);
-  const events: SignalEvent[] = [];
-
-  // Without prior mids we cannot confirm price movement — skip to avoid false fires
-  if (!priorAllMids) return events;
-
-  // Aggregate cohort-level notional delta per coin
-  const coinDelta = new Map<string, { before: number; after: number }>();
-  for (const { curr, prev } of pairs) {
-    if (!prev) continue;
-    const coins = new Set([...posMap(curr).keys(), ...posMap(prev).keys()]);
-    for (const coin of coins) {
-      const currVal = parseFloat(posMap(curr).get(coin)?.positionValue ?? "0");
-      const prevVal = parseFloat(posMap(prev).get(coin)?.positionValue ?? "0");
-      const existing = coinDelta.get(coin) ?? { before: 0, after: 0 };
-      coinDelta.set(coin, {
-        before: existing.before + Math.abs(prevVal),
-        after:  existing.after  + Math.abs(currVal),
-      });
-    }
-  }
-
-  for (const [coin, { before, after }] of coinDelta) {
-    if (before < tieredNotional(MIN_BEFORE_NOTIONAL, coin, LARGE_MULT, SMALL_MULT)) continue;
-    const shrink = (before - after) / before;
-    if (shrink < POSITION_SHRINK_PCT) continue;
-
-    const currentMidStr = allMids[coin];
-    const priorMidStr   = priorAllMids[coin];
-    if (!currentMidStr || !priorMidStr) continue;
-
-    const currentMid = parseFloat(currentMidStr);
-    const priorMid   = parseFloat(priorMidStr);
-    if (priorMid <= 0) continue;
-
-    // Price must have moved meaningfully since the prior cycle to confirm market
-    // stress vs routine de-risking. Threshold is lower for majors (cascade-only)
-    // and higher for alts (filters routine volatility).
-    const priceMove     = Math.abs(currentMid - priorMid) / priorMid;
-    const PRICE_SPIKE_PCT = MAJOR_COINS_R5.has(coin) ? PRICE_SPIKE_PCT_MAJOR : PRICE_SPIKE_PCT_ALT;
-    if (priceMove < PRICE_SPIKE_PCT) continue;
-
-    // Rebound direction: if price dropped → longs got liquidated → LONG rebound
-    const direction: "LONG" | "SHORT" = currentMid < priorMid ? "LONG" : "SHORT";
-
-    events.push({
-      wallet_id:   "", // cohort-level event, no single wallet
-      recipe_id:   "liq_rebound",
-      coin,
-      signal_type: "ALERT",
-      direction,
-      ev_score:    null,
-      metadata: {
-        cohort_notional_before: before,
-        cohort_notional_after:  after,
-        shrink_pct:             shrink,
-        price_move_pct:         priceMove,
-        current_mid:            currentMidStr,
-        prior_mid:              priorMidStr,
-        warning: "APPROXIMATION: true liq cascade detection requires WebSocket (Phase 3)",
-        description: `Cohort ${coin} exposure dropped ${(shrink * 100).toFixed(1)}% + price moved ${(priceMove * 100).toFixed(2)}%. Possible liquidation cascade. ${direction} rebound watch.`,
-      },
-    });
-  }
-  return events;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Recipe 6 — Streak Continuation
-// ─────────────────────────────────────────────────────────────────────────────
-// Wallet on 5+ win streak with Sharpe proxy > 1.8 (normalised > 0.6).
-
-async function recipe6(
-  pairs: SnapshotPair[],
-  backtestMap: Map<string, { win_streak: number; sharpe_ratio: number }>
-): Promise<SignalEvent[]> {
-  const cfg = await getRecipeConfig("streak_continuation");
-  const MIN_STREAK  = cfg["MIN_STREAK"] ?? 5;
-  const MIN_SHARPE  = cfg["MIN_SHARPE"] ?? 0.60;   // normalised (maps to raw ~1.8)
-  const events: SignalEvent[] = [];
-
-  for (const { walletId, curr } of pairs) {
-    const bt = backtestMap.get(walletId);
-    if (!bt) continue;
-    if (bt.win_streak < MIN_STREAK)   continue;
-    if (bt.sharpe_ratio < MIN_SHARPE) continue;
-
-    // Emit for the wallet's largest current position
-    const largest = [...posMap(curr).values()].sort(
-      (a, b) => parseFloat(b.positionValue) - parseFloat(a.positionValue)
-    )[0];
-    if (!largest) continue;
-
-    events.push({
-      wallet_id:   walletId,
-      recipe_id:   "streak_continuation",
-      coin:        largest.coin,
-      signal_type: "ALERT",
-      direction:   sign(largest.szi) === "FLAT" ? null : sign(largest.szi),
-      ev_score:    null,
-      metadata: {
-        win_streak:   bt.win_streak,
-        sharpe_proxy: bt.sharpe_ratio,
-        description:  `Wallet on ${bt.win_streak}-trade win streak, Sharpe proxy ${bt.sharpe_ratio.toFixed(2)}. Holding ${largest.coin}.`,
-      },
-    });
   }
   return events;
 }
@@ -686,331 +595,6 @@ async function recipe8(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Recipe 9 — Anti-Whale Trap
-// ─────────────────────────────────────────────────────────────────────────────
-// Rapid exposure reduction + negative regime score → defensive flat/short signal.
-
-async function recipe9(
-  pairs: SnapshotPair[],
-  regime: "BULL" | "BEAR" | "RANGING"
-): Promise<SignalEvent[]> {
-  const cfg = await getRecipeConfig("anti_whale_trap");
-  const HIGH_SCORE          = cfg["HIGH_SCORE"] ?? 0.70;
-  const REDUCTION_PCT       = cfg["REDUCTION_PCT"] ?? 0.30;
-  const REDUCTION_THRESHOLD = REDUCTION_PCT;
-  const LOW_REGIME_FIT      = 0.35;   // regime_fit below this = danger
-  const events: SignalEvent[] = [];
-
-  for (const { walletId, curr, prev, overallScore } of pairs) {
-    if (!prev) continue;
-    if (overallScore < HIGH_SCORE) continue; // only watch high-score wallets
-
-    const reduction = prev.total_notional > 0
-      ? (prev.total_notional - curr.total_notional) / prev.total_notional
-      : 0;
-    if (reduction < REDUCTION_THRESHOLD) continue;
-
-    const regimeFitLow = (curr.regime_fit ?? 1) < LOW_REGIME_FIT;
-    if (!regimeFitLow) continue;
-
-    // Find the coin with the largest reduction
-    const prevPos = posMap(prev);
-    const currPos = posMap(curr);
-    let biggestCoin = "";
-    let biggestDelta = 0;
-
-    for (const [coin, pPos] of prevPos) {
-      const cPos = currPos.get(coin);
-      const before = parseFloat(pPos.positionValue);
-      const after  = cPos ? parseFloat(cPos.positionValue) : 0;
-      const delta  = before - after;
-      if (delta > biggestDelta) {
-        biggestDelta = delta;
-        biggestCoin  = coin;
-      }
-    }
-
-    events.push({
-      wallet_id:   walletId,
-      recipe_id:   "anti_whale_trap",
-      coin:        biggestCoin || "PORTFOLIO",
-      signal_type: "EXIT",
-      direction:   regime === "BEAR" ? "SHORT" : "FLAT",
-      ev_score:    null,
-      metadata: {
-        notional_reduction_pct: reduction,
-        regime_fit:             curr.regime_fit,
-        current_regime:         regime,
-        description: `High-score wallet rapidly reducing exposure (−${(reduction * 100).toFixed(1)}%) in ${regime} regime. Possible trap exit.`,
-      },
-    });
-  }
-  return events;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Recipe 10 — Position Aging
-// ─────────────────────────────────────────────────────────────────────────────
-// High-score wallet holding a losing position for 2+ consecutive cycles
-// without reducing size — patience trap alert.
-
-async function recipe10(pairs: SnapshotPair[]): Promise<SignalEvent[]> {
-  const HIGH_SCORE           = 0.65;
-  const LOSS_RATIO_THRESHOLD = -0.05;
-  const COOLDOWN_MS          = 4 * 3600 * 1000; // 4 hours
-  const events: SignalEvent[] = [];
-
-  const [underwaterCounts, alertHistory] = await Promise.all([
-    kv.get<Record<string, number>>("cohort:underwater_counts").then((v) => v ?? {}),
-    kv.get<Record<string, number>>("cohort:aging_last_alert").then((v) => v ?? {}),
-  ]);
-  const now = Date.now();
-
-  for (const { walletId, overallScore, curr, prev } of pairs) {
-    if (overallScore < HIGH_SCORE) continue;
-    if (!prev) continue;
-
-    const currPos = posMap(curr);
-    const prevPos = posMap(prev);
-
-    for (const [coin, pos] of currPos) {
-      const key = `${walletId}:${coin}`;
-      const posValue = Math.abs(parseFloat(pos.positionValue));
-      const ratio = parseFloat(pos.unrealizedPnl) / (posValue + 1e-8);
-
-      const prevPosEntry = prevPos.get(coin);
-      const currSzi = Math.abs(parseFloat(pos.szi));
-      const prevSzi = prevPosEntry ? Math.abs(parseFloat(prevPosEntry.szi)) : 0;
-
-      const isUnderwater = ratio <= LOSS_RATIO_THRESHOLD;
-      const notReducing  = currSzi >= prevSzi * 0.95;
-
-      if (isUnderwater && notReducing) {
-        underwaterCounts[key] = (underwaterCounts[key] ?? 0) + 1;
-        const count = underwaterCounts[key];
-        if (count >= 2) {
-          // Cooldown: only re-alert once per 4-hour window per wallet+coin pair
-          if (now - (alertHistory[key] ?? 0) < COOLDOWN_MS) continue;
-          alertHistory[key] = now;
-
-          const dir = sign(pos.szi);
-          events.push({
-            wallet_id:   walletId,
-            recipe_id:   "position_aging",
-            coin,
-            signal_type: "ALERT",
-            direction:   dir === "FLAT" ? null : dir,
-            ev_score:    null,
-            metadata: {
-              unrealized_pnl_ratio: ratio,
-              consecutive_cycles:   count,
-              wallet_score:         overallScore,
-              description: `Wallet holding losing ${coin} position for ${count}+ cycles (unreal PnL ${(ratio * 100).toFixed(1)}%)`,
-            },
-          });
-        }
-      } else {
-        underwaterCounts[key] = 0;
-      }
-    }
-
-    // Reset counts for coins no longer held
-    for (const key of Object.keys(underwaterCounts)) {
-      if (key.startsWith(`${walletId}:`) && !currPos.has(key.slice(walletId.length + 1))) {
-        underwaterCounts[key] = 0;
-      }
-    }
-  }
-
-  kv.set("cohort:underwater_counts", underwaterCounts, { ex: 25 * 3600 }).catch(() => {});
-  kv.set("cohort:aging_last_alert",  alertHistory,     { ex: 25 * 3600 }).catch(() => {});
-
-  return events;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Recipe 11 — Cross-wallet Concentration Risk
-// ─────────────────────────────────────────────────────────────────────────────
-// More than 60% of cohort total notional concentrated in a single coin.
-
-function recipe11(pairs: SnapshotPair[]): SignalEvent[] {
-  const CONCENTRATION_THRESHOLD = 0.60;
-  // BTC is always the dominant cohort holding; concentration there is not a signal.
-  // ETH gets a higher bar since moderate ETH dominance is common but not universal.
-  const EXCLUDED_COINS  = new Set(["BTC"]);
-  const ETH_THRESHOLD   = 0.70;
-
-  // Coin -> total notional + per-wallet breakdown
-  const coinNotional = new Map<string, number>();
-  const walletCoinNotional = new Map<string, Map<string, number>>();
-  let totalCohortNotional = 0;
-
-  for (const { walletId, curr } of pairs) {
-    const wMap = walletCoinNotional.get(walletId) ?? new Map<string, number>();
-    for (const ap of curr.positions) {
-      const coin = ap.position.coin;
-      const val  = Math.abs(parseFloat(ap.position.positionValue));
-      coinNotional.set(coin, (coinNotional.get(coin) ?? 0) + val);
-      wMap.set(coin, (wMap.get(coin) ?? 0) + val);
-      totalCohortNotional += val;
-    }
-    walletCoinNotional.set(walletId, wMap);
-  }
-
-  if (totalCohortNotional === 0) return [];
-
-  const events: SignalEvent[] = [];
-  for (const [coin, notional] of coinNotional) {
-    if (EXCLUDED_COINS.has(coin)) continue;
-    const ratio     = notional / totalCohortNotional;
-    const threshold = coin === "ETH" ? ETH_THRESHOLD : CONCENTRATION_THRESHOLD;
-    if (ratio <= threshold) continue;
-
-    // Top 3 wallets by exposure to this coin
-    const walletExposures: { wallet_id: string; notional: number }[] = [];
-    for (const [walletId, wMap] of walletCoinNotional) {
-      const wNotional = wMap.get(coin) ?? 0;
-      if (wNotional > 0) walletExposures.push({ wallet_id: walletId, notional: wNotional });
-    }
-    walletExposures.sort((a, b) => b.notional - a.notional);
-    const topWallets = walletExposures.slice(0, 3);
-
-    events.push({
-      wallet_id:   "",
-      recipe_id:   "concentration_risk",
-      coin,
-      signal_type: "ALERT",
-      direction:   null,
-      ev_score:    null,
-      metadata: {
-        concentration_pct:      ratio,
-        total_cohort_notional:  totalCohortNotional,
-        top_wallets:            topWallets,
-        description: `${(ratio * 100).toFixed(1)}% of cohort notional in ${coin} -- concentration risk`,
-      },
-    });
-  }
-  return events;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Recipe 12 — Wallet Churn (Coordinated Exit)
-// ─────────────────────────────────────────────────────────────────────────────
-// 3+ wallets simultaneously reducing/closing positions on the same coin,
-// combined notional reduction >= $500K within the snapshot window.
-
-async function recipe12(pairs: SnapshotPair[]): Promise<SignalEvent[]> {
-  const cfg               = await getRecipeConfig("wallet_churn");
-  const WALLET_THRESHOLD  = cfg["WALLET_THRESHOLD"]   ?? 3;
-  const COMBINED_NOTIONAL = cfg["COMBINED_NOTIONAL"]  ?? 500_000;
-  const WINDOW_MS         = cfg["WINDOW_MS"]           ?? 300_000;
-  const LARGE_MULT        = cfg["NOTIONAL_LARGE_MULT"] ?? 0.5;
-  const SMALL_MULT        = cfg["NOTIONAL_SMALL_MULT"] ?? 0.2;
-
-  // Coin → { walletIds, totalReduction, direction }
-  const buckets = new Map<string, { ids: string[]; delta: number; direction: "LONG" | "SHORT" | null }>();
-
-  for (const { walletId, curr, prev } of pairs) {
-    if (!prev) continue;
-    const timeDiff = new Date(curr.snapshot_time).getTime() - new Date(prev.snapshot_time).getTime();
-    if (timeDiff > WINDOW_MS) continue;
-
-    const currPos = posMap(curr);
-    const prevPos = posMap(prev);
-    const allCoins = new Set([...currPos.keys(), ...prevPos.keys()]);
-
-    for (const coin of allCoins) {
-      const cPos = currPos.get(coin);
-      const pPos = prevPos.get(coin);
-      const currVal = cPos ? Math.abs(parseFloat(cPos.positionValue)) : 0;
-      const prevVal = pPos ? Math.abs(parseFloat(pPos.positionValue)) : 0;
-      const delta = currVal - prevVal;
-      if (delta >= 0) continue; // only count reductions
-
-      const dir = pPos ? sign(pPos.szi) : null;
-      if (!dir || dir === "FLAT") continue;
-
-      if (!buckets.has(coin)) buckets.set(coin, { ids: [], delta: 0, direction: dir });
-      const bucket = buckets.get(coin)!;
-      bucket.ids.push(walletId);
-      bucket.delta += delta; // accumulates as negative
-    }
-  }
-
-  const events: SignalEvent[] = [];
-  for (const [coin, { ids, delta, direction }] of buckets) {
-    const threshold = tieredNotional(COMBINED_NOTIONAL, coin, LARGE_MULT, SMALL_MULT);
-    if (ids.length >= WALLET_THRESHOLD && Math.abs(delta) >= threshold) {
-      events.push({
-        wallet_id:   ids[0],
-        recipe_id:   "wallet_churn",
-        coin,
-        signal_type: "EXIT",
-        direction,
-        ev_score:    null,
-        metadata: {
-          wallet_count:       ids.length,
-          wallet_ids:         ids,
-          combined_reduction: Math.abs(delta),
-          description: `${ids.length} wallets reducing ${coin} ${direction} combined $${(Math.abs(delta) / 1e3).toFixed(0)}K`,
-        },
-      });
-    }
-  }
-  return events;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Recipe 13 — Funding Rate Trend
-// ─────────────────────────────────────────────────────────────────────────────
-// Funding rate for a coin rising for 3+ consecutive cycles and above 0.03%/hr.
-
-async function recipe13(
-  assetCtxMap: Map<string, HlAssetCtx>
-): Promise<SignalEvent[]> {
-  const FUNDING_THRESHOLD = 0.0003; // 0.03%/hr
-
-  const coins = [...assetCtxMap.keys()];
-
-  const results = await Promise.all(
-    coins.map(async (coin) => {
-      const ctx = assetCtxMap.get(coin)!;
-      const funding = parseFloat(ctx.funding);
-      const kvKey = `market:funding_history:${coin}`;
-
-      const history = (await kv.get<number[]>(kvKey)) ?? [];
-      history.push(funding);
-      if (history.length > 4) history.shift();
-      kv.set(kvKey, history, { ex: 25 * 3600 }).catch(() => {});
-
-      // Need 3+ readings, current above threshold, all last 3 increasing
-      if (history.length < 3) return null;
-      if (funding <= FUNDING_THRESHOLD) return null;
-      const last3 = history.slice(-3);
-      const allIncreasing = last3[1] > last3[0] && last3[2] > last3[1];
-      if (!allIncreasing) return null;
-
-      const event: SignalEvent = {
-        wallet_id:   "",
-        recipe_id:   "funding_trend",
-        coin,
-        signal_type: "ALERT",
-        direction:   "SHORT", // rising funding = overextended longs = fade
-        ev_score:    null,
-        metadata: {
-          current_funding:  funding,
-          funding_history:  history,
-          description: `${coin} funding rising for 3+ cycles, now ${(funding * 100).toFixed(4)}%. Possible overextended longs.`,
-        },
-      };
-      return event;
-    })
-  );
-
-  return results.filter((r): r is SignalEvent => r !== null);
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // EV enrichment — attach EV scores where backtest data is available
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -1091,12 +675,14 @@ export interface SignalLabInputs {
   candles4h:           Map<string, HlCandle[]>;
   assetCtxMap:         Map<string, HlAssetCtx>;
   allMids:             Record<string, string>;
-  /** allMids from the previous cron cycle, stored in KV. Used by R5 price confirmation. */
-  priorAllMids:        Record<string, string> | null;
   backtestMap:         Map<string, { win_rate: number; avg_win_usd: number; avg_loss_usd: number; win_streak: number; sharpe_ratio: number }>;
   l2Books:             Map<string, HlL2Book>;
-  recipeWinRates:      Map<string, number>;
-  recipeSignalCounts:  Map<string, number>;
+  /** recipe_performance.win_rate_net from the newest nightly row per recipe,
+   *  the fraction of graded outcomes with positive net PnL. Gates rotation_carry. */
+  recipeNetWinRates:   Map<string, number>;
+  /** recipe_performance.sample_size_60d from the same row: graded outcome count.
+   *  rotation_carry's win-rate gate stays bypassed until this reaches 10. */
+  recipeGradedCounts:  Map<string, number>;
   regime:              "BULL" | "BEAR" | "RANGING";
   /** Per-wallet regime profile from wallet_profiles. Optional -- absent = no regime fit annotation. */
   walletProfileMap?:   Map<string, { bull_daily_pnl: number | null; bear_daily_pnl: number | null; ranging_daily_pnl: number | null }>;
@@ -1110,39 +696,33 @@ export interface SignalLabInputs {
 }
 
 /**
- * Run all 9 signal recipes, enrich with EV scores, persist to Supabase.
+ * Run the six surviving signal recipes, enrich with EV scores, persist to Supabase.
  *
  * @param inputs  All market data and cohort state required by recipes
  * @returns Signal events, inserted DB IDs, and the emit timestamp for latency tracking
  */
 export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalLabResult> {
   const {
-    pairs, candles5m, candles4h, assetCtxMap, allMids, priorAllMids,
-    backtestMap, l2Books, recipeWinRates, recipeSignalCounts, regime,
+    pairs, candles5m, candles4h, assetCtxMap, allMids,
+    backtestMap, l2Books, recipeNetWinRates, recipeGradedCounts, regime,
     walletProfileMap,
   } = inputs;
   const walletSignalStatsMap = inputs.walletSignalStatsMap ?? new Map<string, { win_rate_net: number; signal_count: number }>();
 
-  // Run recipes 1-7, 10-13 in parallel (all async now); R8 depends on their output
-  const [r1, r2, r3, r4, r5, r6, r7, r10, r11, r12, r13] = await Promise.all([
-    recipe1(pairs),
+  // Observed detection cadence for this batch. momentum_stack widens its window
+  // from this instead of assuming snapshots land 5 minutes apart.
+  const medianPairGapMs = medianPairGap(pairs);
+
+  // Run the five independent recipes in parallel; whale_validated depends on their output
+  const [r1, r2, r3, r4, r7] = await Promise.all([
+    recipe1(pairs, medianPairGapMs),
     recipe2(pairs, candles5m),
     recipe3(pairs, candles4h),
-    recipe4(pairs, assetCtxMap, recipeWinRates, recipeSignalCounts),
-    recipe5(pairs, allMids, priorAllMids),
-    recipe6(pairs, backtestMap),
+    recipe4(pairs, assetCtxMap, recipeNetWinRates, recipeGradedCounts),
     recipe7(pairs, assetCtxMap),
-    recipe10(pairs),
-    recipe11(pairs),
-    recipe12(pairs),
-    recipe13(assetCtxMap),
   ]);
-  // Recipe 8 validates signals from other recipes; Recipe 9 is independent
-  const preValidation = [...r1, ...r2, ...r3, ...r4, ...r5, ...r6, ...r7, ...r10, ...r11, ...r12, ...r13];
-  const [r8, r9] = await Promise.all([
-    recipe8(pairs, preValidation),
-    recipe9(pairs, regime),
-  ]);
+  const preValidation = [...r1, ...r2, ...r3, ...r4, ...r7];
+  const r8 = await recipe8(pairs, preValidation);
 
   // Exclude original signals that were re-emitted as whale_validated to avoid duplicate
   // feed entries. The whale_validated event preserves original_recipe in its metadata.
@@ -1152,7 +732,7 @@ export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalLabRe
   const dedupedPre = preValidation.filter(
     (s) => !validatedKeys.has(`${s.wallet_id}:${s.coin}:${s.direction ?? ""}`)
   );
-  const allEvents = [...dedupedPre, ...r8, ...r9];
+  const allEvents = [...dedupedPre, ...r8];
 
   // Enrich with EV scores
   const enriched = enrichWithEv(allEvents, backtestMap, l2Books, inputs.recipeCalibrationMap ?? new Map(), walletSignalStatsMap);

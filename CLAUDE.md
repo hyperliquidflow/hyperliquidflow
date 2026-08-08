@@ -61,7 +61,7 @@ Browser (React)
 | File | Purpose |
 |------|---------|
 | `cohort-engine.ts` | Four-factor wallet scoring: Sharpe proxy, PnL consistency, drawdown, regime fit |
-| `signal-lab.ts` | 13 pluggable signal recipes — each takes `SnapshotPair → SignalEvent[]` |
+| `signal-lab.ts` | 6 pluggable signal recipes — each takes `SnapshotPair → SignalEvent[]` |
 | `risk-engine.ts` | EV calculation, liquidation price, margin ratio, Hyperliquid fee schedule |
 | `hyperliquid-api-client.ts` | Raw Hyperliquid API: clearinghouse states, market data, fill history |
 | `cohort-hygiene.ts` | Stream B hygiene gates; deactivates wallets that go quiet, blow up, or stop trading |
@@ -71,7 +71,6 @@ Browser (React)
 | `recipe-config.ts` | Per-recipe tunable config (thresholds, window sizes) |
 | `radar-utils.ts` | Aggregation helpers for the Market Radar view |
 | `hypurrscan-api-client.ts` | Hypurrscan name/label index client |
-| `hypurrscan-enrichment.ts` | Enriches wallet addresses with Hypurrscan labels |
 | `alert-engine.ts` | Core types for wallet-following alerts: `AlertEvent`, `FollowedWallet`, `PaperPosition`, `PositionSnapshot` |
 | `leverage-risk.ts` | Leverage penalty math for scoring V2 (`LeveragePenaltyParams`, blow-up curve) |
 | `signal-validation.ts` | Pure functions for per-wallet and per-signal regime fit scoring |
@@ -180,7 +179,7 @@ All support `workflow_dispatch` for manual runs.
 
 ### Tests
 
-Tests live in `lib/__tests__/*.test.ts`. The setup file (`lib/__tests__/setup.ts`) injects placeholder env vars — no real Supabase or KV credentials needed. Coverage exists for: `cohort-engine`, `utils`, `recipe-config`, `signal-learning`, `outcome-helpers`, `token-tiers`, `radar-utils`, `hypurrscan-api-client`, `hypurrscan-enrichment`. API routes and React components are not unit-tested.
+Tests live in `lib/__tests__/*.test.ts`. The setup file (`lib/__tests__/setup.ts`) injects placeholder env vars — no real Supabase or KV credentials needed. Coverage exists for: `cohort-engine`, `utils`, `recipe-config`, `signal-learning`, `outcome-helpers`, `token-tiers`, `radar-utils`, `hypurrscan-api-client`. API routes and React components are not unit-tested.
 
 Mocking pattern uses `vi.mock()` for `@vercel/kv`, `@supabase/supabase-js`, and `@/lib/env`.
 
@@ -192,7 +191,7 @@ No OAuth on data routes. Auth relies on:
 
 ### Adding Signal Recipes
 
-Add to `lib/signal-lab.ts` following the `(pair: SnapshotPair) => SignalEvent[]` pattern. All 13 existing recipes are registered in the `runSignalLab` function. Add the display label + description to `lib/recipe-meta.ts` (keyed by the recipe ID string).
+Add to `lib/signal-lab.ts` following the `(pair: SnapshotPair) => SignalEvent[]` pattern. All 6 existing recipes are registered in the `runSignalLab` function. Add the display label + description to `lib/recipe-meta.ts` (keyed by the recipe ID string).
 
 ### Nav Structure
 

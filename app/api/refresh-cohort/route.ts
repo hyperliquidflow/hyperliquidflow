@@ -1,5 +1,5 @@
 // app/api/refresh-cohort/route.ts
-// Scores the active cohort, runs the 13-recipe signal lab, writes the KV
+// Scores the active cohort, runs the 6-recipe signal lab, writes the KV
 // snapshot. Triggered by: the daily Vercel cron (00:00 UTC, vercel.json), and
 // by /api/cohort-state firing a background refresh whenever its KV payload is
 // more than 5 minutes stale (driven by the UptimeRobot 5-minute ping).
@@ -33,10 +33,6 @@ import {
   pruneUnderperformers,
 } from "@/lib/cohort-engine";
 import { runSignalLab, type SnapshotPair, type SnapshotRow } from "@/lib/signal-lab";
-import {
-  runBridgeInflowEnrichment,
-  runTwapEnrichment,
-} from "@/lib/hypurrscan-enrichment";
 import { applyHygieneGates, isScanFresh, type HygieneBreakdown } from "@/lib/cohort-hygiene";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -54,15 +50,18 @@ const MAX_WALLETS_PER_CYCLE = 100;
 /** KV key for the cohort cache, read by /api/cohort-state. */
 const KV_COHORT_KEY = "cohort:active";
 
+/** Recipes that still compute and record outcomes but are held back from the
+ *  signal feed. The 2026-08-08 audit measured funding_divergence at a median
+ *  net loss of 316 bps per signal, so showing it would cost anyone who acted
+ *  on it. Reinstate a recipe here once it has 30 graded outcomes with
+ *  non-negative expectancy. */
+const FEED_SUSPENDED_RECIPES = new Set(["funding_divergence"]);
+
 /** KV TTL in seconds. Must exceed the refresh interval + drift budget.
  *  The UptimeRobot ping hits /api/cohort-state every 5 min, which background
  *  refreshes when stale — 600s (10 min) keeps the fast path warm through drift.
  *  A separate fallback key is written with a 24h TTL. */
 const KV_TTL_SECONDS = 600;
-
-/** Prior-mids TTL for Recipe 5 cascade-vs-voluntary-exit check.
- *  Kept short so price comparisons stay meaningful (don't compare to hour-old prices). */
-const PRIOR_MIDS_TTL_SECONDS = 900;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET handler — called by Vercel Cron (also accepts POST for manual trigger)
@@ -118,12 +117,9 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
     cycleWeight += wallets.length * 2; // weight 2 per clearinghouseState
 
     // ── Step 3: Fetch market data (shared across all wallets) ─────────────────
-    // Load prior allMids from KV before fetching fresh — used by Recipe 5
-    // price-confirmation check to distinguish cascade from voluntary exit.
-    const [allMids, metaAndCtxs, priorAllMids] = await Promise.all([
+    const [allMids, metaAndCtxs] = await Promise.all([
       fetchAllMids(),
       fetchMetaAndAssetCtxs(),
-      kv.get<Record<string, string>>("market:prior_mids"),
     ]);
     cycleWeight += 2 + 2; // allMids + metaAndAssetCtxs weight
 
@@ -326,22 +322,27 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       ])
     );
 
-    // ── Step 9: Run all 9 signal recipes ──────────────────────────────────────
+    // ── Step 9: Run the 6 signal recipes ──────────────────────────────────────
+    // win_rate is the intraday ev_score > 0 proxy and does not measure realized
+    // outcomes. Recipe gates read win_rate_net and sample_size_60d, both written
+    // by the nightly learning job, so only rows that carry them are usable.
     const { data: recipePerf } = await supabase
       .from("recipe_performance")
-      .select("recipe_id, win_rate, signal_count")
+      .select("recipe_id, win_rate, win_rate_net, sample_size_60d, signal_count")
       .order("measured_at", { ascending: false })
-      .limit(50);
+      .limit(200);
 
-    const recipeWinRates = new Map(
-      (recipePerf ?? []).map((r) => [r.recipe_id as string, r.win_rate ?? 0])
-    );
-    const recipeSignalCounts = new Map(
-      (recipePerf ?? []).map((r) => [
-        r.recipe_id as string,
-        ((r as Record<string, unknown>).signal_count as number) ?? 0,
-      ])
-    );
+    // Newest nightly row per recipe, meaning the newest row that has graded stats.
+    const recipeNetWinRates  = new Map<string, number>();
+    const recipeGradedCounts = new Map<string, number>();
+    for (const r of recipePerf ?? []) {
+      const id = r.recipe_id as string;
+      if (recipeNetWinRates.has(id)) continue;
+      const netWinRate = (r as Record<string, unknown>).win_rate_net as number | null;
+      if (netWinRate == null) continue;
+      recipeNetWinRates.set(id, netWinRate);
+      recipeGradedCounts.set(id, ((r as Record<string, unknown>).sample_size_60d as number) ?? 0);
+    }
 
     // Load recipe_calibration and wallet_signal_stats for R12 EV decouple
     const [{ data: recipeCalRows }, { data: wssRows }] = await Promise.all([
@@ -382,11 +383,10 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       candles4h,
       assetCtxMap,
       allMids,
-      priorAllMids: priorAllMids ?? null,
       backtestMap,
       l2Books,
-      recipeWinRates,
-      recipeSignalCounts,
+      recipeNetWinRates,
+      recipeGradedCounts,
       regime:              regimeResult.regime,
       walletProfileMap,
       recipeCalibrationMap,
@@ -490,7 +490,7 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       spotlight_positions: spotlightPositions,
       coin_exposure: coinExposure,
       cohort_tilt: cohortTilt,
-      recent_signals: (recentSignals ?? []).map((s) => ({
+      recent_signals: (recentSignals ?? []).filter((s) => !FEED_SUSPENDED_RECIPES.has(s.recipe_id as string)).map((s) => ({
         id:             s.id,
         recipe_id:      s.recipe_id,
         coin:           s.coin,
@@ -505,21 +505,10 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       hygiene_breakdown: lastHygieneBreakdown,
     };
 
-    await Promise.all([
-      kv.set(KV_COHORT_KEY, JSON.stringify(payload), { ex: KV_TTL_SECONDS }),
-      // Store allMids for next cycle's Recipe 5 price-confirmation check
-      kv.set("market:prior_mids", allMids, { ex: PRIOR_MIDS_TTL_SECONDS }),
-    ]);
+    await kv.set(KV_COHORT_KEY, JSON.stringify(payload), { ex: KV_TTL_SECONDS });
     const kvWriteTs = new Date().toISOString();
     // Secondary fallback key: survives cron gaps up to 24h, prevents Supabase fallback on KV miss
     kv.set("cohort:active:fallback", JSON.stringify(payload), { ex: 24 * 3600 }).catch(() => {});
-
-    // Top wallets for TWAP scanning: sort by account_value, take top 20
-    const twapCandidates = [...cohortSummary]
-      .filter((w) => w.account_value >= 250_000)
-      .sort((a, b) => b.account_value - a.account_value)
-      .slice(0, 20)
-      .map((w) => ({ id: w.wallet_id, address: w.address }));
 
     const durationMs = Date.now() - startMs;
 
@@ -571,8 +560,6 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
           console.warn("[hygiene] skipped: last scan older than 48h, pruning with no inflow melts the cohort");
         }
 
-        tasks.push({ name: "runBridgeInflowEnrichment", p: runBridgeInflowEnrichment(wallets.map((w) => ({ id: w.id, address: w.address }))) });
-        tasks.push({ name: "runTwapEnrichment",         p: runTwapEnrichment(twapCandidates) });
         tasks.push({ name: "updateIntradayRecipePerformance", p: updateIntradayRecipePerformance() });
 
         if (emittedIds.length > 0) {
