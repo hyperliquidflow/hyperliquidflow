@@ -7,3 +7,8 @@ process.env.SUPABASE_ANON_KEY = "placeholder-anon-key";
 process.env.KV_REST_API_URL = "https://placeholder.kv.vercel.com";
 process.env.KV_REST_API_TOKEN = "placeholder-token";
 process.env.KV_REST_API_READ_ONLY_TOKEN = "placeholder-readonly-token";
+// Telegram vars use requireInProd, which throws when a test sets
+// NODE_ENV=production before importing lib/env (cron-auth.test.ts does).
+process.env.TELEGRAM_BOT_TOKEN = "placeholder-bot-token";
+process.env.TELEGRAM_CHAT_ID = "123456";
+process.env.TELEGRAM_WEBHOOK_SECRET = "placeholder-webhook-secret";
