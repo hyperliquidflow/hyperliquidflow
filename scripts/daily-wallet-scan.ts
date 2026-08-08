@@ -23,6 +23,7 @@ import {
 } from "../lib/wallet-profile";
 import { computeCohortScoresV2 } from "../lib/cohort-engine";
 import { SHADOW_FORMULA_VERSION } from "../lib/leverage-risk";
+import { buildScoreHistoryRows } from "../lib/score-history";
 
 // -- Environment validation ----------------------------------------------------
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -890,71 +891,6 @@ async function computeWalletProfiles(): Promise<{ computed: number; skipped: num
   return { computed, skipped };
 }
 
-// -- Wallet outcome resolution -------------------------------------------------
-
-async function resolveWalletOutcomes(): Promise<void> {
-  console.log("[wallet-outcomes] resolving open signal outcomes...");
-
-  const { data: openOutcomes, error } = await supabase
-    .from("signal_outcomes")
-    .select("signal_id, price_win, signal_events!inner(wallet_ids, coin, direction)")
-    .eq("wallet_outcome", "OPEN")
-    .limit(500);
-
-  if (error || !openOutcomes || openOutcomes.length === 0) {
-    console.log("[wallet-outcomes] no open outcomes to resolve");
-    return;
-  }
-
-  const allWalletIds = new Set<string>();
-  for (const row of openOutcomes) {
-    const event = Array.isArray(row.signal_events) ? row.signal_events[0] : row.signal_events;
-    for (const wid of (event?.wallet_ids ?? [])) allWalletIds.add(wid);
-  }
-
-  const { data: backtestRows } = await supabase
-    .from("user_pnl_backtest")
-    .select("wallet_id, win_rate, avg_win_usd, avg_loss_usd, profit_factor")
-    .in("wallet_id", [...allWalletIds]);
-
-  const backtestByWallet = new Map(
-    (backtestRows ?? []).map((r) => [r.wallet_id, r])
-  );
-
-  let resolved = 0;
-  for (const row of openOutcomes) {
-    const event = Array.isArray(row.signal_events) ? row.signal_events[0] : row.signal_events;
-    if (!event?.wallet_ids?.length) continue;
-
-    const walletReturns = event.wallet_ids
-      .map((wid: string) => backtestByWallet.get(wid))
-      .filter(Boolean)
-      .map((bt: { win_rate: number; avg_win_usd: number; avg_loss_usd: number }) =>
-        bt.win_rate > 0.5
-          ? bt.avg_win_usd / Math.max(1, bt.avg_win_usd + Math.abs(bt.avg_loss_usd))
-          : -(Math.abs(bt.avg_loss_usd) / Math.max(1, bt.avg_win_usd + Math.abs(bt.avg_loss_usd)))
-      );
-
-    if (walletReturns.length === 0) continue;
-
-    const walletReturnAvg = walletReturns.reduce((a: number, b: number) => a + b, 0) / walletReturns.length;
-    const walletOutcome   = walletReturnAvg > 0 ? "WIN" : "LOSS";
-
-    const { error: updateError } = await supabase
-      .from("signal_outcomes")
-      .update({
-        wallet_return_avg: walletReturnAvg,
-        wallet_outcome:    walletOutcome,
-        is_win:            walletOutcome === "WIN" && row.price_win === true,
-      })
-      .eq("signal_id", row.signal_id);
-
-    if (!updateError) resolved++;
-  }
-
-  console.log(`[wallet-outcomes] resolved ${resolved} of ${openOutcomes.length} open outcomes`);
-}
-
 // -- Leverage stats + G10 gate ------------------------------------------------
 
 async function computeLeverageStats(): Promise<{ computed: number; g10_deactivated: number }> {
@@ -1127,7 +1063,11 @@ async function computeShadowScores(): Promise<{ computed: number }> {
     const { error } = await supabase
       .from("wallets")
       .upsert(chunk, { onConflict: "id" });
-    if (!error) computed += chunk.length;
+    if (error) {
+      console.error("[shadow-scoring] upsert error:", error.message);
+    } else {
+      computed += chunk.length;
+    }
   }
 
   console.log(`[phase-10b] shadow scores: ${computed} computed`);
@@ -1705,8 +1645,6 @@ async function main(): Promise<void> {
     }
   }
 
-  await resolveWalletOutcomes();
-
   // ── Phase 7: Sybil detection ───────────────────────────────────────────────
   if (qualifiedForSybil.size >= 2) {
     console.log(`\n[sybil] Running cluster detection on ${qualifiedForSybil.size} qualified wallets...`);
@@ -1789,44 +1727,57 @@ async function main(): Promise<void> {
 // Snapshots every active wallet's overall_score and today's daily PnL (the most
 // recent element of user_pnl_backtest.daily_pnls) into wallet_score_history.
 // After 31+ days of history, scripts/rank-ic.ts can compute rank IC.
+//
+// Throws on any Supabase error: silent green-while-broken here cost 4 months
+// of rank IC data (audit 2026-08-08, root cause 1: this function used to
+// select wallets.overall_score, a column that does not exist).
 async function writeScoreHistory(): Promise<{ written: number }> {
   const today = new Date().toISOString().slice(0, 10);
 
+  // overall_score lives on cohort_snapshots, NOT wallets.
   const { data: activeWallets, error: walletErr } = await supabase
     .from("wallets")
-    .select("id, overall_score, overall_score_shadow")
-    .eq("is_active", true)
-    .not("overall_score", "is", null);
+    .select("id, overall_score_shadow")
+    .eq("is_active", true);
 
-  if (walletErr) {
-    console.error("[score-history] fetch error:", walletErr.message);
-    return { written: 0 };
-  }
+  if (walletErr) throw new Error(`[score-history] wallet fetch: ${walletErr.message}`);
   if (!activeWallets || activeWallets.length === 0) return { written: 0 };
 
   const walletIds = activeWallets.map((w) => w.id);
 
-  // Fetch daily_pnls for each active wallet; index [SCORING_WINDOW_DAYS-1] = most recent day
-  const { data: backtests } = await supabase
-    .from("user_pnl_backtest")
-    .select("wallet_id, daily_pnls")
-    .in("wallet_id", walletIds);
+  // Chunk the .in() filters: ~500 UUIDs in a single PostgREST query URL risks
+  // a 414. Chunks are disjoint by wallet, and each chunk is sorted newest-first,
+  // so first-occurrence-per-wallet in buildScoreHistoryRows stays correct.
+  const IN_CHUNK = 200;
+  const snapshots: Array<{ wallet_id: string; overall_score: number | null; snapshot_time: string }> = [];
+  const backtests: Array<{ wallet_id: string; daily_pnls: number[] | null }> = [];
+  for (let i = 0; i < walletIds.length; i += IN_CHUNK) {
+    const ids = walletIds.slice(i, i + IN_CHUNK);
 
-  const pnlMap = new Map<string, number>();
-  for (const bt of backtests ?? []) {
-    const arr = bt.daily_pnls as number[] | null;
-    if (Array.isArray(arr) && arr.length > 0) {
-      pnlMap.set(bt.wallet_id, arr[arr.length - 1] ?? 0);
-    }
+    const { data: snapChunk, error: snapErr } = await supabase
+      .from("cohort_snapshots")
+      .select("wallet_id, overall_score, snapshot_time")
+      .in("wallet_id", ids)
+      .order("snapshot_time", { ascending: false })
+      .limit(ids.length * 2);
+    if (snapErr) throw new Error(`[score-history] snapshot fetch: ${snapErr.message}`);
+    snapshots.push(...((snapChunk ?? []) as typeof snapshots));
+
+    const { data: btChunk, error: btErr } = await supabase
+      .from("user_pnl_backtest")
+      .select("wallet_id, daily_pnls")
+      .in("wallet_id", ids);
+    if (btErr) throw new Error(`[score-history] backtest fetch: ${btErr.message}`);
+    backtests.push(...((btChunk ?? []) as typeof backtests));
   }
 
-  const rows = activeWallets.map((w) => ({
-    date:                  today,
-    wallet_id:             w.id,
-    overall_score:         w.overall_score,
-    overall_score_shadow:  (w as Record<string, unknown>).overall_score_shadow as number | null ?? null,
-    daily_pnl_usd:         pnlMap.get(w.id) ?? 0,
-  }));
+  const rows = buildScoreHistoryRows(today, activeWallets, snapshots, backtests);
+
+  if (rows.length === 0) {
+    throw new Error(
+      `[score-history] built 0 rows for ${activeWallets.length} active wallets, no snapshot scores found`
+    );
+  }
 
   let written = 0;
   const CHUNK = 500;
@@ -1835,11 +1786,8 @@ async function writeScoreHistory(): Promise<{ written: number }> {
     const { error } = await supabase
       .from("wallet_score_history")
       .upsert(chunk, { onConflict: "date,wallet_id" });
-    if (error) {
-      console.error("[score-history] upsert error:", error.message);
-    } else {
-      written += chunk.length;
-    }
+    if (error) throw new Error(`[score-history] upsert: ${error.message}`);
+    written += chunk.length;
   }
   return { written };
 }
