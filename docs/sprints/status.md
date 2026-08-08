@@ -5,11 +5,21 @@ At the start of each session, read this file to know where to pick up.
 
 ## Active Sprint
 
-**Sprint 6 — Auth System**  
-Status: NOT STARTED  
-Spec: `docs/superpowers/specs/2026-04-13-sprint-6-auth.md`  
-Plan: not yet  
-Last worked on: n/a
+**Recovery: Phase 0 Clean House and Resurrection (2026-08-08 audit)**  
+Status: IN PROGRESS (started 2026-08-08)  
+Plan: `docs/superpowers/plans/2026-08-08-phase0-clean-house-and-resurrection.md`  
+Roadmap: `docs/superpowers/specs/2026-08-08-rebuild-roadmap.md`  
+Full audit: `docs/audit/2026-08-08-full-audit.md`
+
+The 2026-08-08 audit found the entire measurement layer dead or never-connected:
+all 4 GitHub workflows disabled since 2026-06-22 (60-day inactivity), rank IC at
+0 rows ever (phantom column), the heartbeat (cron-job.org) dead since ~Jul 16,
+cohort melted 493 to 58, learning loop structurally deadlocked. Sprint 6 (Auth)
+and Sprint 7 (UI revision) are deferred until the roadmap's Phase 2 produces a
+prove-or-kill verdict. Sprint 8's data gate was found never met (retention had
+wiped the outcomes); it is superseded by the roadmap. Sprint 2 (Bias Trend) is
+marked COMPLETE below but its feature branch was never merged; it survives on
+`feature/sprint-2-bias-trend`.
 
 ---
 

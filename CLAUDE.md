@@ -42,9 +42,10 @@ Vercel Cron (00:00 UTC daily)   GitHub Actions (daily 00:00 UTC)
                                   ├─ backtests + full scoring
                                   └─ writes Supabase + artifact
 
-GitHub Actions ping (24/7)      GitHub Actions (01:00 UTC daily)
-  keeps signal detection live     scripts/signal-learning.ts
-  by calling /api/refresh-cohort  updates signal_outcomes stats
+UptimeRobot ping (5 min, 24/7)  GitHub Actions (01:00 UTC daily)
+  hits /api/cohort-state, which   scripts/signal-learning.ts
+  background-refreshes the        updates signal_outcomes stats
+  cohort when stale >5 min
 
 Browser (React)
   useQuery("/api/cohort-state") every 60s
@@ -53,7 +54,7 @@ Browser (React)
     └─ fallback to Supabase on KV miss
 ```
 
-**Cron budget:** `/api/refresh-cohort` must complete in ≤10s on Vercel free tier — that's why full cohort scoring lives in the daily GitHub Actions job, not the per-cron ping.
+**Cron budget:** `/api/refresh-cohort` must complete within its 30s `maxDuration` (vercel.json) — that's why full cohort scoring lives in the daily GitHub Actions job, not the per-refresh path.
 
 ### Core Engines (`lib/`)
 
@@ -140,6 +141,7 @@ The `after()` Next.js API is used for fire-and-forget background work (e.g., tri
 | 017 | EV decoupling from scoring |
 | 018 | Shadow scoring columns (`overall_score_shadow`) for V2 canary rollout |
 | 019 | Enable Row Level Security on all tables |
+| 020 | Drop signal_events + rate_limit_tokens; outcome retention 30d to 180d |
 
 ### Key Data Separation
 
@@ -155,8 +157,8 @@ BTC 24h return → BULL (>1%) / BEAR (<-1%) / RANGING. Feeds `regime_fit` factor
 
 | Key | Content | TTL |
 |-----|---------|-----|
-| `cohort:active` | Main cohort snapshot (scores + signals) | ~120s |
-| `cohort:active:fallback` | Backup stale snapshot | longer |
+| `cohort:active` | Main cohort snapshot (scores + signals) | 600s |
+| `cohort:active:fallback` | Backup stale snapshot | 24h |
 | `cohort:cycle_offset` | Rotating window offset for partial cron cycles | persistent |
 | `market-ticker:v4` | Live price/change data | short |
 | `contrarian:latest` | Contrarian signal cache | ~120s |
@@ -167,7 +169,8 @@ Fallback chain on cache miss: primary key → fallback key → Supabase query.
 
 Four workflows:
 
-- **`freshness-check.yml`** — Every 15 min. Hits `/api/cohort-state` and fails if `updated_at` is >1200s stale. Catches silent cron outages; emails repo admins on failure.
+- **`freshness-check.yml`**: every 15 min. Three checks: `/api/cohort-state` age (>1200s fails), latest `cohort_snapshots.snapshot_time` (>2700s fails, catches heartbeat death), latest `wallet_score_history.date` (>48h fails, catches scan or Phase 11 death). Relies on GitHub's default failure email.
+- **`keepalive.yml`**: monthly. Commits a heartbeat file so GitHub's 60-day inactivity rule can never silently disable the scheduled workflows again (it did on 2026-06-22; see docs/audit/2026-08-08-full-audit.md).
 - **`daily-wallet-scan.yml`** — `0 0 * * *` UTC. Discovery, Streams A/C/D, backtests, full scoring for ~500 active wallets (up to 5,000 candidates). Writes Supabase + uploads `scan-summary.json` artifact (7d retention). 50-minute timeout.
 - **`signal-learning.yml`** — `0 1 * * *` UTC (after scan finishes). Runs `scripts/signal-learning.ts` to update outcome stats. 20-minute timeout. Uploads `learning-summary.json` (14d retention).
 
