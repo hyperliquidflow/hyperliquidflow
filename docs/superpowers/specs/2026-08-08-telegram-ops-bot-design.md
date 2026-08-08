@@ -124,7 +124,7 @@ target, three is the ceiling. No em dashes or en dashes, per project copy rules.
 ```
 /status
 All green
-Cohort 77, data 2m, scan 6h ago
+Cohort 77, data 2m old
 
 alert
 BROKEN: heartbeat dead
@@ -180,6 +180,9 @@ New:
   fetched values, returns verdicts. No network calls, so it is fully unit
   testable.
 - `lib/auth/telegram.ts`, webhook secret verification.
+- `lib/server/telegram-io.ts`, every read the bot performs: check inputs, KV
+  alert state, and the per command queries. Isolating I/O here is what lets
+  `lib/watchdog.ts` stay pure and `lib/telegram.ts` stay copy-only.
 - `app/api/telegram/webhook/route.ts`, inbound command handling.
 - `app/api/telegram/watchdog/route.ts`, fetch, evaluate, diff, send.
 - `scripts/notify-scan-digest.ts`, reads `scan-summary.json` for `discovered`,
