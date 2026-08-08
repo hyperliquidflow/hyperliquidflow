@@ -1030,7 +1030,12 @@ function enrichWithEv(
   recipeCalibrationMap: Map<string, { win_rate: number; sample_size_30d: number }>,
   walletSignalStatsMap: Map<string, { win_rate_net: number; signal_count: number }>
 ): SignalEvent[] {
-  return events.map((event) => {
+  // Track how much EV is still priced off backtest data rather than measured
+  // outcomes. Silent fallback hid four months of circular pricing.
+  let backtestFallbacks = 0;
+  let priced = 0;
+
+  const enriched = events.map((event) => {
     const bt = event.wallet_id ? backtestMap.get(event.wallet_id) : null;
     if (!bt || bt.win_rate === 0) return event;
 
@@ -1049,6 +1054,9 @@ function enrichWithEv(
     const wss = walletSignalStatsMap.get(walletKey);
     const walletWinRate = wss ? wss.win_rate_net : bt.win_rate;
 
+    priced++;
+    if (!wss && recipeWinRate === null) backtestFallbacks++;
+
     const blendedWinRate = recipeWinRate !== null
       ? RECIPE_WEIGHT * recipeWinRate + WALLET_WEIGHT * walletWinRate
       : walletWinRate;
@@ -1062,6 +1070,15 @@ function enrichWithEv(
 
     return { ...event, ev_score: ev.is_reliable ? ev.ev_score : null };
   });
+
+  if (priced > 0) {
+    console.log(
+      `[ev] priced ${priced} signals, ${backtestFallbacks} from backtest fallback ` +
+      `(no measured calibration or wallet stats yet)`
+    );
+  }
+
+  return enriched;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

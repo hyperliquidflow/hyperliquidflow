@@ -35,6 +35,21 @@ jobs:
           HYPERLIQUID_API_URL: ${{ secrets.HYPERLIQUID_API_URL }}
         run: npx tsx scripts/signal-learning.ts
 
+      # Fills recipe_calibration and wallet_signal_stats from graded outcomes.
+      # This step was documented in the script header since April but never
+      # existed, so EV pricing fell back to backtest win rate for four months
+      # (audit 2026-08-08).
+      - name: Update wallet and recipe signal stats
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          KV_REST_API_URL: ${{ secrets.KV_REST_API_URL }}
+          KV_REST_API_TOKEN: ${{ secrets.KV_REST_API_TOKEN }}
+          KV_REST_API_READ_ONLY_TOKEN: ${{ secrets.KV_REST_API_READ_ONLY_TOKEN }}
+          HYPERLIQUID_API_URL: ${{ secrets.HYPERLIQUID_API_URL }}
+        run: npx tsx scripts/wallet-signal-stats.ts
+
       - name: Upload learning summary artifact
         if: always()
         uses: actions/upload-artifact@v4
