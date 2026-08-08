@@ -6,14 +6,47 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const DEACTIVATION_EQUITY_FLOOR    = 10_000;
-const EQUITY_GRACE_CYCLES          = 3;
 const MIN_LIQ_BUFFER               = 0.05;
-const LIQ_BUFFER_GRACE_CYCLES      = 2;
 const MAX_7D_DRAWDOWN              = 0.50;
 const MIN_DRAWDOWN_SNAPSHOTS       = 3;
 const MAX_CYCLE_DEACTIVATION_PCT   = 0.25;
 const SNAPSHOT_FRESHNESS_MS        = 30 * 60_000;
 const IDLE_THRESHOLD_MS            = 3 * 24 * 60 * 60_000;
+
+/**
+ * Grace for the equity and liq-buffer gates is expressed in WALL-CLOCK time, not
+ * in refresh cycles. Do not convert these back to fixed cycle counts.
+ *
+ * Why: the counters (low_equity_cycles, low_buffer_cycles) tick once per refresh,
+ * so a fixed threshold silently changes meaning whenever the refresh cadence
+ * changes. On 2026-08-08 the heartbeat was restored and cadence went from roughly
+ * once per day (during the months-long outage) to once per 5 minutes. The old
+ * constants, 3 and 2 cycles, therefore went from about 3 days of grace to about
+ * 15 minutes, a 288x tightening nobody chose. Within 3 hours that deactivated 31
+ * wallets as low_equity and 19 as liq_imminent, and they could not return until
+ * the next nightly scan, which capped cohort size and so capped signal volume.
+ *
+ * The thresholds below are converted into a cycle count at runtime from the
+ * observed snapshot cadence, so their meaning is independent of how often the
+ * refresh runs. Floors match the historic cycle counts so behavior can never
+ * become more trigger-happy than it was; ceilings stop a pathological cadence
+ * (very frequent snapshots) from making a failing wallet effectively immortal.
+ */
+const EQUITY_GRACE_MS              = 6 * 60 * 60_000;   // 6 hours
+const LIQ_BUFFER_GRACE_MS          = 2 * 60 * 60_000;   // 2 hours, liq risk is more urgent
+const EQUITY_GRACE_CYCLES_MIN      = 3;                 // historic fixed count, also the fallback
+const EQUITY_GRACE_CYCLES_MAX      = 72;
+const LIQ_BUFFER_GRACE_CYCLES_MIN  = 2;                 // historic fixed count, also the fallback
+const LIQ_BUFFER_GRACE_CYCLES_MAX  = 24;
+
+export const GRACE_TUNING = {
+  equityGraceMs:        EQUITY_GRACE_MS,
+  liqBufferGraceMs:     LIQ_BUFFER_GRACE_MS,
+  equityCyclesMin:      EQUITY_GRACE_CYCLES_MIN,
+  equityCyclesMax:      EQUITY_GRACE_CYCLES_MAX,
+  liqBufferCyclesMin:   LIQ_BUFFER_GRACE_CYCLES_MIN,
+  liqBufferCyclesMax:   LIQ_BUFFER_GRACE_CYCLES_MAX,
+} as const;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -104,6 +137,50 @@ export function failsDrawdownGate(
   return maxDD > maxDrawdown;
 }
 
+/**
+ * Median gap in ms between consecutive snapshot timestamps, the observed refresh
+ * cadence for one wallet. Returns null when fewer than 2 usable timestamps are
+ * present, which is the caller's signal to fall back to the fixed cycle counts.
+ */
+export function medianSnapshotGapMs(snapshotTimes: string[]): number | null {
+  const times = snapshotTimes
+    .map((t) => new Date(t).getTime())
+    .filter((t) => Number.isFinite(t))
+    .sort((a, b) => a - b);
+
+  if (times.length < 2) return null;
+
+  const gaps: number[] = [];
+  for (let i = 1; i < times.length; i++) {
+    const gap = times[i] - times[i - 1];
+    if (gap > 0) gaps.push(gap);
+  }
+  if (gaps.length === 0) return null;
+
+  gaps.sort((a, b) => a - b);
+  const mid = Math.floor(gaps.length / 2);
+  return gaps.length % 2 === 1 ? gaps[mid] : (gaps[mid - 1] + gaps[mid]) / 2;
+}
+
+/**
+ * Converts a wall-clock grace target into a cycle count for the observed cadence:
+ * clamp(ceil(graceMs / medianGapMs), floorCycles, ceilingCycles).
+ * A null or non-positive median gap means cadence is unknown, so the floor (the
+ * historic fixed cycle count) is used.
+ */
+export function requiredGraceCycles(
+  medianGapMs:   number | null,
+  graceMs:       number,
+  floorCycles:   number,
+  ceilingCycles: number,
+): number {
+  if (medianGapMs === null || !Number.isFinite(medianGapMs) || medianGapMs <= 0) {
+    return floorCycles;
+  }
+  const raw = Math.ceil(graceMs / medianGapMs);
+  return Math.min(Math.max(raw, floorCycles), ceilingCycles);
+}
+
 /** Computes next grace counter value.
  *  Stale snapshot: hold current. Fresh + failing: increment. Fresh + passing: reset to 0. */
 export function nextGraceCycles(
@@ -172,9 +249,12 @@ export async function applyHygieneGates(
   if (seriesErr) throw new Error(`[hygiene] 7d-series query failed: ${seriesErr.message}`);
 
   const seriesByWallet = new Map<string, number[]>();
+  const snapTimesByWallet = new Map<string, string[]>();
   for (const row of seriesRows ?? []) {
     if (!seriesByWallet.has(row.wallet_id)) seriesByWallet.set(row.wallet_id, []);
     seriesByWallet.get(row.wallet_id)!.push(row.account_value);
+    if (!snapTimesByWallet.has(row.wallet_id)) snapTimesByWallet.set(row.wallet_id, []);
+    snapTimesByWallet.get(row.wallet_id)!.push(row.snapshot_time);
   }
 
   // 3. Current grace counters
@@ -218,9 +298,19 @@ export async function applyHygieneGates(
       continue;
     }
 
+    // Grace thresholds are derived per wallet from its observed snapshot cadence
+    // so that "6 hours of grace" stays 6 hours whatever the refresh interval is.
+    const gapMs = medianSnapshotGapMs(snapTimesByWallet.get(walletId) ?? []);
+    const equityThreshold = requiredGraceCycles(
+      gapMs, EQUITY_GRACE_MS, EQUITY_GRACE_CYCLES_MIN, EQUITY_GRACE_CYCLES_MAX,
+    );
+    const bufferThreshold = requiredGraceCycles(
+      gapMs, LIQ_BUFFER_GRACE_MS, LIQ_BUFFER_GRACE_CYCLES_MIN, LIQ_BUFFER_GRACE_CYCLES_MAX,
+    );
+
     // Equity gate
     const equityFailing = failsEquityGate(snap.account_value);
-    const equityResult  = nextGraceCycles(grace.low_equity_cycles, equityFailing, fresh, EQUITY_GRACE_CYCLES);
+    const equityResult  = nextGraceCycles(grace.low_equity_cycles, equityFailing, fresh, equityThreshold);
 
     if (equityResult.deactivate) {
       toDeactivate.push({ wallet_id: walletId, reason: "low_equity" });
@@ -229,7 +319,7 @@ export async function applyHygieneGates(
 
     // Liq-buffer gate
     const bufferFailing = failsLiqBufferGate(snap.liq_buffer_pct, snap.position_count);
-    const bufferResult  = nextGraceCycles(grace.low_buffer_cycles, bufferFailing, fresh, LIQ_BUFFER_GRACE_CYCLES);
+    const bufferResult  = nextGraceCycles(grace.low_buffer_cycles, bufferFailing, fresh, bufferThreshold);
 
     if (bufferResult.deactivate) {
       toDeactivate.push({ wallet_id: walletId, reason: "liq_imminent" });

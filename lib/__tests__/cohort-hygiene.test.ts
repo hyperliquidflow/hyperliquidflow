@@ -57,12 +57,35 @@ import {
   failsDrawdownGate,
   failsIdleGate,
   nextGraceCycles,
+  medianSnapshotGapMs,
+  requiredGraceCycles,
+  GRACE_TUNING,
   applyHygieneGates,
 } from "../cohort-hygiene";
 
 const NOW = 1_000_000_000_000; // fixed reference ms
 const ago = (ms: number) => new Date(NOW - ms).toISOString();
 const MIN = 60_000;
+const HOUR = 60 * MIN;
+const DAY_MS = 24 * HOUR;
+
+/** Snapshot rows for the 7d-series query at a fixed cadence, oldest first. */
+const seriesAt = (walletId: string, gapMs: number, count: number, accountValue: number) =>
+  Array.from({ length: count }, (_, i) => ({
+    wallet_id: walletId,
+    account_value: accountValue,
+    snapshot_time: ago((count - 1 - i) * gapMs),
+  }));
+
+const healthySnap = (id: string) => ({
+  wallet_id: id,
+  account_value: 100_000,
+  liq_buffer_pct: 0.3,
+  position_count: 0,
+  snapshot_time: ago(5 * MIN),
+});
+
+const zeroGrace = (id: string) => ({ id, low_equity_cycles: 0, low_buffer_cycles: 0 });
 
 describe("isSnapshotFresh", () => {
   it("returns true at exactly 30 min", () => {
@@ -191,6 +214,73 @@ describe("nextGraceCycles", () => {
   });
   it("respects threshold of 1 (deactivate on first fresh failure)", () => {
     expect(nextGraceCycles(0, true, true, 1)).toEqual({ next: 1, deactivate: true });
+  });
+});
+
+describe("medianSnapshotGapMs", () => {
+  it("returns null for an empty list", () => {
+    expect(medianSnapshotGapMs([])).toBe(null);
+  });
+  it("returns null for a single snapshot", () => {
+    expect(medianSnapshotGapMs([ago(0)])).toBe(null);
+  });
+  it("returns the gap for two snapshots", () => {
+    expect(medianSnapshotGapMs([ago(10 * MIN), ago(5 * MIN)])).toBe(5 * MIN);
+  });
+  it("returns the median of an odd number of gaps", () => {
+    // gaps: 5m, 10m, 5m -> sorted 5m, 5m, 10m -> median 5m
+    expect(
+      medianSnapshotGapMs([ago(20 * MIN), ago(15 * MIN), ago(5 * MIN), ago(0)]),
+    ).toBe(5 * MIN);
+  });
+  it("averages the two middle gaps for an even count", () => {
+    // gaps: 5m, 15m -> median 10m
+    expect(medianSnapshotGapMs([ago(20 * MIN), ago(15 * MIN), ago(0)])).toBe(10 * MIN);
+  });
+  it("ignores unparseable timestamps", () => {
+    expect(medianSnapshotGapMs(["not-a-date", ago(10 * MIN), ago(5 * MIN)])).toBe(5 * MIN);
+  });
+  it("returns null when every timestamp is identical (no positive gap)", () => {
+    expect(medianSnapshotGapMs([ago(5 * MIN), ago(5 * MIN), ago(5 * MIN)])).toBe(null);
+  });
+  it("is order independent", () => {
+    expect(medianSnapshotGapMs([ago(0), ago(10 * MIN), ago(5 * MIN)])).toBe(5 * MIN);
+  });
+});
+
+describe("requiredGraceCycles", () => {
+  const { equityGraceMs, liqBufferGraceMs, equityCyclesMin, equityCyclesMax, liqBufferCyclesMin, liqBufferCyclesMax } =
+    GRACE_TUNING;
+
+  it("converts a 5 minute cadence into 6 hours of equity grace", () => {
+    expect(requiredGraceCycles(5 * MIN, equityGraceMs, equityCyclesMin, equityCyclesMax)).toBe(72);
+  });
+  it("converts a 5 minute cadence into 2 hours of liq-buffer grace", () => {
+    expect(requiredGraceCycles(5 * MIN, liqBufferGraceMs, liqBufferCyclesMin, liqBufferCyclesMax)).toBe(24);
+  });
+  it("converts a 30 minute cadence into 12 equity cycles and 4 buffer cycles", () => {
+    expect(requiredGraceCycles(30 * MIN, equityGraceMs, equityCyclesMin, equityCyclesMax)).toBe(12);
+    expect(requiredGraceCycles(30 * MIN, liqBufferGraceMs, liqBufferCyclesMin, liqBufferCyclesMax)).toBe(4);
+  });
+  it("clamps a daily cadence to the historic floors", () => {
+    expect(requiredGraceCycles(DAY_MS, equityGraceMs, equityCyclesMin, equityCyclesMax)).toBe(equityCyclesMin);
+    expect(requiredGraceCycles(DAY_MS, liqBufferGraceMs, liqBufferCyclesMin, liqBufferCyclesMax)).toBe(liqBufferCyclesMin);
+  });
+  it("clamps a 1 minute cadence to the ceilings", () => {
+    expect(requiredGraceCycles(1 * MIN, equityGraceMs, equityCyclesMin, equityCyclesMax)).toBe(equityCyclesMax);
+    expect(requiredGraceCycles(1 * MIN, liqBufferGraceMs, liqBufferCyclesMin, liqBufferCyclesMax)).toBe(liqBufferCyclesMax);
+  });
+  it("falls back to the floor when the cadence is unknown", () => {
+    expect(requiredGraceCycles(null, equityGraceMs, equityCyclesMin, equityCyclesMax)).toBe(equityCyclesMin);
+    expect(requiredGraceCycles(null, liqBufferGraceMs, liqBufferCyclesMin, liqBufferCyclesMax)).toBe(liqBufferCyclesMin);
+  });
+  it("falls back to the floor for a zero or negative gap", () => {
+    expect(requiredGraceCycles(0, equityGraceMs, equityCyclesMin, equityCyclesMax)).toBe(equityCyclesMin);
+    expect(requiredGraceCycles(-1, equityGraceMs, equityCyclesMin, equityCyclesMax)).toBe(equityCyclesMin);
+  });
+  it("rounds a partial cycle up so grace is never short", () => {
+    // 7 minute cadence: 6h / 7m = 51.4 -> 52
+    expect(requiredGraceCycles(7 * MIN, equityGraceMs, equityCyclesMin, equityCyclesMax)).toBe(52);
   });
 });
 
@@ -671,6 +761,226 @@ describe("applyHygieneGates", () => {
 
     await expect(applyHygieneGates(["wA", "wB", "wC", "wD"])).rejects.toThrow(/sanity abort/);
     expect(mockWalletUpdates).toHaveLength(0);
+  });
+
+  it("holds a low-equity wallet at the old 3-cycle count when snapshots arrive every 5 min", async () => {
+    // 5 min cadence -> 6h of grace = 72 cycles. Under the old fixed count of 3
+    // this wallet would have been deactivated after roughly 15 minutes.
+    mockSnapshotResponses = [
+      {
+        data: [
+          { wallet_id: "w1", account_value: 5_000, liq_buffer_pct: null, position_count: 0, snapshot_time: ago(1 * MIN) },
+          healthySnap("w2"), healthySnap("w3"), healthySnap("w4"),
+        ],
+        error: null,
+      },
+      { data: seriesAt("w1", 5 * MIN, 12, 5_000), error: null },
+    ];
+    mockWalletResponses = [
+      {
+        data: [
+          { id: "w1", low_equity_cycles: 3, low_buffer_cycles: 0 },
+          zeroGrace("w2"), zeroGrace("w3"), zeroGrace("w4"),
+        ],
+        error: null,
+      },
+    ];
+
+    const result = await applyHygieneGates(["w1", "w2", "w3", "w4"]);
+
+    expect(result.deactivated).toEqual([]);
+    const counterUpdate = mockWalletUpdates.find(
+      (u) => u.payload.low_equity_cycles === 4 && u.payload.is_active === undefined,
+    );
+    expect(counterUpdate?.ids).toEqual(["w1"]);
+  });
+
+  it("deactivates low_equity at 72 cycles when snapshots arrive every 5 min", async () => {
+    mockSnapshotResponses = [
+      {
+        data: [
+          { wallet_id: "w1", account_value: 5_000, liq_buffer_pct: null, position_count: 0, snapshot_time: ago(1 * MIN) },
+          healthySnap("w2"), healthySnap("w3"), healthySnap("w4"),
+        ],
+        error: null,
+      },
+      { data: seriesAt("w1", 5 * MIN, 12, 5_000), error: null },
+    ];
+    mockWalletResponses = [
+      {
+        data: [
+          { id: "w1", low_equity_cycles: 71, low_buffer_cycles: 0 },
+          zeroGrace("w2"), zeroGrace("w3"), zeroGrace("w4"),
+        ],
+        error: null,
+      },
+    ];
+
+    const result = await applyHygieneGates(["w1", "w2", "w3", "w4"]);
+
+    expect(result.deactivated).toEqual([{ wallet_id: "w1", reason: "low_equity" }]);
+  });
+
+  it("clamps to the 3-cycle floor for low_equity when snapshots arrive daily", async () => {
+    mockSnapshotResponses = [
+      {
+        data: [
+          { wallet_id: "w1", account_value: 5_000, liq_buffer_pct: null, position_count: 0, snapshot_time: ago(1 * MIN) },
+          healthySnap("w2"), healthySnap("w3"), healthySnap("w4"),
+        ],
+        error: null,
+      },
+      { data: seriesAt("w1", DAY_MS, 6, 5_000), error: null },
+    ];
+    mockWalletResponses = [
+      {
+        data: [
+          { id: "w1", low_equity_cycles: 2, low_buffer_cycles: 0 },
+          zeroGrace("w2"), zeroGrace("w3"), zeroGrace("w4"),
+        ],
+        error: null,
+      },
+    ];
+
+    const result = await applyHygieneGates(["w1", "w2", "w3", "w4"]);
+
+    expect(result.deactivated).toEqual([{ wallet_id: "w1", reason: "low_equity" }]);
+  });
+
+  it("holds a low-buffer wallet at the old 2-cycle count when snapshots arrive every 5 min", async () => {
+    mockSnapshotResponses = [
+      {
+        data: [
+          { wallet_id: "w1", account_value: 100_000, liq_buffer_pct: 0.03, position_count: 3, snapshot_time: ago(1 * MIN) },
+          healthySnap("w2"), healthySnap("w3"), healthySnap("w4"),
+        ],
+        error: null,
+      },
+      { data: seriesAt("w1", 5 * MIN, 12, 100_000), error: null },
+    ];
+    mockWalletResponses = [
+      {
+        data: [
+          { id: "w1", low_equity_cycles: 0, low_buffer_cycles: 2 },
+          zeroGrace("w2"), zeroGrace("w3"), zeroGrace("w4"),
+        ],
+        error: null,
+      },
+    ];
+
+    const result = await applyHygieneGates(["w1", "w2", "w3", "w4"]);
+
+    expect(result.deactivated).toEqual([]);
+    const counterUpdate = mockWalletUpdates.find(
+      (u) => u.payload.low_buffer_cycles === 3 && u.payload.is_active === undefined,
+    );
+    expect(counterUpdate?.ids).toEqual(["w1"]);
+  });
+
+  it("deactivates liq_imminent at 24 cycles when snapshots arrive every 5 min", async () => {
+    mockSnapshotResponses = [
+      {
+        data: [
+          { wallet_id: "w1", account_value: 100_000, liq_buffer_pct: 0.03, position_count: 3, snapshot_time: ago(1 * MIN) },
+          healthySnap("w2"), healthySnap("w3"), healthySnap("w4"),
+        ],
+        error: null,
+      },
+      { data: seriesAt("w1", 5 * MIN, 12, 100_000), error: null },
+    ];
+    mockWalletResponses = [
+      {
+        data: [
+          { id: "w1", low_equity_cycles: 0, low_buffer_cycles: 23 },
+          zeroGrace("w2"), zeroGrace("w3"), zeroGrace("w4"),
+        ],
+        error: null,
+      },
+    ];
+
+    const result = await applyHygieneGates(["w1", "w2", "w3", "w4"]);
+
+    expect(result.deactivated).toEqual([{ wallet_id: "w1", reason: "liq_imminent" }]);
+  });
+
+  it("clamps to the ceiling when snapshots arrive every minute", async () => {
+    // 1 min cadence would ask for 360 equity cycles, the ceiling caps it at 72.
+    mockSnapshotResponses = [
+      {
+        data: [
+          { wallet_id: "w1", account_value: 5_000, liq_buffer_pct: null, position_count: 0, snapshot_time: ago(30_000) },
+          healthySnap("w2"), healthySnap("w3"), healthySnap("w4"),
+        ],
+        error: null,
+      },
+      { data: seriesAt("w1", 1 * MIN, 20, 5_000), error: null },
+    ];
+    mockWalletResponses = [
+      {
+        data: [
+          { id: "w1", low_equity_cycles: 71, low_buffer_cycles: 0 },
+          zeroGrace("w2"), zeroGrace("w3"), zeroGrace("w4"),
+        ],
+        error: null,
+      },
+    ];
+
+    const result = await applyHygieneGates(["w1", "w2", "w3", "w4"]);
+
+    expect(result.deactivated).toEqual([{ wallet_id: "w1", reason: "low_equity" }]);
+  });
+
+  it("falls back to the fixed cycle counts when a wallet has no snapshot history", async () => {
+    // No 7d series rows -> cadence unknown -> equity threshold stays at 3.
+    mockSnapshotResponses = [
+      {
+        data: [
+          { wallet_id: "w1", account_value: 5_000, liq_buffer_pct: null, position_count: 0, snapshot_time: ago(1 * MIN) },
+          healthySnap("w2"), healthySnap("w3"), healthySnap("w4"),
+        ],
+        error: null,
+      },
+      { data: [], error: null },
+    ];
+    mockWalletResponses = [
+      {
+        data: [
+          { id: "w1", low_equity_cycles: 2, low_buffer_cycles: 0 },
+          zeroGrace("w2"), zeroGrace("w3"), zeroGrace("w4"),
+        ],
+        error: null,
+      },
+    ];
+
+    const result = await applyHygieneGates(["w1", "w2", "w3", "w4"]);
+
+    expect(result.deactivated).toEqual([{ wallet_id: "w1", reason: "low_equity" }]);
+  });
+
+  it("falls back to the fixed cycle counts when a wallet has a single snapshot", async () => {
+    mockSnapshotResponses = [
+      {
+        data: [
+          { wallet_id: "w1", account_value: 5_000, liq_buffer_pct: null, position_count: 0, snapshot_time: ago(1 * MIN) },
+          healthySnap("w2"), healthySnap("w3"), healthySnap("w4"),
+        ],
+        error: null,
+      },
+      { data: seriesAt("w1", 5 * MIN, 1, 5_000), error: null },
+    ];
+    mockWalletResponses = [
+      {
+        data: [
+          { id: "w1", low_equity_cycles: 2, low_buffer_cycles: 0 },
+          zeroGrace("w2"), zeroGrace("w3"), zeroGrace("w4"),
+        ],
+        error: null,
+      },
+    ];
+
+    const result = await applyHygieneGates(["w1", "w2", "w3", "w4"]);
+
+    expect(result.deactivated).toEqual([{ wallet_id: "w1", reason: "low_equity" }]);
   });
 
   it("throws when the latest-snapshot query errors", async () => {
