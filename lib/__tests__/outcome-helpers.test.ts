@@ -1,6 +1,6 @@
 // lib/__tests__/outcome-helpers.test.ts
 import { describe, it, expect } from "vitest";
-import { computeOutcome, computeMovePct, buildOutcomeRows } from "../outcome-helpers";
+import { computeOutcome, computeMovePct, buildOutcomeRows, priceAt } from "../outcome-helpers";
 
 describe("computeOutcome", () => {
   it("returns true for LONG when price rose", () => {
@@ -76,5 +76,30 @@ describe("buildOutcomeRows", () => {
     const rows = buildOutcomeRows(inserted, { BTC: "50000" });
     expect(rows).toHaveLength(1);
     expect(rows[0].direction).toBe(null);
+  });
+});
+
+describe("priceAt", () => {
+  const candles = [
+    { t: 1000, c: "10" },
+    { t: 2000, c: "20" },
+    { t: 3000, c: "30" },
+  ];
+
+  it("returns the close of the first candle at or after the target", () => {
+    expect(priceAt(candles, 2000)).toBe(20);
+  });
+
+  it("returns the next candle when the target falls between candles", () => {
+    expect(priceAt(candles, 1500)).toBe(20);
+  });
+
+  it("returns null when the target is past the last candle", () => {
+    expect(priceAt(candles, 9999)).toBeNull();
+  });
+
+  it("returns null for a non-numeric or non-positive close", () => {
+    expect(priceAt([{ t: 1000, c: "0" }], 1000)).toBeNull();
+    expect(priceAt([{ t: 1000, c: "abc" }], 1000)).toBeNull();
   });
 });

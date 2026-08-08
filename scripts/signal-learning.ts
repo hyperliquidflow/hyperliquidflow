@@ -2,11 +2,13 @@
 // Nightly stats engine. Called by GitHub Actions at 01:00 UTC.
 //
 // Phases:
-//   1. Cold-start guard: skip learning if < 100 outcomes or < 30 days of history
-//   2. ATR backfill: find resolved-but-unsimulated outcomes, fetch ATR per coin,
-//      simulate ATR-based exits, write entry_price/exit_price/net_pnl_bps/is_win
-//   3. Stats engine: group by recipe, compute win rates + net PnL stats, write
-//      agent_findings and update recipe_performance net PnL columns
+//   1. ATR backfill: find resolved-but-unsimulated outcomes, fetch ATR per coin,
+//      simulate ATR-based exits, write entry_price/exit_price/net_pnl_bps/is_win.
+//      Runs per row with no population quorum; the old cold-start gate could
+//      never open under 30-day retention (audit 2026-08-08).
+//   2. Stats engine: group by recipe, compute win rates + net PnL stats, write
+//      agent_findings and update recipe_performance net PnL columns. Low-sample
+//      recipes are marked INSUFFICIENT_DATA rather than hidden.
 //
 // Exit rules (Sprint R10): first-hit-wins over discrete 1h/4h/24h snapshots.
 //   Stop: entry - 2*ATR (LONG) / entry + 2*ATR (SHORT)
@@ -86,41 +88,7 @@ async function fetchAtrMap(coins: string[]): Promise<Map<string, number>> {
   return map;
 }
 
-// ─── Phase 1: Cold-start guard ─────────────────────────────────────────────────
-
-async function checkColdStart(): Promise<boolean> {
-  const [{ count }, { data: oldest }] = await Promise.all([
-    supabase.from("signal_outcomes").select("*", { count: "exact", head: true }),
-    supabase
-      .from("signal_outcomes")
-      .select("created_at")
-      .order("created_at", { ascending: true })
-      .limit(1),
-  ]);
-
-  const totalRows = count ?? 0;
-  const oldestDate = oldest?.[0]?.created_at ? new Date(oldest[0].created_at) : null;
-  const daysOld = oldestDate
-    ? (Date.now() - oldestDate.getTime()) / 86400_000
-    : 0;
-
-  if (totalRows < 100 || daysOld < 30) {
-    console.log(
-      `[signal-learning] Cold start guard: ${totalRows} outcomes, ${daysOld.toFixed(1)} days of data. Monitoring only.`
-    );
-    await writeAgentLog({
-      log_type:         "OBSERVATION",
-      recipe_id:        null,
-      summary:          `Cold start: ${totalRows} outcomes over ${daysOld.toFixed(1)} days. Minimum 100 outcomes and 30 days required.`,
-      content:          `Insufficient history for learning. Accumulated ${totalRows} resolved signal outcomes over ${daysOld.toFixed(1)} days.`,
-      agent_confidence: null,
-    });
-    return true;
-  }
-  return false;
-}
-
-// ─── Phase 2: ATR exit backfill ────────────────────────────────────────────────
+// ─── Phase 1: ATR exit backfill ────────────────────────────────────────────────
 
 async function backfillAtrExits(): Promise<number> {
   const { data: rows, error } = await supabase
@@ -189,7 +157,7 @@ async function backfillAtrExits(): Promise<number> {
   return simulated;
 }
 
-// ─── Phase 3: Stats engine ─────────────────────────────────────────────────────
+// ─── Phase 2: Stats engine ─────────────────────────────────────────────────────
 
 async function runStatsEngine(): Promise<void> {
   console.log("[signal-learning] running stats engine...");
@@ -439,19 +407,37 @@ async function main(): Promise<void> {
   console.log("[signal-learning] starting...");
   const startMs = Date.now();
 
-  const isColdStart = await checkColdStart();
-  let simulated = 0;
+  // Grading is per row and idempotent, so it runs unconditionally. The old
+  // quorum gate (100 outcomes AND 30 days) could never open while retention
+  // deleted at 30 days, so nothing was ever graded (audit 2026-08-08).
+  // Statistical caution now lives where it belongs: runStatsEngine still marks
+  // low-sample recipes INSUFFICIENT_DATA rather than hiding them.
+  const simulated = await backfillAtrExits();
+  await runStatsEngine();
 
-  if (!isColdStart) {
-    simulated = await backfillAtrExits();
-    await runStatsEngine();
-  }
+  const [{ count: gradedCount }, { data: oldestRow }] = await Promise.all([
+    supabase.from("signal_outcomes").select("*", { count: "exact", head: true }).not("is_win", "is", null),
+    supabase.from("signal_outcomes").select("created_at").order("created_at", { ascending: true }).limit(1),
+  ]);
+  const graded = gradedCount ?? 0;
+  const oldestDays = oldestRow?.[0]?.created_at
+    ? (Date.now() - new Date(oldestRow[0].created_at).getTime()) / 86_400_000
+    : 0;
+
+  await writeAgentLog({
+    log_type:         "OBSERVATION",
+    recipe_id:        null,
+    summary:          `Graded ${simulated} outcomes this run. ${graded} graded total over ${oldestDays.toFixed(1)} days of history.`,
+    content:          `Per-outcome grading run. Newly simulated exits: ${simulated}. Cumulative graded outcomes: ${graded}. Oldest retained outcome: ${oldestDays.toFixed(1)} days.`,
+    agent_confidence: null,
+  });
 
   const summary = {
-    ran_at:       new Date().toISOString(),
-    cold_start:   isColdStart,
+    ran_at:        new Date().toISOString(),
     simulated,
-    duration_ms:  Date.now() - startMs,
+    graded_total:  graded,
+    history_days:  parseFloat(oldestDays.toFixed(1)),
+    duration_ms:   Date.now() - startMs,
   };
 
   await fs.writeFile("learning-summary.json", JSON.stringify(summary, null, 2));

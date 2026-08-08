@@ -1,16 +1,17 @@
 // app/api/measure-outcomes/route.ts
 import { type NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, HYPERLIQUID_API_URL } from "@/lib/env";
+import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from "@/lib/env";
 import { verifyCronAuth } from "@/lib/auth/cron";
-import { computeOutcome, computeMovePct } from "@/lib/outcome-helpers";
+import { computeOutcome, computeMovePct, priceAt } from "@/lib/outcome-helpers";
+import { fetchCandleSnapshot } from "@/lib/hyperliquid-api-client";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 const CHUNK_SIZE = 100;
-// 72h horizon gives the daily cron room to retry rows missed due to
-// allMids failures or a skipped run. Rows older than this are dropped by
-// the 30-day retention cron anyway.
-const HORIZON_MS = 72 * 60 * 60 * 1000;
+const HOUR_MS = 60 * 60 * 1000;
+// Prices come from historical candles at each row's true horizon, so this
+// window only bounds how far back we retry unresolved rows. Retention is 180d.
+const HORIZON_MS = 30 * 24 * HOUR_MS;
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const startMs = Date.now();
@@ -36,57 +37,62 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ ok: true, resolved: 0, duration_ms: Date.now() - startMs });
   }
 
-  // 2. Fetch current prices from Hyperliquid (one call, all coins)
-  let allMids: Record<string, string> = {};
-  try {
-    const res = await fetch(HYPERLIQUID_API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type: "allMids" }),
-    });
-    if (!res.ok) {
-      console.error("[measure-outcomes] allMids non-200:", res.status);
-      return NextResponse.json({ ok: false, error: `allMids HTTP ${res.status}` }, { status: 502 });
-    }
-    allMids = await res.json() as Record<string, string>;
-  } catch (err) {
-    console.error("[measure-outcomes] allMids fetch failed:", err);
-    return NextResponse.json({ ok: false, error: "allMids fetch failed" }, { status: 502 });
+  // 2. Price each row from historical candles at its true horizon.
+  // Using a single spot price for every horizon meant price_4h held whatever
+  // the price was when the job ran (about 25h later on a daily schedule).
+  const byCoin = new Map<string, typeof pending>();
+  for (const row of pending) {
+    const list = byCoin.get(row.coin) ?? [];
+    list.push(row);
+    byCoin.set(row.coin, list);
   }
 
   const now = Date.now();
-
-  // 3. Compute updates
   const updates: { id: string; patch: Record<string, unknown> }[] = [];
-  for (const row of pending) {
-    const firedAt  = new Date(row.created_at).getTime();
-    const ageMs    = now - firedAt;
-    const priceNow = parseFloat(allMids[row.coin] ?? "");
-    const patch: Record<string, unknown> = {};
+  let delisted = 0;
 
-    // Skip if coin is delisted / missing from allMids
-    if (!isFinite(priceNow) || priceNow <= 0) continue;
+  for (const [coin, coinRows] of byCoin) {
+    const minCreated = Math.min(...coinRows.map((r) => new Date(r.created_at).getTime()));
 
-    if (ageMs >= 60 * 60 * 1000 && row.price_1h == null) {
-      patch.price_1h    = priceNow;
-      patch.move_pct_1h = parseFloat(computeMovePct(Number(row.price_at_signal), priceNow).toFixed(4));
-      patch.outcome_1h  = computeOutcome(row.direction, Number(row.price_at_signal), priceNow);
+    let candles;
+    try {
+      candles = await fetchCandleSnapshot(coin, "1h", minCreated - HOUR_MS, now);
+    } catch (err) {
+      console.error(`[measure-outcomes] candle fetch failed for ${coin}:`, err);
+      delisted += coinRows.length;
+      continue;
     }
-    if (ageMs >= 4 * 60 * 60 * 1000 && row.price_4h == null) {
-      patch.price_4h    = priceNow;
-      patch.move_pct_4h = parseFloat(computeMovePct(Number(row.price_at_signal), priceNow).toFixed(4));
-      patch.outcome_4h  = computeOutcome(row.direction, Number(row.price_at_signal), priceNow);
-    }
-    if (ageMs >= 24 * 60 * 60 * 1000 && row.price_24h == null) {
-      patch.price_24h    = priceNow;
-      patch.move_pct_24h = parseFloat(computeMovePct(Number(row.price_at_signal), priceNow).toFixed(4));
-      patch.outcome_24h  = computeOutcome(row.direction, Number(row.price_at_signal), priceNow);
-      // resolved_at gated on price columns, not outcome booleans
-      patch.resolved_at  = new Date().toISOString();
+    if (!candles || candles.length === 0) {
+      delisted += coinRows.length;
+      continue;
     }
 
-    if (Object.keys(patch).length > 0) {
-      updates.push({ id: row.id, patch });
+    for (const row of coinRows) {
+      const firedMs = new Date(row.created_at).getTime();
+      const ageMs   = now - firedMs;
+      const entry   = Number(row.price_at_signal);
+      const patch: Record<string, unknown> = {};
+
+      const horizons: Array<{ hours: number; label: "1h" | "4h" | "24h"; existing: number | null }> = [
+        { hours: 1,  label: "1h",  existing: row.price_1h },
+        { hours: 4,  label: "4h",  existing: row.price_4h },
+        { hours: 24, label: "24h", existing: row.price_24h },
+      ];
+
+      for (const { hours, label, existing } of horizons) {
+        if (ageMs < hours * HOUR_MS || existing != null) continue;
+        const price = priceAt(candles, firedMs + hours * HOUR_MS);
+        if (price == null) continue;
+        patch[`price_${label}`]    = price;
+        patch[`move_pct_${label}`] = parseFloat(computeMovePct(entry, price).toFixed(4));
+        patch[`outcome_${label}`]  = computeOutcome(row.direction, entry, price);
+        // resolved_at gated on price columns, not outcome booleans
+        if (label === "24h") patch.resolved_at = new Date().toISOString();
+      }
+
+      if (Object.keys(patch).length > 0) {
+        updates.push({ id: row.id, patch });
+      }
     }
   }
 
@@ -113,9 +119,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       event: "measure_outcomes_complete",
       pending: pending.length,
       resolved,
+      delisted,
       duration_ms: Date.now() - startMs,
     })
   );
 
-  return NextResponse.json({ ok: true, resolved, duration_ms: Date.now() - startMs });
+  return NextResponse.json({ ok: true, resolved, delisted, duration_ms: Date.now() - startMs });
 }

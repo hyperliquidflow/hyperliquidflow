@@ -15,6 +15,22 @@ export function computeMovePct(priceAtSignal: number, priceNow: number): number 
   return ((priceNow - priceAtSignal) / priceAtSignal) * 100;
 }
 
+/** First candle whose open time is at or after targetMs, close price. Null when
+ *  the target is beyond the series or the close is unusable.
+ *  Used to price outcomes at true horizons instead of at job-run time. */
+export function priceAt(
+  candles: Array<{ t: number; c: string }>,
+  targetMs: number
+): number | null {
+  for (const candle of candles) {
+    if (candle.t >= targetMs) {
+      const price = parseFloat(candle.c);
+      return isFinite(price) && price > 0 ? price : null;
+    }
+  }
+  return null;
+}
+
 export interface InsertedSignal {
   id:        string;
   recipe_id: string;
