@@ -1503,6 +1503,11 @@ git commit -m "feat(telegram): nightly scan digest, workflow wiring, docs"
 
 These cannot be automated. Do them after the branch merges and deploys.
 
+0. **Add `CRON_SECRET` to GitHub repository secrets.** It currently exists only
+   as a Vercel env var, and no workflow referenced it before this change. Use
+   the exact same value as the Vercel one. Without it `freshness-check.yml`
+   sends an empty Bearer token and gets a 401 on every scheduled run, so the
+   watchdog never executes.
 1. Message `@BotFather`, send `/newbot`, save the token.
 2. Message the new bot once, then open
    `https://api.telegram.org/bot<TOKEN>/getUpdates` and read `message.chat.id`.

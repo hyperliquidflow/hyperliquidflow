@@ -1,9 +1,12 @@
 name: Cohort Freshness Check
 
-# Fails (emailing repo admins) if the cohort snapshot is stale beyond the
-# acceptable window. Catches silent outages like the 17h gap on 2026-04-17.
+# Triggers the app-side watchdog every 15 minutes. The watchdog owns the
+# definition of every health check and decides whether to send a Telegram
+# message, so this workflow holds no thresholds of its own.
 #
-# Runs every 15 min. Threshold is 20 min to absorb GitHub Actions cron drift.
+# The curl is intentionally -f: if the route is unreachable the step fails and
+# GitHub's default failure email fires. That email is the meta alert for
+# "the watchdog itself is down", the one case Telegram cannot cover.
 
 on:
   schedule:
@@ -15,65 +18,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - name: Verify /api/cohort-state updated_at is recent
+      - name: Trigger watchdog
         env:
-          TARGET_URL: https://hyperliquidflow.vercel.app/api/cohort-state
-          MAX_AGE_SECONDS: '1200'
+          TARGET_URL: https://hyperliquidflow.vercel.app/api/telegram/watchdog
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           set -euo pipefail
-          body=$(curl -sS -f "$TARGET_URL")
-          updated_at=$(echo "$body" | python3 -c "import json,sys; print(json.load(sys.stdin)['updated_at'])")
-          age=$(python3 -c "
-          from datetime import datetime, timezone
-          updated = datetime.fromisoformat('$updated_at'.replace('Z','+00:00'))
-          print(int((datetime.now(timezone.utc) - updated).total_seconds()))
-          ")
-          echo "updated_at: $updated_at"
-          echo "age: ${age}s (threshold: ${MAX_AGE_SECONDS}s)"
-          if [ "$age" -gt "$MAX_AGE_SECONDS" ]; then
-            echo "::error::Cohort snapshot is stale by ${age}s, refresh pipeline may be down"
-            exit 1
-          fi
-
-      - name: Verify snapshots are being written (heartbeat alive)
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          MAX_AGE_SECONDS: '2700'
-        run: |
-          set -euo pipefail
-          latest=$(curl -sS -f \
-            "$SUPABASE_URL/rest/v1/cohort_snapshots?select=snapshot_time&order=snapshot_time.desc&limit=1" \
-            -H "apikey: $SUPABASE_KEY" -H "Authorization: Bearer $SUPABASE_KEY" \
-            | python3 -c "import json,sys; print(json.load(sys.stdin)[0]['snapshot_time'])")
-          age=$(python3 -c "
-          from datetime import datetime, timezone
-          raw = '$latest'.replace('Z', '+00:00')
-          t = datetime.fromisoformat(raw.split('+')[0] + '+00:00')
-          print(int((datetime.now(timezone.utc) - t).total_seconds()))
-          ")
-          echo "latest snapshot: $latest (age ${age}s, threshold ${MAX_AGE_SECONDS}s)"
-          if [ "$age" -gt "$MAX_AGE_SECONDS" ]; then
-            echo "::error::No cohort snapshot written in ${age}s, the 5-minute heartbeat is dead"
-            exit 1
-          fi
-
-      - name: Verify score history wrote within 48h (nightly scan alive)
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: |
-          set -euo pipefail
-          latest=$(curl -sS -f \
-            "$SUPABASE_URL/rest/v1/wallet_score_history?select=date&order=date.desc&limit=1" \
-            -H "apikey: $SUPABASE_KEY" -H "Authorization: Bearer $SUPABASE_KEY" \
-            | python3 -c "import json,sys; d=json.load(sys.stdin); print(d[0]['date'] if d else '1970-01-01')")
-          ok=$(python3 -c "
-          from datetime import date, timedelta
-          print(1 if date.fromisoformat('$latest') >= date.today() - timedelta(days=2) else 0)
-          ")
-          echo "latest score history date: $latest"
-          if [ "$ok" != "1" ]; then
-            echo "::error::wallet_score_history has no row in 48h, nightly scan or Phase 11 is dead"
-            exit 1
-          fi
+          curl -sS -f -X POST "$TARGET_URL" \
+            -H "Authorization: Bearer $CRON_SECRET"
