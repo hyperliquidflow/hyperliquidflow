@@ -44,6 +44,21 @@ export function isSnapshotFresh(
   return nowMs - new Date(snapshotTime).getTime() <= maxAgeMs;
 }
 
+/**
+ * True when the nightly scan has run recently enough that hygiene pruning is
+ * safe. When the scan (the only cohort inflow) is dead, pruning with no
+ * replacement melted the cohort 493 -> 58 between Jun 22 and Aug 3, 2026.
+ */
+export function isScanFresh(
+  lastScannedAt: string | null,
+  now: Date = new Date(),
+  maxAgeHours = 48
+): boolean {
+  if (!lastScannedAt) return false;
+  const ageMs = now.getTime() - new Date(lastScannedAt).getTime();
+  return ageMs <= maxAgeHours * 3_600_000;
+}
+
 export function failsIdleGate(
   snapshotTime: string | null | undefined,
   nowMs:        number,

@@ -1,9 +1,10 @@
 // app/api/refresh-cohort/route.ts
-// Vercel Cron endpoint — runs every 60 seconds (defined in vercel.json).
-// Fetches live data from Hyperliquid, scores the active cohort,
-// runs all 9 signal recipes, and writes results to Supabase + Vercel KV.
+// Scores the active cohort, runs the 13-recipe signal lab, writes the KV
+// snapshot. Triggered by: the daily Vercel cron (00:00 UTC, vercel.json), and
+// by /api/cohort-state firing a background refresh whenever its KV payload is
+// more than 5 minutes stale (driven by the UptimeRobot 5-minute ping).
 //
-// Execution budget: must complete within Vercel free-tier 10s timeout.
+// Execution budget: must complete within the 30s maxDuration in vercel.json.
 // Strategy: process max 100 active wallets per cycle; GitHub Actions handles full scoring.
 
 import { NextRequest, NextResponse, after } from "next/server";
@@ -36,7 +37,7 @@ import {
   runBridgeInflowEnrichment,
   runTwapEnrichment,
 } from "@/lib/hypurrscan-enrichment";
-import { applyHygieneGates, type HygieneBreakdown } from "@/lib/cohort-hygiene";
+import { applyHygieneGates, isScanFresh, type HygieneBreakdown } from "@/lib/cohort-hygiene";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -53,9 +54,10 @@ const MAX_WALLETS_PER_CYCLE = 100;
 /** KV key for the cohort cache, read by /api/cohort-state. */
 const KV_COHORT_KEY = "cohort:active";
 
-/** KV TTL in seconds. Must exceed the cron interval + drift budget.
- *  Cron pings `/api/refresh-cohort` every 5 min via GitHub Actions, which can drift
- *  several minutes under load — 600s (10 min) keeps the fast path warm through that. */
+/** KV TTL in seconds. Must exceed the refresh interval + drift budget.
+ *  The UptimeRobot ping hits /api/cohort-state every 5 min, which background
+ *  refreshes when stale — 600s (10 min) keeps the fast path warm through drift.
+ *  A separate fallback key is written with a 24h TTL. */
 const KV_TTL_SECONDS = 600;
 
 /** Prior-mids TTL for Recipe 5 cascade-vs-voluntary-exit check.
@@ -537,8 +539,22 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
     // failure doesn't mask the others, and log a rollup at the end.
     after(
       (async () => {
-        const tasks: Array<{ name: string; p: Promise<unknown> }> = [
-          {
+        // Destructive maintenance (deactivation, pruning) only runs while the
+        // nightly scan, the sole cohort inflow, is alive. Pruning with no
+        // inflow melted the cohort 493 -> 58 during the Jun-Aug 2026 outage.
+        const { data: lastScanRow } = await supabase
+          .from("wallets")
+          .select("last_scanned_at")
+          .not("last_scanned_at", "is", null)
+          .order("last_scanned_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const scanFresh = isScanFresh(lastScanRow?.last_scanned_at ?? null);
+
+        const tasks: Array<{ name: string; p: Promise<unknown> }> = [];
+
+        if (scanFresh) {
+          tasks.push({
             name: "hygiene",
             p: applyHygieneGates(allActive.map((w) => w.id)).then((result) => {
               lastHygieneBreakdown = result.breakdown;
@@ -549,12 +565,15 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
                 ` drawdown_7d: ${result.breakdown.drawdown_7d}`
               );
             }),
-          },
-          { name: "pruneUnderperformers",      p: pruneUnderperformers() },
-          { name: "runBridgeInflowEnrichment", p: runBridgeInflowEnrichment(wallets.map((w) => ({ id: w.id, address: w.address }))) },
-          { name: "runTwapEnrichment",         p: runTwapEnrichment(twapCandidates) },
-          { name: "updateIntradayRecipePerformance", p: updateIntradayRecipePerformance() },
-        ];
+          });
+          tasks.push({ name: "pruneUnderperformers", p: pruneUnderperformers() });
+        } else {
+          console.warn("[hygiene] skipped: last scan older than 48h, pruning with no inflow melts the cohort");
+        }
+
+        tasks.push({ name: "runBridgeInflowEnrichment", p: runBridgeInflowEnrichment(wallets.map((w) => ({ id: w.id, address: w.address }))) });
+        tasks.push({ name: "runTwapEnrichment",         p: runTwapEnrichment(twapCandidates) });
+        tasks.push({ name: "updateIntradayRecipePerformance", p: updateIntradayRecipePerformance() });
 
         if (emittedIds.length > 0) {
           tasks.push({

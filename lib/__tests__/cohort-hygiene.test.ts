@@ -51,6 +51,7 @@ vi.mock("@supabase/supabase-js", () => ({
 
 import {
   isSnapshotFresh,
+  isScanFresh,
   failsEquityGate,
   failsLiqBufferGate,
   failsDrawdownGate,
@@ -692,5 +693,21 @@ describe("applyHygieneGates", () => {
     ];
     mockWalletResponses = [{ data: null, error: { message: "wallets down" } }];
     await expect(applyHygieneGates(["w1"])).rejects.toThrow(/grace-counters query failed/);
+  });
+});
+
+describe("isScanFresh", () => {
+  const now = new Date("2026-08-08T12:00:00Z");
+
+  it("true when the last scan is within 48h", () => {
+    expect(isScanFresh("2026-08-07T00:30:00Z", now)).toBe(true);
+  });
+
+  it("false when the last scan is older than 48h", () => {
+    expect(isScanFresh("2026-06-22T03:27:00Z", now)).toBe(false);
+  });
+
+  it("false when there has never been a scan", () => {
+    expect(isScanFresh(null, now)).toBe(false);
   });
 });
