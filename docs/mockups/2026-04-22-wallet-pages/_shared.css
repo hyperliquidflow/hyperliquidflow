@@ -1,0 +1,262 @@
+/* _shared.css: design-token mirror for wallet-pages mockups.
+   Every value here is copied verbatim from lib/design-tokens.ts. */
+
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600;700&display=swap');
+
+:root {
+  /* Colors */
+  --bg: #060606;
+  --text: #f0f0f0;
+  --text-muted: rgba(255,255,255,0.38);
+  --text-dim: rgba(255,255,255,0.28);
+  --text-faint: rgba(255,255,255,0.22);
+  --green: #6aaa7a;
+  --red: #c92435;
+  --amber: #c4925a;
+  --accent: #50d2c1;
+  --card: rgba(12,12,12,0.7);
+  --card-hover: rgba(18,18,18,0.7);
+  --strip: rgba(255,255,255,0.03);
+  --border: rgba(255,255,255,0.07);
+  --border-faint: rgba(255,255,255,0.05);
+  --border-hover: rgba(255,255,255,0.12);
+  --nav-active: rgba(80,210,193,0.7);
+  --long-bg: rgba(106,170,122,0.1);
+  --long-border: rgba(106,170,122,0.2);
+  --short-bg: rgba(201,36,53,0.1);
+  --short-border: rgba(201,36,53,0.2);
+  --regime-bg: rgba(106,170,122,0.08);
+  --regime-border: rgba(106,170,122,0.2);
+  --neutral: #9ca3af;
+  --neutral-bg: rgba(156,163,175,0.08);
+  --neutral-border: rgba(156,163,175,0.19);
+  --row-hover: rgba(180,180,180,0.03);
+  --tag-bg: rgba(255,255,255,0.06);
+  --tag-text: rgba(255,255,255,0.7);
+  --bar-bg: rgba(255,255,255,0.06);
+  --divider: rgba(255,255,255,0.04);
+  --input-bg: rgba(255,255,255,0.06);
+  --input-border: rgba(255,255,255,0.1);
+
+  /* Radius */
+  --r-card: 12px;
+  --r-tag: 5px;
+  --r-pill: 4px;
+  --r-input: 6px;
+  --r-bar: 2px;
+
+  /* Spacing */
+  --page-pad-x: 32px;
+  --page-pad-top: 28px;
+  --card-header-pad: 14px 20px;
+  --card-body-pad: 20px;
+  --card-gap: 16px;
+}
+
+* { box-sizing: border-box; user-select: none; }
+[style*="Geist Mono"], [style*="tabular-nums"], .mono, .tabular { user-select: text; cursor: text; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', system-ui, sans-serif;
+  min-height: 100vh;
+}
+
+/* Corner aura, matches effect.bgAura spirit without the full oklch stack */
+body::before {
+  content: "";
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(ellipse at 100% 100%,
+      rgba(80,210,193,0.12) 0%,
+      rgba(80,210,193,0.04) 30%,
+      transparent 60%),
+    radial-gradient(ellipse at 100% 100%,
+      rgba(80,210,193,0.05) 0%,
+      transparent 70%);
+}
+
+/* Grain overlay */
+body::after {
+  content: "";
+  position: fixed; inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.22;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.15'/%3E%3C/svg%3E");
+}
+
+/* Make sure content sits above bg layers */
+.page { position: relative; z-index: 1; }
+
+/* Cards */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-card);
+  overflow: hidden;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 2px 20px rgba(0,0,0,0.4);
+}
+.card-header {
+  padding: var(--card-header-pad);
+  border-bottom: 1px solid var(--border-faint);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.card-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.4);
+}
+.card-sub {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+/* Type */
+.page-title    { font-size: 26px; font-weight: 700; color: var(--text); margin: 0; }
+.page-subtitle { font-size: 13px; color: var(--text-muted); margin: 4px 0 0; }
+.stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.38);
+}
+.stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  margin-top: 10px;
+}
+.stat-sub {
+  font-size: 13px;
+  color: rgba(255,255,255,0.32);
+  margin-top: 6px;
+}
+.tabular { font-variant-numeric: tabular-nums; }
+.mono    { font-family: 'Geist Mono', monospace; }
+.muted   { color: var(--text-muted); font-size: 13px; }
+
+/* Shimmer */
+.glow-btn {
+  position: relative;
+  overflow: hidden;
+}
+.glow-btn::before {
+  content: "";
+  position: absolute; inset: 0;
+  opacity: 0;
+  transition: opacity 0.9s ease-out;
+  background: radial-gradient(circle at var(--gx, 50%) var(--gy, 50%),
+    rgba(235,235,235,0.13) 0%,
+    rgba(200,200,200,0.06) 35%,
+    transparent 65%);
+  pointer-events: none;
+}
+.glow-btn:hover::before { opacity: 1; transition: opacity 0.12s ease-in; }
+
+/* Pills and badges */
+.tier-badge, .style-badge, .coin-chip {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: var(--r-tag);
+  border: 1px solid var(--border);
+  background: var(--tag-bg);
+  color: var(--tag-text);
+  display: inline-block;
+}
+.dir-pill {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+  display: inline-block;
+}
+.dir-long  { background: var(--long-bg);  border: 1px solid var(--long-border);  color: var(--green); }
+.dir-short { background: var(--short-bg); border: 1px solid var(--short-border); color: var(--red); }
+
+/* Buttons */
+.btn-primary {
+  padding: 0 16px;
+  height: 40px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.btn-primary:hover { color: var(--text); }
+.btn-follow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: var(--r-tag);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.btn-follow:hover { color: var(--text); border-color: var(--border-hover); }
+
+/* Tables */
+.tbl { width: 100%; border-collapse: collapse; }
+.tbl th {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.44);
+  padding: 10px 16px;
+  text-align: left;
+}
+.tbl td {
+  font-size: 13px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--divider);
+}
+.tbl tr.row { transition: background 0.1s; cursor: pointer; }
+.tbl tr.row:hover { background: var(--row-hover); }
+
+/* Live dot */
+.live-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 6px var(--green);
+  display: inline-block;
+}
+
+/* Inputs */
+.input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-family: 'Geist Mono', monospace;
+  font-size: 13px;
+  padding: 10px 14px;
+  width: 100%;
+}

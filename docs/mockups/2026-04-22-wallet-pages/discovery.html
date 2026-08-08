@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Discovery, mockup 2026-04-22</title>
+<link rel="stylesheet" href="_shared.css">
+<style>
+  .page { padding: var(--page-pad-top) var(--page-pad-x) 64px; max-width: 1280px; margin: 0 auto; }
+  .header { display: flex; align-items: flex-start; justify-content: space-between; }
+  .hero-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 24px; }
+  .hero-card { padding: 18px; }
+  .section-gap { margin-top: 24px; }
+  .search-wrap {
+    display: flex; align-items: center;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: var(--r-input); overflow: hidden;
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    transition: border-color 0.2s;
+  }
+  .search-wrap:focus-within { border-color: var(--border-hover); }
+  .search-wrap .divider { width: 1px; height: 20px; background: var(--border); flex-shrink: 0; }
+  .tier-grid {
+    display: grid; grid-template-columns: repeat(7, 1fr);
+    gap: 8px; padding: var(--card-body-pad);
+  }
+  .tier-tile {
+    text-align: center; padding: 12px 8px;
+    background: var(--strip); border-radius: var(--r-tag);
+    border: 1px solid var(--tag-bg);
+  }
+  .tier-count { font-size: 18px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+  .tier-name { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .freshness {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-top: 20px;
+    padding: 8px 14px;
+    background: var(--strip);
+    border: 1px solid var(--border);
+    border-radius: var(--r-tag);
+    font-size: 13px; color: var(--text-muted);
+  }
+  details.howto {
+    margin-top: 12px;
+    padding: 14px 20px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--r-card);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  }
+  details.howto summary {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+    text-transform: uppercase; color: rgba(255,255,255,0.4);
+    cursor: pointer;
+  }
+  details.howto p {
+    margin: 12px 0 0;
+    font-size: 13px; color: var(--text);
+    line-height: 1.55;
+    max-width: 640px;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Page header -->
+  <div class="header">
+    <div>
+      <h1 class="page-title">Discovery</h1>
+      <p class="page-subtitle">Smart money trading Hyperliquid right now</p>
+    </div>
+
+    <!-- Search -->
+    <div>
+      <div class="search-wrap" style="width: 420px;">
+        <input class="input mono" placeholder="0x... wallet address" />
+        <div class="divider"></div>
+        <button class="btn-primary glow-btn">Search</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hero stats -->
+  <div class="hero-grid">
+    <div class="card hero-card">
+      <div class="stat-label">Tracked now</div>
+      <div class="stat-value tabular">487</div>
+      <div class="stat-sub">wallets in rotation</div>
+    </div>
+    <div class="card hero-card">
+      <div class="stat-label">New this week</div>
+      <div class="stat-value tabular" style="color: var(--green);">+31</div>
+      <div class="stat-sub">added in the last 7 days</div>
+    </div>
+    <div class="card hero-card">
+      <div class="stat-label">Avg win rate</div>
+      <div class="stat-value tabular">58.2%</div>
+      <div class="stat-sub">across tracked wallets</div>
+    </div>
+    <div class="card hero-card">
+      <div class="stat-label">Cohort AUM</div>
+      <div class="stat-value tabular">$12.4M</div>
+      <div class="stat-sub">total on-platform equity</div>
+    </div>
+  </div>
+
+  <!-- Top performers -->
+  <div class="card section-gap">
+    <div class="card-header">
+      <span class="card-title">Top performers</span>
+      <span class="card-sub">last 30 days, sorted by win rate</span>
+    </div>
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th style="width: 40px;">#</th>
+          <th>Wallet</th>
+          <th>Win rate</th>
+          <th>30d PnL</th>
+          <th>Size</th>
+          <th style="width: 92px;"></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="row">
+          <td style="color: var(--text-dim);">1</td>
+          <td><span class="mono">0xa1b2c3d4e5...181920</span></td>
+          <td class="tabular" style="color: var(--green); font-weight: 600;">74.1%</td>
+          <td class="tabular" style="color: var(--green);">+$412.7K</td>
+          <td><span class="tier-badge">Major</span></td>
+          <td><button class="btn-follow">Follow</button></td>
+        </tr>
+        <tr class="row">
+          <td style="color: var(--text-dim);">2</td>
+          <td><span class="mono">0x7f8e9d0c1b...4a5b6c</span></td>
+          <td class="tabular" style="color: var(--green); font-weight: 600;">71.8%</td>
+          <td class="tabular" style="color: var(--green);">+$287.3K</td>
+          <td><span class="tier-badge">Elite</span></td>
+          <td><button class="btn-follow">Follow</button></td>
+        </tr>
+        <tr class="row">
+          <td style="color: var(--text-dim);">3</td>
+          <td><span class="mono">0x334455667...aabbcc</span></td>
+          <td class="tabular" style="color: var(--green); font-weight: 600;">69.3%</td>
+          <td class="tabular" style="color: var(--green);">+$198.1K</td>
+          <td><span class="tier-badge">Large</span></td>
+          <td><button class="btn-follow">Follow</button></td>
+        </tr>
+        <tr class="row">
+          <td style="color: var(--text-dim);">4</td>
+          <td><span class="mono">0xcafebabe0...feedfa</span></td>
+          <td class="tabular" style="color: var(--green); font-weight: 600;">67.5%</td>
+          <td class="tabular" style="color: var(--green);">+$141.6K</td>
+          <td><span class="tier-badge">Mid</span></td>
+          <td><button class="btn-follow">Follow</button></td>
+        </tr>
+        <tr class="row">
+          <td style="color: var(--text-dim);">5</td>
+          <td><span class="mono">0x1234deadb...eef012</span></td>
+          <td class="tabular" style="color: var(--green); font-weight: 600;">66.2%</td>
+          <td class="tabular" style="color: var(--green);">+$118.9K</td>
+          <td><span class="tier-badge">Major</span></td>
+          <td><button class="btn-follow">Follow</button></td>
+        </tr>
+        <tr class="row">
+          <td style="color: var(--text-dim);">6</td>
+          <td><span class="mono">0x9988776655...332211</span></td>
+          <td class="tabular" style="color: var(--amber); font-weight: 600;">64.8%</td>
+          <td class="tabular" style="color: var(--green);">+$92.4K</td>
+          <td><span class="tier-badge">Mid</span></td>
+          <td><button class="btn-follow">Follow</button></td>
+        </tr>
+        <tr class="row">
+          <td style="color: var(--text-dim);">7</td>
+          <td><span class="mono">0xabcdef0123...fedcba</span></td>
+          <td class="tabular" style="color: var(--amber); font-weight: 600;">62.9%</td>
+          <td class="tabular" style="color: var(--green);">+$78.2K</td>
+          <td><span class="tier-badge">Small</span></td>
+          <td><button class="btn-follow">Follow</button></td>
+        </tr>
+        <tr class="row">
+          <td style="color: var(--text-dim);">8</td>
+          <td><span class="mono">0x5566778899...abcdef</span></td>
+          <td class="tabular" style="color: var(--amber); font-weight: 600;">61.4%</td>
+          <td class="tabular" style="color: var(--green);">+$64.8K</td>
+          <td><span class="tier-badge">Large</span></td>
+          <td><button class="btn-follow">Follow</button></td>
+        </tr>
+        <tr class="row">
+          <td style="color: var(--text-dim);">9</td>
+          <td><span class="mono">0xf00dbabe1...beefaa</span></td>
+          <td class="tabular" style="color: var(--amber); font-weight: 600;">60.1%</td>
+          <td class="tabular" style="color: var(--green);">+$51.3K</td>
+          <td><span class="tier-badge">Mid</span></td>
+          <td><button class="btn-follow">Follow</button></td>
+        </tr>
+        <tr class="row">
+          <td style="color: var(--text-dim);">10</td>
+          <td><span class="mono">0x2468ace0...13579b</span></td>
+          <td class="tabular" style="color: var(--amber); font-weight: 600;">58.7%</td>
+          <td class="tabular" style="color: var(--green);">+$43.1K</td>
+          <td><span class="tier-badge">Small</span></td>
+          <td><button class="btn-follow">Follow</button></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- By size -->
+  <div class="card section-gap">
+    <div class="card-header">
+      <span class="card-title">By size</span>
+      <span class="card-sub">account equity bucket</span>
+    </div>
+    <div class="tier-grid">
+      <div class="tier-tile"><div class="tier-count">12</div><div class="tier-name">Elite</div></div>
+      <div class="tier-tile"><div class="tier-count">48</div><div class="tier-name">Major</div></div>
+      <div class="tier-tile"><div class="tier-count">89</div><div class="tier-name">Large</div></div>
+      <div class="tier-tile"><div class="tier-count">124</div><div class="tier-name">Mid</div></div>
+      <div class="tier-tile"><div class="tier-count">108</div><div class="tier-name">Small</div></div>
+      <div class="tier-tile"><div class="tier-count">72</div><div class="tier-name">Micro</div></div>
+      <div class="tier-tile"><div class="tier-count">34</div><div class="tier-name">Dust</div></div>
+    </div>
+  </div>
+
+  <!-- How it works -->
+  <details class="howto">
+    <summary>How we find these wallets</summary>
+    <p>Every day we scan Hyperliquid and keep the wallets with real edge over the past 30 days. The rest get dropped. The list refreshes daily.</p>
+  </details>
+
+  <!-- Freshness -->
+  <div class="freshness">
+    <span class="live-dot"></span>
+    <span>Updated 2 hours ago</span>
+  </div>
+
+</div>
+
+<script>
+  // Cursor-tracking shimmer for .glow-btn elements
+  document.querySelectorAll('.glow-btn').forEach((el) => {
+    el.addEventListener('mousemove', (e) => {
+      const r = el.getBoundingClientRect();
+      el.style.setProperty('--gx', `${e.clientX - r.left}px`);
+      el.style.setProperty('--gy', `${e.clientY - r.top}px`);
+    });
+  });
+</script>
+</body>
+</html>

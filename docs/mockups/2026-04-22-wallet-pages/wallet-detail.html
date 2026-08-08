@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Wallet detail, mockup 2026-04-22</title>
+<link rel="stylesheet" href="_shared.css">
+<style>
+  .page { padding: var(--page-pad-top) var(--page-pad-x) 64px; max-width: 1280px; margin: 0 auto; }
+
+  .back-link {
+    display: inline-block;
+    font-size: 13px;
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  .back-link:hover { color: var(--text); }
+
+  /* Hero verdict card */
+  .verdict-card {
+    margin-top: 20px;
+    padding: 18px 22px;
+    background: rgba(106,170,122,0.06);
+    border: 1px solid rgba(106,170,122,0.2);
+    border-radius: var(--r-card);
+    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 2px 20px rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .verdict-left {
+    display: flex; align-items: center; gap: 16px;
+  }
+  .verdict-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--green); box-shadow: 0 0 8px var(--green);
+    flex-shrink: 0;
+  }
+  .verdict-label {
+    font-size: 16px; font-weight: 700; color: var(--green);
+    line-height: 1.1;
+  }
+  .verdict-meta {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 6px;
+  }
+  .wallet-addr {
+    font-family: 'Geist Mono', monospace;
+    font-size: 13px;
+    color: rgba(156,163,175,0.85);
+    user-select: text; cursor: text;
+  }
+  .verdict-stats {
+    margin-left: auto;
+    display: grid;
+    grid-template-columns: repeat(4, auto);
+    gap: 28px;
+  }
+  .verdict-stat { text-align: right; }
+  .verdict-stat-label {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 3px;
+  }
+  .verdict-stat-value {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Secondary stat row */
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-top: 14px;
+  }
+  .stat-card { padding: 16px; }
+  .stat-card .val {
+    font-size: 16px; font-weight: 700;
+    margin-top: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Tabs */
+  .tabs {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    margin-top: 24px;
+  }
+  .tab {
+    padding: 12px 20px;
+    font-size: 13px; font-weight: 500;
+    color: rgba(255,255,255,0.44);
+    background: none; border: none;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 0.15s;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active {
+    color: var(--text);
+    border-bottom-color: var(--neutral);
+  }
+
+  /* Overview grid */
+  .overview-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--card-gap);
+    margin-top: var(--card-gap);
+  }
+  .chart-card { padding: 0; }
+  .chart-body { padding: 16px 20px 20px; }
+  .chart-empty {
+    padding: 48px 20px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+
+  /* Regime + coins */
+  .regime-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    padding: 16px 20px 20px;
+  }
+  .regime-tile {
+    padding: 14px;
+    background: var(--strip);
+    border: 1px solid var(--tag-bg);
+    border-radius: var(--r-tag);
+  }
+  .regime-tile .label {
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .regime-tile .val {
+    font-size: 16px; font-weight: 700;
+    margin-top: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .coins-wrap {
+    display: flex; gap: 6px; flex-wrap: wrap;
+    padding: 16px 20px 20px;
+  }
+
+  /* Footer */
+  .footer {
+    margin-top: 28px;
+    font-size: 11px;
+    color: var(--text-faint);
+    letter-spacing: 0.04em;
+  }
+
+  /* Charts */
+  .chart-svg { width: 100%; height: 220px; display: block; }
+  .chart-svg .grid-line { stroke: rgba(255,255,255,0.06); stroke-width: 1; }
+  .chart-svg .axis-label { fill: rgba(255,255,255,0.32); font-size: 10px; font-family: 'Geist Mono', monospace; }
+  .chart-svg .eq-line { fill: none; stroke: var(--green); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .chart-svg .eq-area { fill: url(#eqGradient); opacity: 0.35; }
+  .chart-svg .score-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Back link -->
+  <a class="back-link" href="discovery.html">&larr; Discovery</a>
+
+  <!-- Hero verdict card -->
+  <div class="verdict-card">
+    <div class="verdict-left">
+      <div class="verdict-dot"></div>
+      <div>
+        <div class="verdict-label">Strong edge</div>
+        <div class="verdict-meta">
+          <span class="wallet-addr">0xa1b2c3d4e5f60708091011121314151617181920</span>
+          <span class="tier-badge">Major</span>
+          <span class="tier-badge">Trend</span>
+          <button class="btn-follow">Follow</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="verdict-stats">
+      <div class="verdict-stat">
+        <div class="verdict-stat-label">AUM</div>
+        <div class="verdict-stat-value">$2.4M</div>
+      </div>
+      <div class="verdict-stat">
+        <div class="verdict-stat-label">30d PnL</div>
+        <div class="verdict-stat-value" style="color: var(--green);">+$347K</div>
+      </div>
+      <div class="verdict-stat">
+        <div class="verdict-stat-label">Win rate</div>
+        <div class="verdict-stat-value">64.2%</div>
+      </div>
+      <div class="verdict-stat">
+        <div class="verdict-stat-label">Trades</div>
+        <div class="verdict-stat-value">183</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Secondary stat row -->
+  <div class="stat-row">
+    <div class="card stat-card">
+      <div class="stat-label">Avg win</div>
+      <div class="val" style="color: var(--green);">$3.8K</div>
+    </div>
+    <div class="card stat-card">
+      <div class="stat-label">Avg loss</div>
+      <div class="val" style="color: var(--red);">-$1.2K</div>
+    </div>
+    <div class="card stat-card">
+      <div class="stat-label">Profit factor</div>
+      <div class="val">3.17</div>
+    </div>
+    <div class="card stat-card">
+      <div class="stat-label">Win streak</div>
+      <div class="val">7W</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab active">Overview</button>
+    <button class="tab">Positions</button>
+    <button class="tab">Trades</button>
+    <button class="tab">Signals</button>
+    <button class="tab">Alerts</button>
+    <button class="tab">Paper</button>
+  </div>
+
+  <!-- Overview content -->
+  <div class="overview-grid">
+
+    <!-- Equity curve -->
+    <div class="card chart-card">
+      <div class="card-header">
+        <span class="card-title">30-day realized PnL</span>
+        <span class="card-sub tabular" style="color: var(--green);">+$347K</span>
+      </div>
+      <div class="chart-body">
+        <svg class="chart-svg" viewBox="0 0 800 220" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="eqGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"  stop-color="#6aaa7a" stop-opacity="0.35"/>
+              <stop offset="100%" stop-color="#6aaa7a" stop-opacity="0"/>
+            </linearGradient>
+          </defs>
+
+          <!-- Grid lines -->
+          <line class="grid-line" x1="50" y1="15"  x2="780" y2="15" />
+          <line class="grid-line" x1="50" y1="58"  x2="780" y2="58" />
+          <line class="grid-line" x1="50" y1="100" x2="780" y2="100" />
+          <line class="grid-line" x1="50" y1="142" x2="780" y2="142" />
+          <line class="grid-line" x1="50" y1="185" x2="780" y2="185" />
+
+          <!-- Y axis labels -->
+          <text class="axis-label" x="8" y="19">$350K</text>
+          <text class="axis-label" x="8" y="62">$260K</text>
+          <text class="axis-label" x="8" y="104">$175K</text>
+          <text class="axis-label" x="8" y="146">$90K</text>
+          <text class="axis-label" x="8" y="189">$0</text>
+
+          <!-- Area under curve -->
+          <path class="eq-area"
+            d="M50,179 L75,171 L100,174 L126,163 L151,152 L176,144 L201,149 L226,137 L251,130 L277,122 L302,114 L327,120 L352,109 L377,98 L402,89 L428,80 L453,86 L478,73 L503,64 L528,58 L553,52 L579,47 L604,40 L629,43 L654,36 L679,29 L704,25 L730,23 L755,17 L780,15 L780,185 L50,185 Z" />
+
+          <!-- Line -->
+          <polyline class="eq-line"
+            points="50,179 75,171 100,174 126,163 151,152 176,144 201,149 226,137 251,130 277,122 302,114 327,120 352,109 377,98 402,89 428,80 453,86 478,73 503,64 528,58 553,52 579,47 604,40 629,43 654,36 679,29 704,25 730,23 755,17 780,15" />
+
+          <!-- X axis labels -->
+          <text class="axis-label" x="50"  y="205">Mar 23</text>
+          <text class="axis-label" x="200" y="205">Mar 30</text>
+          <text class="axis-label" x="380" y="205">Apr 6</text>
+          <text class="axis-label" x="560" y="205">Apr 13</text>
+          <text class="axis-label" x="735" y="205">Apr 22</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Score history -->
+    <div class="card chart-card">
+      <div class="card-header">
+        <span class="card-title">Score history</span>
+        <span class="card-sub tabular">0.73</span>
+      </div>
+      <div class="chart-body">
+        <svg class="chart-svg" viewBox="0 0 800 220" preserveAspectRatio="none" aria-hidden="true">
+          <!-- Grid lines -->
+          <line class="grid-line" x1="50" y1="15"  x2="780" y2="15" />
+          <line class="grid-line" x1="50" y1="58"  x2="780" y2="58" />
+          <line class="grid-line" x1="50" y1="100" x2="780" y2="100" />
+          <line class="grid-line" x1="50" y1="142" x2="780" y2="142" />
+          <line class="grid-line" x1="50" y1="185" x2="780" y2="185" />
+
+          <!-- Y axis labels -->
+          <text class="axis-label" x="8" y="19">1.00</text>
+          <text class="axis-label" x="8" y="62">0.75</text>
+          <text class="axis-label" x="8" y="104">0.50</text>
+          <text class="axis-label" x="8" y="146">0.25</text>
+          <text class="axis-label" x="8" y="189">0.00</text>
+
+          <!-- Line -->
+          <polyline class="score-line"
+            points="50,86 88,81 127,88 165,80 204,76 242,83 281,78 319,73 357,76 396,69 434,75 473,68 511,71 550,64 588,69 626,66 665,63 703,68 742,64 780,61" />
+
+          <!-- X axis labels -->
+          <text class="axis-label" x="50"  y="205">Apr 3</text>
+          <text class="axis-label" x="240" y="205">Apr 8</text>
+          <text class="axis-label" x="430" y="205">Apr 13</text>
+          <text class="axis-label" x="620" y="205">Apr 18</text>
+          <text class="axis-label" x="745" y="205">Apr 22</text>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Regime performance -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Regime performance</span>
+        <span class="card-sub">average PnL per day</span>
+      </div>
+      <div class="regime-grid">
+        <div class="regime-tile">
+          <div class="label">Bull</div>
+          <div class="val" style="color: var(--green);">+$11.2K</div>
+        </div>
+        <div class="regime-tile">
+          <div class="label">Bear</div>
+          <div class="val" style="color: var(--red);">-$2.1K</div>
+        </div>
+        <div class="regime-tile">
+          <div class="label">Ranging</div>
+          <div class="val" style="color: var(--green);">+$4.6K</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Open coins -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Open coins</span>
+        <span class="card-sub">as of last snapshot</span>
+      </div>
+      <div class="coins-wrap">
+        <span class="coin-chip">BTC</span>
+        <span class="coin-chip">ETH</span>
+        <span class="coin-chip">SOL</span>
+        <span class="coin-chip">HYPE</span>
+        <span class="coin-chip">ARB</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <div class="footer">Data from Hyperliquid, updates live</div>
+
+</div>
+
+<script>
+  // Cursor-tracking shimmer for .glow-btn elements
+  document.querySelectorAll('.glow-btn').forEach((el) => {
+    el.addEventListener('mousemove', (e) => {
+      const r = el.getBoundingClientRect();
+      el.style.setProperty('--gx', `${e.clientX - r.left}px`);
+      el.style.setProperty('--gy', `${e.clientY - r.top}px`);
+    });
+  });
+
+  // Simple tab switcher, mockup only
+  document.querySelectorAll('.tab').forEach((el) => {
+    el.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
+      el.classList.add('active');
+    });
+  });
+</script>
+</body>
+</html>

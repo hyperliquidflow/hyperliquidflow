@@ -39,3 +39,13 @@ local.db
 
 # claude settings (local only)
 .claude/settings.json
+
+# CI artifacts regenerated per run
+learning-summary.json
+scan-summary.json
+
+# editor workspace files (user-local)
+*.code-workspace
+
+# claude worktrees
+.claude/worktrees/

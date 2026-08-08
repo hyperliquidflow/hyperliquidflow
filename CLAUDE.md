@@ -109,7 +109,7 @@ Old routes (`/scanner`, `/stalker`, `/contrarian`, `/imbalance`, `/recipes`, `/e
 - `wallet-positions`: Real-time open positions for a single wallet (used by alert engine)
 - `signal-freshness`: Rolling 1h latency stats from `signal_timing` table (Overview stat card)
 - `rank-ic`: Rank IC history from `wallet_score_history` (returns empty state until 30+ days accumulate)
-- `wallet-profile`, `scanner-stats`, `recipe-performance`, `top-markets`, `deep-dive`, `signals-feed`, `market-radar`, `measure-outcomes`
+- `wallet-profile`, `scanner-stats`, `recipe-performance`, `top-markets`, `deep-dive`, `signals-feed`, `market-radar`, `measure-outcomes`, `agent-readiness`
 
 ### Server-Side Data Fetching
 
@@ -139,6 +139,7 @@ The `after()` Next.js API is used for fire-and-forget background work (e.g., tri
 | 016 | Multi-window and out-of-cohort validation (OOCV) |
 | 017 | EV decoupling from scoring |
 | 018 | Shadow scoring columns (`overall_score_shadow`) for V2 canary rollout |
+| 019 | Enable Row Level Security on all tables |
 
 ### Key Data Separation
 
@@ -164,13 +165,15 @@ Fallback chain on cache miss: primary key → fallback key → Supabase query.
 
 ### GitHub Actions
 
-Three workflows:
+Four workflows:
 
 - **`freshness-check.yml`** — Every 15 min. Hits `/api/cohort-state` and fails if `updated_at` is >1200s stale. Catches silent cron outages; emails repo admins on failure.
 - **`daily-wallet-scan.yml`** — `0 0 * * *` UTC. Discovery, Streams A/C/D, backtests, full scoring for ~500 active wallets (up to 5,000 candidates). Writes Supabase + uploads `scan-summary.json` artifact (7d retention). 50-minute timeout.
 - **`signal-learning.yml`** — `0 1 * * *` UTC (after scan finishes). Runs `scripts/signal-learning.ts` to update outcome stats. 20-minute timeout. Uploads `learning-summary.json` (14d retention).
 
-All three support `workflow_dispatch` for manual runs.
+- **`rank-ic.yml`** runs `scripts/rank-ic.ts` to compute Rank IC history from `wallet_score_history`.
+
+All support `workflow_dispatch` for manual runs.
 
 ### Tests
 
