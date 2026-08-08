@@ -6,7 +6,16 @@ At the start of each session, read this file to know where to pick up.
 ## Active Sprint
 
 **Recovery: Phase 0 Clean House and Resurrection (2026-08-08 audit)**  
-Status: IN PROGRESS (started 2026-08-08)  
+Status: COMPLETE (2026-08-08). Verified: first-ever wallet_score_history rows
+(57, growing as snapshots cover the new cohort), scan green with the new
+score-history assertion, all 5 workflows active, keepalive scheduled, live
+payload refreshing on ping (77-wallet cohort). First scan: 3,063 discovered,
+248 activated, 77 active after G10/G11/G12 gates (G12 low_regime_coverage cut
+134; 97 Hyperliquid 429s during scoring). Gate calibration and rate-limit
+backoff are Phase 1 items.  
+Remaining manual steps: UptimeRobot monitors (owner), migration 020 prod apply
+(Supabase MCP was read-only this session; file is committed).  
+Next: plan Phase 1 per the roadmap.  
 Plan: `docs/superpowers/plans/2026-08-08-phase0-clean-house-and-resurrection.md`  
 Roadmap: `docs/superpowers/specs/2026-08-08-rebuild-roadmap.md`  
 Full audit: `docs/audit/2026-08-08-full-audit.md`
