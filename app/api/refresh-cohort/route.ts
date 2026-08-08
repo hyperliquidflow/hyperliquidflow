@@ -663,12 +663,14 @@ async function updateIntradayRecipePerformance(): Promise<void> {
     };
   });
 
+  // One row per recipe per day. Appending buried the nightly net-PnL stats
+  // under intraday rows with null net columns (audit 2026-08-08).
   const { error: insertError } = await supabase
     .from("recipe_performance")
-    .insert(insertRows);
+    .upsert(insertRows, { onConflict: "recipe_id,measured_day" });
 
   if (insertError) {
-    console.error("[recipe-perf] intraday insert error:", insertError.message);
+    console.error("[recipe-perf] intraday upsert error:", insertError.message);
   } else {
     console.log(`[recipe-perf] intraday wrote ${insertRows.length} recipe performance rows`);
   }

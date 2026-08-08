@@ -731,12 +731,13 @@ async function computeAndSaveRecipePerformance(): Promise<void> {
     };
   });
 
+  // One row per recipe per day, see migration 021.
   const { error: upsertError } = await supabase
     .from("recipe_performance")
-    .insert(upsertRows);
+    .upsert(upsertRows, { onConflict: "recipe_id,measured_day" });
 
   if (upsertError) {
-    console.error("[recipe-perf] insert error:", upsertError.message);
+    console.error("[recipe-perf] upsert error:", upsertError.message);
   } else {
     console.log(`[recipe-perf] wrote ${upsertRows.length} recipe performance rows`);
   }
