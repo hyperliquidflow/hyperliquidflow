@@ -34,6 +34,17 @@ jobs:
           HYPERLIQUID_API_URL: ${{ secrets.HYPERLIQUID_API_URL }}
         run: npx tsx scripts/daily-wallet-scan.ts
 
+      - name: Assert scan produced score history
+        run: |
+          python3 - <<'EOF'
+          import json, sys
+          s = json.load(open('scan-summary.json'))
+          written = s.get('score_history_written', 0)
+          if written == 0:
+              sys.exit('score_history_written is 0: silent write failure, see audit 2026-08-08')
+          print('score_history_written:', written)
+          EOF
+
       - name: Upload scan summary artifact
         if: always()    # upload even if scan partially failed
         uses: actions/upload-artifact@v4
