@@ -234,8 +234,19 @@ function buildScanPipeline(args: {
 
 export async function fetchScannerStats(): Promise<ScannerStats | null> {
   try {
-    const [walletStats, topWinRates, newestSnapshot] = await Promise.all([
-      supabase.from("wallets").select("id, is_active, win_rate, last_scanned_at, discovery_source, realized_pnl_30d"),
+    // Counts come from exact count queries, never from a fetched page. Selecting
+    // every wallet row and counting in memory silently truncated at PostgREST's
+    // row cap, so a 39k-row table reported a few thousand discovered and a
+    // fraction of the real active count.
+    const [
+      discoveredCount, activeCount, scoredCount,
+      activeWallets, topWinRates, newestSnapshot, newestScan,
+    ] = await Promise.all([
+      supabase.from("wallets").select("id", { count: "exact", head: true }),
+      supabase.from("wallets").select("id", { count: "exact", head: true }).eq("is_active", true),
+      supabase.from("wallets").select("id", { count: "exact", head: true }).not("win_rate", "is", null),
+      // The active cohort is bounded (hundreds), so this page is safe to fetch.
+      supabase.from("wallets").select("id, win_rate").eq("is_active", true),
       supabase.from("wallets").select("address, win_rate, trade_count_30d, realized_pnl_30d")
         .not("win_rate", "is", null)
         .order("win_rate", { ascending: false })
@@ -243,10 +254,16 @@ export async function fetchScannerStats(): Promise<ScannerStats | null> {
       supabase.from("cohort_snapshots").select("snapshot_time")
         .order("snapshot_time", { ascending: false })
         .limit(1),
+      supabase.from("wallets").select("last_scanned_at, discovery_source")
+        .not("last_scanned_at", "is", null)
+        .order("last_scanned_at", { ascending: false })
+        .limit(1),
     ]);
-    const wallets  = walletStats.data ?? [];
-    const active   = wallets.filter((w) => w.is_active);
-    const inactive = wallets.filter((w) => !w.is_active);
+
+    const discovered = discoveredCount.count ?? 0;
+    const active     = activeWallets.data ?? [];
+    const activeTotal = activeCount.count ?? active.length;
+    const inactiveTotal = Math.max(0, discovered - activeTotal);
 
     const activeIds = active.map((w) => w.id).filter(Boolean);
     const tierSnaps = activeIds.length > 0
@@ -259,13 +276,13 @@ export async function fetchScannerStats(): Promise<ScannerStats | null> {
       : { data: [] };
     const avgWinRate = active.length > 0
       ? active.reduce((s, w) => s + (w.win_rate ?? 0), 0) / active.length : 0;
-    const lastScan = wallets.map((w) => w.last_scanned_at).filter(Boolean).sort().reverse()[0] ?? null;
+    const lastScan = newestScan.data?.[0]?.last_scanned_at ?? null;
     const lastSnapshot = newestSnapshot.data?.[0]?.snapshot_time ?? null;
-    const source = wallets.find((w) => w.last_scanned_at)?.discovery_source ?? null;
+    const source = newestScan.data?.[0]?.discovery_source ?? null;
     const pipeline = buildScanPipeline({
-      discovered:     wallets.length,
-      active:         active.length,
-      scored:         wallets.filter((w) => w.win_rate != null).length,
+      discovered:     discovered,
+      active:         activeTotal,
+      scored:         scoredCount.count ?? 0,
       lastScanAt:     lastScan,
       lastSnapshotAt: lastSnapshot,
     });
@@ -283,7 +300,7 @@ export async function fetchScannerStats(): Promise<ScannerStats | null> {
     }
     const tier_breakdown = TIERS.map((t) => ({ tier: t, count: tierCounts[t] }));
     return {
-      total_discovered: wallets.length, total_active: active.length, total_inactive: inactive.length,
+      total_discovered: discovered, total_active: activeTotal, total_inactive: inactiveTotal,
       avg_win_rate: avgWinRate, last_scan_at: lastScan, last_snapshot_at: lastSnapshot,
       discovery_source: source,
       top_win_rates: (topWinRates.data ?? []) as ScannerStats["top_win_rates"],
