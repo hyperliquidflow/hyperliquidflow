@@ -49,14 +49,14 @@ describe("formatRecovery", () => {
 });
 
 describe("formatStatus", () => {
-  it("says all green when nothing is broken", () => {
-    expect(formatStatus({ broken: [], wallet_count: 77, data_age_ms: 2 * 60 * 1000 }))
-      .toBe("All green\nCohort 77, data 2m old");
+  it("says all green and reports directional tilt", () => {
+    expect(formatStatus({ broken: [], wallet_count: 77, data_age_ms: 2 * 60 * 1000, long_pct: 68 }))
+      .toBe("All green\nCohort 77, 68% long, data 2m old");
   });
 
   it("names the single broken check", () => {
-    expect(formatStatus({ broken: ["heartbeat_dead"], wallet_count: 77, data_age_ms: 120000 }))
-      .toBe("BROKEN: heartbeat dead\nCohort 77, data 2m old");
+    expect(formatStatus({ broken: ["heartbeat_dead"], wallet_count: 77, data_age_ms: 120000, long_pct: 68 }))
+      .toBe("BROKEN: heartbeat dead\nCohort 77, 68% long, data 2m old");
   });
 
   it("counts multiple broken checks rather than listing them", () => {
@@ -64,12 +64,23 @@ describe("formatStatus", () => {
       broken: ["heartbeat_dead", "scan_dead"],
       wallet_count: 77,
       data_age_ms: 120000,
+      long_pct: 68,
     });
-    expect(out).toBe("BROKEN: 2 checks failing\nCohort 77, data 2m old");
+    expect(out).toBe("BROKEN: 2 checks failing\nCohort 77, 68% long, data 2m old");
+  });
+
+  it("omits tilt when no wallet holds an open position", () => {
+    expect(formatStatus({ broken: [], wallet_count: 77, data_age_ms: 120000, long_pct: null }))
+      .toBe("All green\nCohort 77, data 2m old");
+  });
+
+  it("reports a fully short cohort without dropping the zero", () => {
+    expect(formatStatus({ broken: [], wallet_count: 77, data_age_ms: 120000, long_pct: 0 }))
+      .toBe("All green\nCohort 77, 0% long, data 2m old");
   });
 
   it("reports honestly when there is no cached data at all", () => {
-    expect(formatStatus({ broken: [], wallet_count: null, data_age_ms: null }))
+    expect(formatStatus({ broken: [], wallet_count: null, data_age_ms: null, long_pct: null }))
       .toBe("All green\nNo cached cohort data");
   });
 });
@@ -171,7 +182,7 @@ describe("copy rules", () => {
   const samples = [
     formatAlert({ id: "scan_dead", kind: "alert", detail: "no scan in 3d, limit 48h" }),
     formatRecovery({ id: "scan_dead", kind: "recovery", detail: "scan 1h ago", down_ms: 3600000 }),
-    formatStatus({ broken: [], wallet_count: 77, data_age_ms: 120000 }),
+    formatStatus({ broken: [], wallet_count: 77, data_age_ms: 120000, long_pct: 68 }),
     formatDigest({
       discovered: 3063, activated: 248, active: 77,
       duration_ms: 2520000, rate_limit_dropped: 97,

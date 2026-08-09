@@ -18,7 +18,8 @@ function healthyInputs(): CheckInputs {
     heartbeat_snapshot_time: iso(3 * 60 * 1000),
     score_history_date:      "2026-08-08",
     active_wallets:          77,
-    prev_day_wallets:        80,
+    scored_today:            80,
+    scored_yesterday:        82,
     outcomes_resolved_48h:   42,
   };
 }
@@ -60,25 +61,38 @@ describe("evaluateChecks", () => {
     expect(byId(rs, "scan_dead").ok).toBe(true);
   });
 
-  it("flags a cohort below the floor", () => {
-    const rs = evaluateChecks({ ...healthyInputs(), active_wallets: 39, prev_day_wallets: 40 });
+  it("flags a cohort below the floor, using the live active count", () => {
+    const rs = evaluateChecks({ ...healthyInputs(), active_wallets: 39 });
     expect(byId(rs, "cohort_floor").ok).toBe(false);
   });
 
-  it("flags a cohort that dropped more than 30 percent in a day", () => {
-    const rs = evaluateChecks({ ...healthyInputs(), active_wallets: 60, prev_day_wallets: 100 });
+  it("flags a scored count that dropped more than 30 percent in a day", () => {
+    const rs = evaluateChecks({ ...healthyInputs(), scored_today: 60, scored_yesterday: 100 });
     const r = byId(rs, "cohort_floor");
     expect(r.ok).toBe(false);
     expect(r.detail).toContain("40%");
   });
 
   it("allows a drop of exactly 30 percent", () => {
-    const rs = evaluateChecks({ ...healthyInputs(), active_wallets: 70, prev_day_wallets: 100 });
+    const rs = evaluateChecks({ ...healthyInputs(), scored_today: 70, scored_yesterday: 100 });
     expect(byId(rs, "cohort_floor").ok).toBe(true);
   });
 
   it("ignores the day-over-day rule when there is no previous day", () => {
-    const rs = evaluateChecks({ ...healthyInputs(), active_wallets: 77, prev_day_wallets: 0 });
+    const rs = evaluateChecks({ ...healthyInputs(), scored_today: 77, scored_yesterday: 0 });
+    expect(byId(rs, "cohort_floor").ok).toBe(true);
+  });
+
+  // Regression, 2026-08-09: the drop rule compared the live active count
+  // against yesterday's scored count and reported a phantom 56% collapse.
+  // Real numbers that day were 132 scored today, 161 yesterday, 71 active.
+  it("does not cry collapse when active is far below today's scored count", () => {
+    const rs = evaluateChecks({
+      ...healthyInputs(),
+      active_wallets:   71,
+      scored_today:     132,
+      scored_yesterday: 161,
+    });
     expect(byId(rs, "cohort_floor").ok).toBe(true);
   });
 
@@ -94,7 +108,8 @@ describe("evaluateChecks", () => {
       heartbeat_snapshot_time: null,
       score_history_date:      null,
       active_wallets:          null,
-      prev_day_wallets:        null,
+      scored_today:            null,
+      scored_yesterday:        null,
       outcomes_resolved_48h:   null,
     });
     expect(rs.every((r) => !r.ok)).toBe(true);

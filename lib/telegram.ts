@@ -47,6 +47,8 @@ export interface StatusData {
   broken:       CheckId[];
   wallet_count: number | null;
   data_age_ms:  number | null;
+  /** Notional-weighted long share of open positions. Null when none are open. */
+  long_pct:     number | null;
 }
 
 export interface DigestData {
@@ -92,12 +94,12 @@ export function formatStatus(d: StatusData): string {
         ? `BROKEN: ${CHECK_LABELS[d.broken[0]]}`
         : `BROKEN: ${d.broken.length} checks failing`;
 
-  const detail =
-    d.wallet_count === null || d.data_age_ms === null
-      ? "No cached cohort data"
-      : `Cohort ${d.wallet_count}, data ${formatAge(d.data_age_ms)} old`;
+  if (d.wallet_count === null || d.data_age_ms === null) {
+    return `${headline}\nNo cached cohort data`;
+  }
 
-  return `${headline}\n${detail}`;
+  const tilt = d.long_pct === null ? "" : `${d.long_pct}% long, `;
+  return `${headline}\nCohort ${d.wallet_count}, ${tilt}data ${formatAge(d.data_age_ms)} old`;
 }
 
 /**

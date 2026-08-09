@@ -47,10 +47,11 @@ export async function writeAlertState(writes: Record<string, AlertState>): Promi
 
 export async function collectCheckInputs(): Promise<CheckInputs> {
   const now = Date.now();
+  const today     = new Date(now).toISOString().slice(0, 10);
   const yesterday = new Date(now - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const since48h  = new Date(now - 48 * 60 * 60 * 1000).toISOString();
 
-  const [cache, beat, hist, active, prevDay, outcomes] = await Promise.all([
+  const [cache, beat, hist, active, scoredToday, scoredYesterday, outcomes] = await Promise.all([
     readCohortCache(),
     supabase.from("cohort_snapshots").select("snapshot_time")
       .order("snapshot_time", { ascending: false }).limit(1).maybeSingle(),
@@ -58,6 +59,8 @@ export async function collectCheckInputs(): Promise<CheckInputs> {
       .order("date", { ascending: false }).limit(1).maybeSingle(),
     supabase.from("wallets").select("id", { count: "exact", head: true })
       .eq("is_active", true),
+    supabase.from("wallet_score_history").select("wallet_id", { count: "exact", head: true })
+      .eq("date", today),
     supabase.from("wallet_score_history").select("wallet_id", { count: "exact", head: true })
       .eq("date", yesterday),
     supabase.from("signal_outcomes").select("id", { count: "exact", head: true })
@@ -69,9 +72,10 @@ export async function collectCheckInputs(): Promise<CheckInputs> {
     snapshot_updated_at:     cache?.updated_at ?? null,
     heartbeat_snapshot_time: beat.data?.snapshot_time ?? null,
     score_history_date:      hist.data?.date ?? null,
-    active_wallets:          active.error   ? null : active.count   ?? null,
-    prev_day_wallets:        prevDay.error  ? null : prevDay.count  ?? null,
-    outcomes_resolved_48h:   outcomes.error ? null : outcomes.count ?? null,
+    active_wallets:          active.error          ? null : active.count          ?? null,
+    scored_today:            scoredToday.error     ? null : scoredToday.count     ?? null,
+    scored_yesterday:        scoredYesterday.error ? null : scoredYesterday.count ?? null,
+    outcomes_resolved_48h:   outcomes.error        ? null : outcomes.count        ?? null,
   };
 }
 
@@ -85,6 +89,9 @@ export async function fetchStatusData(): Promise<StatusData> {
     broken,
     wallet_count: cache?.total_active_wallets ?? cache?.wallet_count ?? null,
     data_age_ms:  Number.isNaN(updated) ? null : Date.now() - updated,
+    // Absent when no wallet holds an open position, which is not the same as
+    // a balanced book, so it is reported as null and the segment is dropped.
+    long_pct:     cache?.cohort_tilt?.long_pct ?? null,
   };
 }
 

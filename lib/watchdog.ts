@@ -34,8 +34,17 @@ export interface CheckInputs {
   snapshot_updated_at:     string | null;
   heartbeat_snapshot_time: string | null;
   score_history_date:      string | null;
+  /** Live count, from wallets.is_active. Drives the absolute floor. */
   active_wallets:          number | null;
-  prev_day_wallets:        number | null;
+  /**
+   * Wallets scored today and yesterday, both from wallet_score_history.
+   * The drop rule compares these two and never touches active_wallets:
+   * a wallet can be scored in the morning and deactivated by hygiene the
+   * same afternoon, so scored-today and active-now are different
+   * populations and comparing them invents a collapse that never happened.
+   */
+  scored_today:            number | null;
+  scored_yesterday:        number | null;
   outcomes_resolved_48h:   number | null;
 }
 
@@ -115,15 +124,16 @@ export function evaluateChecks(i: CheckInputs): CheckResult[] {
       detail: `${i.active_wallets} active, floor ${THRESHOLDS.cohort_floor}`,
     });
   } else if (
-    i.prev_day_wallets !== null &&
-    i.prev_day_wallets > 0 &&
-    (i.prev_day_wallets - i.active_wallets) / i.prev_day_wallets > THRESHOLDS.cohort_max_drop_pct
+    i.scored_today !== null &&
+    i.scored_yesterday !== null &&
+    i.scored_yesterday > 0 &&
+    (i.scored_yesterday - i.scored_today) / i.scored_yesterday > THRESHOLDS.cohort_max_drop_pct
   ) {
-    const pct = Math.round(((i.prev_day_wallets - i.active_wallets) / i.prev_day_wallets) * 100);
+    const pct = Math.round(((i.scored_yesterday - i.scored_today) / i.scored_yesterday) * 100);
     results.push({
       id: "cohort_floor",
       ok: false,
-      detail: `${i.active_wallets} active, down ${pct}% in a day`,
+      detail: `${i.scored_today} scored, down ${pct}% vs yesterday`,
     });
   } else {
     results.push({ id: "cohort_floor", ok: true, detail: `${i.active_wallets} active` });
