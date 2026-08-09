@@ -72,8 +72,28 @@ Each check has a stable id, used as its KV state key.
 | `snapshot_stale` | `updated_at` older than 20 min | `cohort:active` in KV |
 | `heartbeat_dead` | newest row older than 45 min | `cohort_snapshots.snapshot_time` |
 | `scan_dead` | newest date older than 48 h | `wallet_score_history.date` |
-| `cohort_floor` | count below 40, or down more than 30% vs the previous day | current: `count(wallets where is_active = true)`. Previous day: `count(wallet_score_history where date = today - 1)` |
-| `learning_stalled` | zero rows in the last 48 h | `count(signal_outcomes where resolved_at > now() - 48h)` |
+| `cohort_floor` | live count below 40, or scored count down more than 30% vs yesterday | floor: `count(wallets where is_active = true)`. Drop: `count(wallet_score_history where date = today)` vs `date = today - 1` |
+| `learning_stalled` | any outcome past its grading deadline is still ungraded | `count(signal_outcomes where resolved_at is null and created_at < now() - 50h)` |
+
+Two of these were corrected on 2026-08-09 after both fired falsely on the
+first live run. Both had the same defect: they measured a proxy rather than
+the thing itself.
+
+`cohort_floor` compared the live `is_active` count against yesterday's
+`wallet_score_history` count. Those are different populations. Hygiene
+deactivates wallets after the scan has already scored them, so on 2026-08-09
+the scan scored 132 wallets against 161 the day before, an 18% drop, while
+only 71 were still active. Comparing 71 to 161 invented a 56% collapse. The
+drop rule now compares scored-today to scored-yesterday, and the absolute
+floor keeps using the live count so an intraday collapse is still caught.
+
+`learning_stalled` asked whether anything had resolved recently, which
+conflates a broken grader with a pipeline that simply has nothing mature yet.
+`/api/measure-outcomes` runs daily at 02:00 UTC against a 24 h horizon, so a
+signal firing just after a run waits roughly 48 h before grading is even late.
+After the 2026-08-08 recovery every outcome was under 24 h old and zero
+resolutions was the correct state. The check now counts outcomes that are
+genuinely overdue, which is the only condition that means the grader failed.
 
 The first three replace the bash equivalents currently inline in
 `freshness-check.yml`, which are deleted so there is one definition of "broken".

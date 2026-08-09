@@ -25,7 +25,13 @@ export const THRESHOLDS = {
   scan_max_age_ms:      48 * 60 * 60 * 1000,
   cohort_floor:         40,
   cohort_max_drop_pct:  0.30,
-  learning_window_ms:   48 * 60 * 60 * 1000,
+  /**
+   * How long an outcome may sit ungraded before the grader is at fault.
+   * measure-outcomes runs daily at 02:00 UTC (vercel.json) against a 24h
+   * horizon, so a signal firing just after a run waits ~24h to mature and
+   * ~24h more for the next run. 50h allows both plus cron drift.
+   */
+  outcome_overdue_ms:   50 * 60 * 60 * 1000,
 } as const;
 
 /** Raw values the checks run against. Null means the source was unreachable. */
@@ -45,6 +51,14 @@ export interface CheckInputs {
    */
   scored_today:            number | null;
   scored_yesterday:        number | null;
+  /**
+   * Outcomes past outcome_overdue_ms with no resolved_at. This, not the
+   * recent-resolution count, is what says the grader failed: a restarted
+   * pipeline legitimately resolves nothing for a day or more while its
+   * first signals mature.
+   */
+  outcomes_overdue:        number | null;
+  /** Informational only, used for the healthy-state message. */
   outcomes_resolved_48h:   number | null;
 }
 
@@ -140,11 +154,21 @@ export function evaluateChecks(i: CheckInputs): CheckResult[] {
   }
 
   results.push(
-    i.outcomes_resolved_48h === null
+    i.outcomes_overdue === null
       ? { id: "learning_stalled", ok: false, detail: "outcome count unavailable" }
-      : i.outcomes_resolved_48h === 0
-        ? { id: "learning_stalled", ok: false, detail: "no outcomes resolved in 48h" }
-        : { id: "learning_stalled", ok: true, detail: `${i.outcomes_resolved_48h} outcomes in 48h` },
+      : i.outcomes_overdue > 0
+        ? {
+            id: "learning_stalled",
+            ok: false,
+            detail: `${i.outcomes_overdue} outcomes ungraded past 50h`,
+          }
+        : {
+            id: "learning_stalled",
+            ok: true,
+            detail: i.outcomes_resolved_48h
+              ? `${i.outcomes_resolved_48h} graded in 48h`
+              : "nothing overdue",
+          },
   );
 
   return results;

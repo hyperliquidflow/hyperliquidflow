@@ -20,6 +20,7 @@ function healthyInputs(): CheckInputs {
     active_wallets:          77,
     scored_today:            80,
     scored_yesterday:        82,
+    outcomes_overdue:        0,
     outcomes_resolved_48h:   42,
   };
 }
@@ -96,9 +97,34 @@ describe("evaluateChecks", () => {
     expect(byId(rs, "cohort_floor").ok).toBe(true);
   });
 
-  it("flags a stalled learning loop", () => {
-    const rs = evaluateChecks({ ...healthyInputs(), outcomes_resolved_48h: 0 });
-    expect(byId(rs, "learning_stalled").ok).toBe(false);
+  it("flags a stalled learning loop when mature outcomes went ungraded", () => {
+    const rs = evaluateChecks({ ...healthyInputs(), outcomes_overdue: 7 });
+    const r = byId(rs, "learning_stalled");
+    expect(r.ok).toBe(false);
+    expect(r.detail).toContain("7");
+  });
+
+  // Regression, 2026-08-09: the check asked "was anything resolved recently"
+  // and fired after the pipeline restarted, when 28 outcomes existed but every
+  // one was younger than the 24h grading horizon. Nothing was owed, so nothing
+  // was wrong. measure-outcomes runs daily at 02:00 UTC against a 24h horizon,
+  // so a row can sit ungraded for nearly 48h as normal operation.
+  it("stays green when outcomes exist but none have matured yet", () => {
+    const rs = evaluateChecks({
+      ...healthyInputs(),
+      outcomes_overdue:      0,
+      outcomes_resolved_48h: 0,
+    });
+    expect(byId(rs, "learning_stalled").ok).toBe(true);
+  });
+
+  it("stays green on a quiet stretch with nothing to grade", () => {
+    const rs = evaluateChecks({
+      ...healthyInputs(),
+      outcomes_overdue:      0,
+      outcomes_resolved_48h: 0,
+    });
+    expect(byId(rs, "learning_stalled").detail).toBe("nothing overdue");
   });
 
   it("treats missing data as broken, not as healthy", () => {
@@ -110,6 +136,7 @@ describe("evaluateChecks", () => {
       active_wallets:          null,
       scored_today:            null,
       scored_yesterday:        null,
+      outcomes_overdue:        null,
       outcomes_resolved_48h:   null,
     });
     expect(rs.every((r) => !r.ok)).toBe(true);

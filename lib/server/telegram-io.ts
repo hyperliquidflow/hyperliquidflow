@@ -6,7 +6,7 @@ import { kv } from "@vercel/kv";
 import { createClient } from "@supabase/supabase-js";
 import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from "@/lib/env";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
-import { CHECK_IDS, type AlertState, type CheckId, type CheckInputs } from "@/lib/watchdog";
+import { CHECK_IDS, THRESHOLDS, type AlertState, type CheckId, type CheckInputs } from "@/lib/watchdog";
 import { RECIPE_META } from "@/lib/recipe-meta";
 import type { CohortData, ScanData, SignalsData, StatusData } from "@/lib/telegram";
 
@@ -50,8 +50,9 @@ export async function collectCheckInputs(): Promise<CheckInputs> {
   const today     = new Date(now).toISOString().slice(0, 10);
   const yesterday = new Date(now - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const since48h  = new Date(now - 48 * 60 * 60 * 1000).toISOString();
+  const overdueBefore = new Date(now - THRESHOLDS.outcome_overdue_ms).toISOString();
 
-  const [cache, beat, hist, active, scoredToday, scoredYesterday, outcomes] = await Promise.all([
+  const [cache, beat, hist, active, scoredToday, scoredYesterday, outcomes, overdue] = await Promise.all([
     readCohortCache(),
     supabase.from("cohort_snapshots").select("snapshot_time")
       .order("snapshot_time", { ascending: false }).limit(1).maybeSingle(),
@@ -65,6 +66,9 @@ export async function collectCheckInputs(): Promise<CheckInputs> {
       .eq("date", yesterday),
     supabase.from("signal_outcomes").select("id", { count: "exact", head: true })
       .gte("resolved_at", since48h),
+    supabase.from("signal_outcomes").select("id", { count: "exact", head: true })
+      .is("resolved_at", null)
+      .lt("created_at", overdueBefore),
   ]);
 
   return {
@@ -75,6 +79,7 @@ export async function collectCheckInputs(): Promise<CheckInputs> {
     active_wallets:          active.error          ? null : active.count          ?? null,
     scored_today:            scoredToday.error     ? null : scoredToday.count     ?? null,
     scored_yesterday:        scoredYesterday.error ? null : scoredYesterday.count ?? null,
+    outcomes_overdue:        overdue.error         ? null : overdue.count         ?? null,
     outcomes_resolved_48h:   outcomes.error        ? null : outcomes.count        ?? null,
   };
 }
