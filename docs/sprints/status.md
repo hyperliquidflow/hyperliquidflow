@@ -5,18 +5,43 @@ At the start of each session, read this file to know where to pick up.
 
 ## Active Sprint
 
-**Recovery: Phase 0 Clean House and Resurrection (2026-08-08 audit)**  
-Status: COMPLETE (2026-08-08). Verified: first-ever wallet_score_history rows
-(57, growing as snapshots cover the new cohort), scan green with the new
-score-history assertion, all 5 workflows active, keepalive scheduled, live
-payload refreshing on ping (77-wallet cohort). First scan: 3,063 discovered,
-248 activated, 77 active after G10/G11/G12 gates (G12 low_regime_coverage cut
-134; 97 Hyperliquid 429s during scoring). Gate calibration and rate-limit
-backoff are Phase 1 items.  
-Remaining manual steps: UptimeRobot monitors (owner), migration 020 prod apply
-(Supabase MCP was read-only this session; file is committed).  
-Next: plan Phase 1 per the roadmap.  
-Plan: `docs/superpowers/plans/2026-08-08-phase0-clean-house-and-resurrection.md`  
+**Recovery Phase 2: Prove or Kill (2026-08-08 audit)**  
+Status: ACTIVE, started 2026-08-09. This phase is mostly waiting plus a weekly
+review. No code work is required to progress it.
+
+Phases 0 and 1 are COMPLETE and verified in production (2026-08-08/09):
+- Phase 0 resurrected the pipelines: all 5 workflows active, keepalive prevents
+  the 60-day auto-disable that killed everything in June, UptimeRobot drives a
+  5-minute heartbeat, migrations 020 and 021 applied.
+- Phase 1 made outcomes measurable: outcomes priced from candles at true
+  horizons, per-outcome grading (the old quorum could never open), calibration
+  wired nightly, recipes cut 15 to 6, 312 tests including first-ever signal-lab
+  and V1 scoring coverage, UI states real data age everywhere.
+- **Grading loop verified working 2026-08-09**: signal_outcomes carries real
+  is_win, net_pnl_bps, exit_reason. That was 0 for the project's entire history.
+- **momentum_stack fired for the first time ever** after the cadence-aware
+  window fix. It had no record of firing in 4 months.
+
+### Weekly review checklist (the whole job this phase)
+
+1. Rank IC: needs 30 daily measurements, then compare median against MDIC 0.08.
+   `select count(*), round(avg(rank_ic)::numeric,4) from rank_ic_history;`
+2. Per recipe: at 30+ graded outcomes each, compute win_rate_net and expectancy.
+   Positive expectancy survives, anything else is deleted, not tuned.
+   `select recipe_id, count(*), round(avg(net_pnl_bps)::numeric,1) from signal_outcomes where is_win is not null group by 1;`
+3. funding_divergence: suspended from the feed, still recording. Reinstate only
+   at 30 graded outcomes with non-negative expectancy, otherwise cut it. It is
+   currently producing most signal volume, so watch it closely.
+4. R13 V2 canary: decide at 30 shadow measurements, cut over or delete V2.
+5. Cohort size: G10 was raised 15x to 25x on 2026-08-09, which should lift the
+   cohort well above 77 on the next nightly scan. Verify it did.
+
+Caveat for early data: outcomes created before 2026-08-09 were priced under the
+old broken horizon logic (price_4h held a ~25h price). Treat their magnitudes as
+indicative only.
+
+Plan (Phase 0): `docs/superpowers/plans/2026-08-08-phase0-clean-house-and-resurrection.md`  
+Plan (Phase 1): `docs/superpowers/plans/2026-08-08-phase1-measurable-outcomes.md`  
 Roadmap: `docs/superpowers/specs/2026-08-08-rebuild-roadmap.md`  
 Full audit: `docs/audit/2026-08-08-full-audit.md`
 
