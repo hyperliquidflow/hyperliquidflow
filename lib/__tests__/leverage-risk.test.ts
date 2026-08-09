@@ -6,21 +6,26 @@ import {
   DEFAULT_PENALTY_PARAMS,
 } from "../leverage-risk";
 
-const PARAMS = DEFAULT_PENALTY_PARAMS; // safe_lev=3, max_lev=15, exponent=1.5
+// Reference the params, never the literals. These are tunable thresholds
+// (max_lev tracks the G10 gate), so tests assert curve behavior at the
+// boundaries rather than pinning a specific number.
+const PARAMS = DEFAULT_PENALTY_PARAMS;
+const { safe_lev: SAFE, max_lev: MAX } = PARAMS;
+const MID = (SAFE + MAX) / 2;
 
 describe("computeBlowUpPenalty", () => {
   it("returns 0 at or below safe_lev", () => {
     expect(computeBlowUpPenalty(0, PARAMS)).toBe(0);
-    expect(computeBlowUpPenalty(3, PARAMS)).toBe(0);
+    expect(computeBlowUpPenalty(SAFE, PARAMS)).toBe(0);
   });
 
   it("returns 1 at or above max_lev", () => {
-    expect(computeBlowUpPenalty(15, PARAMS)).toBe(1);
-    expect(computeBlowUpPenalty(20, PARAMS)).toBe(1);
+    expect(computeBlowUpPenalty(MAX, PARAMS)).toBe(1);
+    expect(computeBlowUpPenalty(MAX + 5, PARAMS)).toBe(1);
   });
 
   it("interpolates between safe_lev and max_lev", () => {
-    const mid = computeBlowUpPenalty(9, PARAMS); // midpoint of [3,15]
+    const mid = computeBlowUpPenalty(MID, PARAMS); // midpoint of [safe_lev, max_lev]
     expect(mid).toBeGreaterThan(0);
     expect(mid).toBeLessThan(1);
   });
@@ -42,10 +47,10 @@ describe("computeBlowUpPenalty", () => {
 
 describe("computeBlowUpDistanceScore", () => {
   it("is 1 - penalty", () => {
-    expect(computeBlowUpDistanceScore(3, PARAMS)).toBe(1);
-    expect(computeBlowUpDistanceScore(15, PARAMS)).toBe(0);
-    const mid = computeBlowUpDistanceScore(9, PARAMS);
-    expect(mid).toBeCloseTo(1 - computeBlowUpPenalty(9, PARAMS), 6);
+    expect(computeBlowUpDistanceScore(SAFE, PARAMS)).toBe(1);
+    expect(computeBlowUpDistanceScore(MAX, PARAMS)).toBe(0);
+    const mid = computeBlowUpDistanceScore(MID, PARAMS);
+    expect(mid).toBeCloseTo(1 - computeBlowUpPenalty(MID, PARAMS), 6);
   });
 });
 

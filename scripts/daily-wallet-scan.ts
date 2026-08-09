@@ -67,7 +67,25 @@ const SYBIL_CORRELATION_THRESHOLD  = 0.95;   // Pearson r > 0.95 on 60d daily Pn
 const MIN_NONZERO_DAYS_FOR_SYBIL   = 30;     // min active trading days before sybil correlation is trusted
 const SCALPER_THRESHOLD            = 300;    // >300 trades/60d = 5+/day
 // Stream A gate G10 (Sprint 8). Threshold re-fit empirically in Sprint 13 from cohort_attrition data.
-const MAX_LEVERAGE_G10             = 15;     // deactivate wallets whose max observed leverage exceeds this
+// G10 deactivates wallets whose max observed 60d leverage exceeds this.
+//
+// Raised from 15 to 25 on 2026-08-09 from cohort data, replacing an April prior
+// that was never tested. Median 30d PnL by leverage band, across 1,090 scored
+// wallets: under 15x $26.2k, 15-20x $29.3k, 20-25x $32.2k, 25-40x $24.9k. The
+// 15 to 25 band is at least as profitable as the safe band on a median basis,
+// so the old threshold was rejecting roughly 278 wallets, a quarter of those
+// that had already passed every quality gate, for no measured benefit.
+//
+// Why stop at 25 rather than removing the gate: above 25x the MEAN turns
+// negative (-$14.5k) while the median stays positive, the signature of a
+// minority blowing up hard. That tail is exactly what this gate exists to
+// avoid, and it is the only place the data shows it.
+//
+// Revisit when real outcome data exists: cohort_attrition.state_90d is
+// 'never_reached' for all 2,329 rows today, so scripts/fit-leverage-penalty.ts
+// cannot be fitted yet (it needs observed blow-up events, and we have none).
+// Once those states mature, fit the curve properly instead of picking a number.
+const MAX_LEVERAGE_G10             = 25;
 const TREND_THRESHOLD              = 60;     // <60 trades/60d = <1/day
 const MIN_REGIME_DAYS              = 5;      // min days in a regime to compute a meaningful average
 const MAX_PROFILE_COINS            = 5;      // top N coins by notional from latest snapshot

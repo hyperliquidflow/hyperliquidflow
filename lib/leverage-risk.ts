@@ -13,11 +13,19 @@ export interface LeveragePenaltyParams {
   exponent:  number; // curve shape: 1=linear, >1=convex (penalises high lev harder)
 }
 
-// Conservative prior. Re-fit with fit-leverage-penalty.ts once 10+ blow-up
-// events exist in cohort_attrition.
+// Still a prior, not a fit: cohort_attrition.state_90d is 'never_reached' for
+// every row today, so there are no observed blow-up events to fit against.
+// Re-fit with fit-leverage-penalty.ts once those states mature.
+//
+// max_lev tracks the G10 gate (raised 15 to 25 on 2026-08-09). Leaving it at 15
+// while G10 admitted up to 25x made blow_up_distance a degenerate 0 for the
+// entire retained high-leverage band, so the V2 score treated every one of
+// those wallets as maximally risky and could not tell them apart. Keep these
+// two numbers aligned. Changed on day one of the V2 shadow window on purpose,
+// before any comparison data accumulated against the old shape.
 export const DEFAULT_PENALTY_PARAMS: LeveragePenaltyParams = {
   safe_lev:  3,
-  max_lev:   15,
+  max_lev:   25,
   exponent:  1.5,
 };
 
