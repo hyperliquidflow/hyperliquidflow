@@ -2,6 +2,8 @@
 // Pure stateless functions for the signal learning stats engine.
 // No I/O -- all inputs are plain data. Tested directly by Vitest.
 
+import { getCoinTier, type CoinTier } from "./token-tiers";
+
 export interface OutcomeRow {
   is_win:   boolean | null;
   fired_at: string;
@@ -64,7 +66,20 @@ export function meetsMinSample(sampleSize: number): boolean {
   return sampleSize >= 30;
 }
 
-export function computeConfidence(sampleSize: number, winRate: number): number {
+/**
+ * Win rate at which a stop/target system breaks even before costs.
+ * Risking `stopAtr` to make `targetAtr` needs stop/(stop+target) to break even,
+ * so a 2-ATR stop against a 3-ATR target breaks even at 40%, not 50%.
+ */
+export function breakevenWinRate(stopAtr: number, targetAtr: number): number {
+  return stopAtr / (stopAtr + targetAtr);
+}
+
+export function computeConfidence(
+  sampleSize: number,
+  winRate:    number,
+  breakeven:  number = 0.5,
+): number {
   if (sampleSize === 0) return 0;
   const z = 1.645; // 90% confidence z-score
   const p = winRate;
@@ -72,7 +87,30 @@ export function computeConfidence(sampleSize: number, winRate: number): number {
   const centre = (p + (z * z) / (2 * n)) / (1 + (z * z) / n);
   const margin  = (z * Math.sqrt((p * (1 - p) + (z * z) / (4 * n)) / n)) / (1 + (z * z) / n);
   const lowerBound = centre - margin;
-  return Math.min(1, Math.max(0, Math.abs(lowerBound - 0.5) * 2));
+  return Math.min(1, Math.max(0, Math.abs(lowerBound - breakeven) * 2));
+}
+
+/**
+ * Confidence that the true win rate is ABOVE breakeven, which is the question
+ * a prove-or-kill review actually asks. `computeConfidence` measures distance
+ * from an anchor in either direction, so a recipe that is confidently BAD and
+ * one that is confidently GOOD score the same there. This returns 0 unless the
+ * Wilson lower bound clears breakeven outright.
+ */
+export function confidenceAboveBreakeven(
+  sampleSize: number,
+  winRate:    number,
+  breakeven:  number,
+): number {
+  if (sampleSize === 0) return 0;
+  const z = 1.645;
+  const p = winRate;
+  const n = sampleSize;
+  const centre = (p + (z * z) / (2 * n)) / (1 + (z * z) / n);
+  const margin = (z * Math.sqrt((p * (1 - p) + (z * z) / (4 * n)) / n)) / (1 + (z * z) / n);
+  const lowerBound = centre - margin;
+  if (lowerBound <= breakeven) return 0;
+  return Math.min(1, (lowerBound - breakeven) / (1 - breakeven));
 }
 
 export function computeWinRateByRegime(
@@ -145,79 +183,185 @@ export function dominantRegime(
 // Round-trip taker cost: 5 bps entry + 5 bps exit (Hyperliquid market taker).
 export const ROUND_TRIP_FEE_BPS = 10;
 
-export interface AtrExitResult {
-  entry_price:          number;
-  exit_price:           number;
-  exit_reason:          "stop" | "target" | "time_1h" | "time_4h" | "time_24h";
-  gross_pnl_bps:        number;
-  net_pnl_bps:          number;
-  realized_r_multiple:  number;
-  is_win:               boolean;
-}
+// Stop and target distances, in ATR multiples. These set the breakeven win rate.
+export const EXIT_STOP_ATR   = 2;
+export const EXIT_TARGET_ATR = 3;
 
 /**
- * Simulate first-exit-wins logic using discrete price snapshots.
+ * Round-trip slippage assumption in bps, by coin liquidity tier. Order book
+ * depth is not retained historically, so these are standing assumptions rather
+ * than measurements. They matter most on SMALL names, which is where the cohort
+ * trades most and where a zero-slippage grade flatters the result hardest.
+ */
+export const SLIPPAGE_BPS_BY_TIER: Record<CoinTier, number> = {
+  MAJOR: 2,
+  LARGE: 6,
+  SMALL: 20,
+};
+
+export function slippageBpsForCoin(coin: string): number {
+  return SLIPPAGE_BPS_BY_TIER[getCoinTier(coin)];
+}
+
+export interface ExitBar {
+  t: number;  // bar open time, ms
+  h: string;
+  l: string;
+  c: string;
+}
+
+export interface CandleExitResult {
+  entry_price:         number;
+  exit_price:          number;
+  exit_reason:         "stop" | "target" | "time";
+  hold_hours:          number;
+  gross_pnl_bps:       number;
+  cost_bps:            number;
+  net_pnl_bps:         number;
+  realized_r_multiple: number;
+  is_win:              boolean;
+}
+
+export interface CandleExitParams {
+  direction:          "LONG" | "SHORT";
+  entryPrice:         number;
+  atr:                number;
+  entryMs:            number;
+  bars:               ExitBar[];
+  maxHoldHours?:      number;
+  feeBps?:            number;
+  slippageBps?:       number;
+  /** Signed hourly funding in bps. Positive means longs pay shorts. */
+  fundingBpsPerHour?: number;
+}
+
+const HOUR_MS = 3600_000;
+
+/**
+ * Walk hourly bars from the signal timestamp and exit on the first bar whose
+ * range touches the stop or the target. Bar ranges are used rather than closes
+ * because a close-only check cannot see an adverse excursion inside the bar,
+ * which silently converts stopped-out trades into winners.
+ *
  * Stop = entry - 2*ATR (LONG) or entry + 2*ATR (SHORT).
  * Target = entry + 3*ATR (LONG) or entry - 3*ATR (SHORT).
- * Checked in order: 1h, 4h, 24h. First snapshot that hits stop or target wins;
- * otherwise the first available snapshot is a time exit.
+ * A bar that spans both levels resolves as a stop: OHLC does not record which
+ * came first, so the simulation takes the adverse fill.
  */
-export function simulateAtrExit(
-  direction:  "LONG" | "SHORT",
-  entryPrice: number,
-  atr:        number,
-  price1h:    number | null,
-  price4h:    number | null,
-  price24h:   number | null,
-): AtrExitResult | null {
+export function simulateExitFromCandles(params: CandleExitParams): CandleExitResult | null {
+  const {
+    direction, entryPrice, atr, entryMs, bars,
+    maxHoldHours      = 24,
+    feeBps            = ROUND_TRIP_FEE_BPS,
+    slippageBps       = 0,
+    fundingBpsPerHour = 0,
+  } = params;
+
   if (entryPrice <= 0 || atr <= 0) return null;
 
-  const sign      = direction === "LONG" ? 1 : -1;
-  const stopPx    = entryPrice - sign * 2 * atr;
-  const targetPx  = entryPrice + sign * 3 * atr;
+  const sign     = direction === "LONG" ? 1 : -1;
+  const stopPx   = entryPrice - sign * EXIT_STOP_ATR   * atr;
+  const targetPx = entryPrice + sign * EXIT_TARGET_ATR * atr;
+  const windowEnd = entryMs + maxHoldHours * HOUR_MS;
 
-  const snapshots: Array<[number | null, "time_1h" | "time_4h" | "time_24h"]> = [
-    [price1h,  "time_1h"],
-    [price4h,  "time_4h"],
-    [price24h, "time_24h"],
-  ];
+  const window = bars.filter((b) => b.t >= entryMs && b.t < windowEnd);
+  if (window.length === 0) return null;
+
+  // Bars held, not elapsed clock time: signals fire mid-bar, so a wall-clock
+  // measurement produces fractions and misstates the number of funding periods.
+  const holdHoursAt = (barIndex: number) => barIndex + 1;
 
   let exitPx:     number | null = null;
-  let exitReason: AtrExitResult["exit_reason"] | null = null;
+  let exitReason: CandleExitResult["exit_reason"] | null = null;
+  let holdHours   = 0;
 
-  for (const [px, timeLabel] of snapshots) {
-    if (px === null) continue;
-    const hitStop   = direction === "LONG" ? px <= stopPx   : px >= stopPx;
-    const hitTarget = direction === "LONG" ? px >= targetPx : px <= targetPx;
+  for (const [i, b] of window.entries()) {
+    const high = parseFloat(b.h);
+    const low  = parseFloat(b.l);
+    if (!isFinite(high) || !isFinite(low)) continue;
+
+    const hitStop   = direction === "LONG" ? low  <= stopPx   : high >= stopPx;
+    const hitTarget = direction === "LONG" ? high >= targetPx : low  <= targetPx;
+
     if (hitStop) {
-      exitPx     = stopPx;   // use exact stop level as conservative approximation
+      exitPx     = stopPx;
       exitReason = "stop";
+      holdHours  = holdHoursAt(i);
       break;
     }
     if (hitTarget) {
-      exitPx     = targetPx; // use exact target level
+      exitPx     = targetPx;
       exitReason = "target";
+      holdHours  = holdHoursAt(i);
       break;
     }
-    exitPx     = px;
-    exitReason = timeLabel;
-    break;
   }
 
-  if (exitPx === null || exitReason === null) return null;
+  if (exitPx === null || exitReason === null) {
+    const last  = window[window.length - 1];
+    const close = parseFloat(last.c);
+    if (!isFinite(close) || close <= 0) return null;
+    exitPx     = close;
+    exitReason = "time";
+    holdHours  = holdHoursAt(window.length - 1);
+  }
 
-  const grossPnlBps  = sign * ((exitPx - entryPrice) / entryPrice) * 10_000;
-  const netPnlBps    = grossPnlBps - ROUND_TRIP_FEE_BPS;
-  const rMultiple    = grossPnlBps / (2 * atr / entryPrice * 10_000); // pnl / 1R
+  const grossPnlBps = sign * ((exitPx - entryPrice) / entryPrice) * 10_000;
+  // Longs pay funding when the rate is positive; shorts receive it.
+  const fundingBps  = sign * fundingBpsPerHour * holdHours;
+  const costBps     = feeBps + slippageBps + fundingBps;
+  const netPnlBps   = grossPnlBps - costBps;
+  const oneRBps     = (EXIT_STOP_ATR * atr) / entryPrice * 10_000;
 
   return {
     entry_price:         entryPrice,
-    exit_price:          exitPx,
+    exit_price:          parseFloat(exitPx.toFixed(10)),
     exit_reason:         exitReason,
+    hold_hours:          holdHours,
     gross_pnl_bps:       parseFloat(grossPnlBps.toFixed(2)),
+    cost_bps:            parseFloat(costBps.toFixed(2)),
     net_pnl_bps:         parseFloat(netPnlBps.toFixed(2)),
-    realized_r_multiple: parseFloat(rMultiple.toFixed(4)),
+    realized_r_multiple: parseFloat((netPnlBps / oneRBps).toFixed(4)),
     is_win:              netPnlBps > 0,
+  };
+}
+
+export interface RecipeNetStats {
+  median_net_pnl_bps: number | null;
+  win_rate_net:       number | null;
+  expectancy_bps_net: number | null;
+  sample_size_60d:    number | null;
+}
+
+/**
+ * Headline net stats for a recipe, withheld until the sample clears
+ * `meetsMinSample`. Gating at the writer rather than in each view means the
+ * dashboard, the server components and the Telegram bot cannot independently
+ * decide to publish an expectancy computed from a handful of trades.
+ * The sample count is always reported so the wait is visible.
+ */
+export function computeRecipeNetStats(
+  rows: Array<{ net_pnl_bps: number | null; is_win: boolean | null }>,
+): RecipeNetStats {
+  const graded = rows.filter((r) => r.net_pnl_bps !== null);
+  if (graded.length === 0) {
+    return {
+      median_net_pnl_bps: null, win_rate_net: null,
+      expectancy_bps_net: null, sample_size_60d: null,
+    };
+  }
+  if (!meetsMinSample(graded.length)) {
+    return {
+      median_net_pnl_bps: null, win_rate_net: null,
+      expectancy_bps_net: null, sample_size_60d: graded.length,
+    };
+  }
+  const wins = graded.filter((r) => r.is_win === true).length;
+  return {
+    median_net_pnl_bps: computeMedianNetPnlBps(graded),
+    win_rate_net:       wins / graded.length,
+    expectancy_bps_net: computeExpectancyBps(graded),
+    sample_size_60d:    graded.length,
   };
 }
 

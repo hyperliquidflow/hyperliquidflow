@@ -2,18 +2,25 @@
 // Nightly stats engine. Called by GitHub Actions at 01:00 UTC.
 //
 // Phases:
-//   1. ATR backfill: find resolved-but-unsimulated outcomes, fetch ATR per coin,
-//      simulate ATR-based exits, write entry_price/exit_price/net_pnl_bps/is_win.
+//   1. Grading: walk hourly candles for every ungraded outcome whose 24h holding
+//      window has closed, and write entry/exit/cost/net_pnl_bps/is_win.
 //      Runs per row with no population quorum; the old cold-start gate could
 //      never open under 30-day retention (audit 2026-08-08).
 //   2. Stats engine: group by recipe, compute win rates + net PnL stats, write
 //      agent_findings and update recipe_performance net PnL columns. Low-sample
 //      recipes are marked INSUFFICIENT_DATA rather than hidden.
 //
-// Exit rules (Sprint R10): first-hit-wins over discrete 1h/4h/24h snapshots.
+// Exit rules: first-hit-wins over the 1h candle path, capped at a 24h hold.
 //   Stop: entry - 2*ATR (LONG) / entry + 2*ATR (SHORT)
 //   Target: entry + 3*ATR (LONG) / entry - 3*ATR (SHORT)
-//   Time exit: first snapshot where neither stop nor target was hit
+//   Time exit: close of the last bar in the holding window
+//
+// Stops and targets are tested against each bar's high and low, not its close.
+// The previous version compared three close prices and broke out of its loop on
+// the first one, so an adverse excursion at hour 4 or hour 20 was invisible and
+// every trade recorded a 1-hour time exit. ATR is measured from bars that had
+// closed by the signal timestamp, and net PnL carries fees, tier-based slippage
+// and realised funding.
 
 import { createClient } from "@supabase/supabase-js";
 import * as fs from "fs/promises";
@@ -22,18 +29,25 @@ import {
   computeTrend,
   computeMeasuredEV,
   meetsMinSample,
-  computeConfidence,
+  confidenceAboveBreakeven,
+  breakevenWinRate,
   computeWinRateByRegimeFit,
-  simulateAtrExit,
+  simulateExitFromCandles,
+  slippageBpsForCoin,
   computeExpectancyBps,
-  computeMedianNetPnlBps,
+  computeRecipeNetStats,
+  EXIT_STOP_ATR,
+  EXIT_TARGET_ATR,
 } from "../lib/signal-learning-utils";
-import { computeATR } from "../lib/atr";
+import { computeATRAsOf } from "../lib/atr";
+import {
+  fetchCandleSnapshot,
+  fetchFundingHistory,
+  type HlCandle,
+} from "../lib/hyperliquid-api-client";
 
 const SUPABASE_URL              = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const HYPERLIQUID_API_URL       =
-  process.env.HYPERLIQUID_API_URL ?? "https://api.hyperliquid.xyz/info";
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
   console.error("FATAL: Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
@@ -42,119 +56,174 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-// ─── ATR fetching ──────────────────────────────────────────────────────────────
+// ─── Market data per coin ──────────────────────────────────────────────────────
 
-async function fetchAtrForCoin(coin: string): Promise<number | null> {
-  const endTime   = Date.now();
-  const startTime = endTime - 30 * 24 * 60 * 60 * 1000; // 30 days of 4h candles
+const HOUR_MS       = 3600_000;
+const FOUR_H_MS     = 4 * HOUR_MS;
+const MAX_HOLD_HOURS = 24;
+// 4h candles reaching this far back so a signal always has 14 closed bars
+// available for its point-in-time ATR.
+const ATR_LOOKBACK_MS = 30 * 24 * HOUR_MS;
+// Past this age, a coin with no candle history is treated as gone for good.
+const NO_DATA_GIVE_UP_MS = 7 * 24 * HOUR_MS;
+
+interface CoinMarketData {
+  bars1h:   HlCandle[];
+  bars4h:   HlCandle[];
+  /** Hourly funding rates in bps, ascending by time. Positive means longs pay. */
+  funding:  Array<{ t: number; bps: number }>;
+}
+
+async function fetchCoinMarketData(
+  coin: string,
+  fromMs: number,
+): Promise<CoinMarketData | null> {
+  const now = Date.now();
   try {
-    const res = await fetch(HYPERLIQUID_API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "candleSnapshot",
-        req: { coin, interval: "4h", startTime, endTime },
-      }),
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!res.ok) return null;
-    const candles = (await res.json()) as Array<{ h: string; l: string; c: string }>;
-    return computeATR(candles);
-  } catch {
+    const [bars1h, bars4h, fundingRaw] = await Promise.all([
+      fetchCandleSnapshot(coin, "1h", fromMs - HOUR_MS, now),
+      fetchCandleSnapshot(coin, "4h", fromMs - ATR_LOOKBACK_MS, now),
+      fetchFundingHistory(coin, fromMs - HOUR_MS).catch(() => []),
+    ]);
+    if (!bars1h?.length || !bars4h?.length) return null;
+    const funding = (fundingRaw ?? [])
+      .map((f) => ({ t: f.time, bps: parseFloat(f.fundingRate) * 10_000 }))
+      .filter((f) => isFinite(f.bps))
+      .sort((a, b) => a.t - b.t);
+    return { bars1h, bars4h, funding };
+  } catch (err) {
+    console.warn(`[signal-learning] market data fetch failed for ${coin}:`, err);
     return null;
   }
 }
 
-// Fetch ATR for multiple coins, rate-limited to avoid hammering the API.
-async function fetchAtrMap(coins: string[]): Promise<Map<string, number>> {
-  const map = new Map<string, number>();
-  let successCount = 0;
-  const requestedCount = coins.length;
-  for (const coin of coins) {
-    const atr = await fetchAtrForCoin(coin);
-    if (atr !== null) {
-      map.set(coin, atr);
-      successCount++;
-    }
-    // Small delay to avoid rate-limit
-    await new Promise((r) => setTimeout(r, 200));
-  }
-  const coverage = requestedCount > 0 ? successCount / requestedCount : 1;
-  if (requestedCount > 0 && coverage < 0.5) {
-    throw new Error(
-      `fetchAtrMap: only ${successCount}/${requestedCount} coins fetched (${(coverage * 100).toFixed(0)}%). Aborting learning run.`
-    );
-  }
-  return map;
+/**
+ * Mean hourly funding over the maximum holding window from entry. The exact
+ * hold is not known until the exit resolves, so the rate is averaged across the
+ * window and the simulator scales it by the hold it actually produces.
+ */
+function meanFundingBpsPerHour(
+  funding: Array<{ t: number; bps: number }>,
+  entryMs: number,
+): number {
+  const windowEnd = entryMs + MAX_HOLD_HOURS * HOUR_MS;
+  const inWindow  = funding.filter((f) => f.t >= entryMs && f.t < windowEnd);
+  if (inWindow.length === 0) return 0;
+  return inWindow.reduce((s, f) => s + f.bps, 0) / inWindow.length;
 }
 
-// ─── Phase 1: ATR exit backfill ────────────────────────────────────────────────
+// ─── Phase 1: grade outcomes against the hourly path ───────────────────────────
 
-async function backfillAtrExits(): Promise<number> {
+async function gradeOutcomes(): Promise<number> {
+  // Grading needs the full holding window to have elapsed, and nothing else.
+  // It reads candles directly rather than the price_1h/4h/24h columns, so it no
+  // longer waits on /api/measure-outcomes to have run first.
+  const readyBefore = new Date(Date.now() - MAX_HOLD_HOURS * HOUR_MS).toISOString();
+
   const { data: rows, error } = await supabase
     .from("signal_outcomes")
-    .select("id, coin, direction, price_at_signal, price_1h, price_4h, price_24h")
-    .not("resolved_at", "is", null)
+    .select("id, coin, direction, price_at_signal, created_at")
     .is("exit_reason", null)
-    .in("direction", ["LONG", "SHORT"]);
+    .in("direction", ["LONG", "SHORT"])
+    .lte("created_at", readyBefore)
+    .order("created_at", { ascending: true });
 
   if (error) {
-    console.error("[signal-learning] ATR backfill fetch error:", error.message);
+    console.error("[signal-learning] grading fetch error:", error.message);
     return 0;
   }
   if (!rows || rows.length === 0) {
-    console.log("[signal-learning] ATR backfill: no pending rows");
+    console.log("[signal-learning] grading: no rows ready");
     return 0;
   }
 
-  console.log(`[signal-learning] ATR backfill: ${rows.length} rows to simulate`);
-
-  const coins = [...new Set(rows.map((r) => r.coin as string))];
-  console.log(`[signal-learning] Fetching ATR for ${coins.length} coins...`);
-  const atrMap = await fetchAtrMap(coins);
-  console.log(`[signal-learning] ATR fetched for ${atrMap.size}/${coins.length} coins`);
-
-  const CHUNK = 50;
-  let simulated = 0;
-
-  for (let i = 0; i < rows.length; i += CHUNK) {
-    const chunk = rows.slice(i, i + CHUNK);
-    await Promise.all(
-      chunk.map(async (row) => {
-        const atr = atrMap.get(row.coin as string);
-        if (!atr) return;
-        const entry = parseFloat(String(row.price_at_signal));
-        if (!isFinite(entry) || entry <= 0) return;
-
-        const result = simulateAtrExit(
-          row.direction as "LONG" | "SHORT",
-          entry, atr,
-          row.price_1h   != null ? parseFloat(String(row.price_1h))   : null,
-          row.price_4h   != null ? parseFloat(String(row.price_4h))   : null,
-          row.price_24h  != null ? parseFloat(String(row.price_24h))  : null,
-        );
-        if (!result) return;
-
-        const { error: updErr } = await supabase
-          .from("signal_outcomes")
-          .update({
-            entry_price:         result.entry_price,
-            exit_price:          result.exit_price,
-            exit_reason:         result.exit_reason,
-            gross_pnl_bps:       result.gross_pnl_bps,
-            net_pnl_bps:         result.net_pnl_bps,
-            realized_r_multiple: result.realized_r_multiple,
-            is_win:              result.is_win,
-          })
-          .eq("id", row.id);
-
-        if (!updErr) simulated++;
-      })
-    );
+  const byCoin = new Map<string, typeof rows>();
+  for (const row of rows) {
+    const list = byCoin.get(row.coin as string) ?? [];
+    list.push(row);
+    byCoin.set(row.coin as string, list);
   }
 
-  console.log(`[signal-learning] ATR backfill: simulated ${simulated}/${rows.length} exits`);
-  return simulated;
+  console.log(`[signal-learning] grading ${rows.length} rows across ${byCoin.size} coins`);
+
+  let graded = 0;
+  let noData = 0;
+  let noAtr  = 0;
+
+  for (const [coin, coinRows] of byCoin) {
+    const earliest = Math.min(...coinRows.map((r) => new Date(r.created_at as string).getTime()));
+    const market = await fetchCoinMarketData(coin, earliest);
+    await new Promise((r) => setTimeout(r, 200)); // rate-limit courtesy
+
+    if (!market) {
+      noData += coinRows.length;
+      // A coin with no candle history past the retry window is delisted, not
+      // slow. Mark those rows terminal so they stop being re-fetched nightly
+      // for the rest of the 180-day retention period.
+      const staleIds = coinRows
+        .filter((r) => new Date(r.created_at as string).getTime() < Date.now() - NO_DATA_GIVE_UP_MS)
+        .map((r) => r.id);
+      if (staleIds.length > 0) {
+        await supabase
+          .from("signal_outcomes")
+          .update({ exit_reason: "no_data" })
+          .in("id", staleIds);
+        console.log(`[signal-learning] ${coin}: ${staleIds.length} rows marked no_data`);
+      }
+      continue;
+    }
+
+    const slippageBps = slippageBpsForCoin(coin);
+
+    for (const row of coinRows) {
+      const entryMs = new Date(row.created_at as string).getTime();
+      const entry   = parseFloat(String(row.price_at_signal));
+      if (!isFinite(entry) || entry <= 0) continue;
+
+      const atr = computeATRAsOf(market.bars4h, entryMs, { intervalMs: FOUR_H_MS });
+      if (atr === null || atr <= 0) {
+        noAtr++;
+        continue;
+      }
+
+      const result = simulateExitFromCandles({
+        direction:         row.direction as "LONG" | "SHORT",
+        entryPrice:        entry,
+        atr,
+        entryMs,
+        bars:              market.bars1h,
+        maxHoldHours:      MAX_HOLD_HOURS,
+        slippageBps,
+        fundingBpsPerHour: meanFundingBpsPerHour(market.funding, entryMs),
+      });
+      if (!result) continue;
+
+      const { error: updErr } = await supabase
+        .from("signal_outcomes")
+        .update({
+          entry_price:         result.entry_price,
+          exit_price:          result.exit_price,
+          exit_reason:         result.exit_reason,
+          hold_hours:          result.hold_hours,
+          gross_pnl_bps:       result.gross_pnl_bps,
+          cost_bps:            result.cost_bps,
+          net_pnl_bps:         result.net_pnl_bps,
+          realized_r_multiple: result.realized_r_multiple,
+          is_win:              result.is_win,
+          resolved_at:         new Date().toISOString(),
+        })
+        .eq("id", row.id);
+
+      if (updErr) console.error("[signal-learning] grade update error:", updErr.message);
+      else graded++;
+    }
+  }
+
+  console.log(
+    `[signal-learning] graded ${graded}/${rows.length} ` +
+    `(no market data: ${noData}, no point-in-time ATR: ${noAtr})`
+  );
+  return graded;
 }
 
 // ─── Phase 2: Stats engine ─────────────────────────────────────────────────────
@@ -168,7 +237,7 @@ async function runStatsEngine(): Promise<void> {
   const { data: rows, error } = await supabase
     .from("signal_outcomes")
     .select(
-      "id, recipe_id, coin, direction, created_at, " +
+      "id, signal_id, recipe_id, coin, direction, created_at, " +
       "is_win, move_pct_4h, net_pnl_bps, exit_reason"
     )
     .not("resolved_at", "is", null)
@@ -181,6 +250,7 @@ async function runStatsEngine(): Promise<void> {
 
   type OutcomeRow = {
     id: string;
+    signal_id: string | null;
     recipe_id: string | null;
     coin: string;
     direction: string | null;
@@ -193,14 +263,16 @@ async function runStatsEngine(): Promise<void> {
   const typedRows = rows as unknown as OutcomeRow[];
 
   // Fetch wallet_regime_fit from signals_history metadata for each row.
-  const signalIds = typedRows.map((r) => r.id).filter(Boolean);
-  let regimeFitById = new Map<string, number | null>();
+  // Keyed on signal_id: signal_outcomes.id is its own primary key, so joining
+  // on it matched nothing and this stratification never saw a single value.
+  const signalIds = typedRows.map((r) => r.signal_id).filter(Boolean);
+  let regimeFitBySignalId = new Map<string, number | null>();
   if (signalIds.length > 0) {
     const { data: metaRows } = await supabase
       .from("signals_history")
       .select("id, metadata")
       .in("id", signalIds);
-    regimeFitById = new Map(
+    regimeFitBySignalId = new Map(
       (metaRows ?? []).map((m) => [
         m.id as string,
         ((m.metadata as Record<string, unknown>)?.wallet_regime_fit as number | null) ?? null,
@@ -231,23 +303,31 @@ async function runStatsEngine(): Promise<void> {
     );
     const trend      = computeTrend(win_rate_7d, win_rate_90d);
     const sampleSize = outcomes.filter((o) => o.is_win !== null).length;
-    const confidence = computeConfidence(sampleSize, win_rate_30d ?? 0.5);
+    // A 2-ATR stop against a 3-ATR target breaks even at 40%, so confidence is
+    // measured against that, not against a coin flip.
+    const breakeven  = breakevenWinRate(EXIT_STOP_ATR, EXIT_TARGET_ATR);
+    const confidence = confidenceAboveBreakeven(sampleSize, win_rate_30d ?? breakeven, breakeven);
 
-    // Legacy avg win/loss from move_pct_4h for backcompat display
-    const wins   = outcomes.filter((o) => o.is_win && o.move_pct_4h !== null);
-    const losses = outcomes.filter((o) => o.is_win === false && o.move_pct_4h !== null);
+    // Average win and loss in percent, taken from the same simulated exits that
+    // set is_win. Sourcing magnitudes from move_pct_4h while sourcing the
+    // win/loss label from the exit simulation mixed two different trades.
+    const wins   = outcomes.filter((o) => o.is_win === true  && o.net_pnl_bps !== null);
+    const losses = outcomes.filter((o) => o.is_win === false && o.net_pnl_bps !== null);
     const avgWin  = wins.length > 0
-      ? wins.reduce((s, o) => s + (o.move_pct_4h ?? 0), 0) / wins.length
+      ? wins.reduce((s, o) => s + (o.net_pnl_bps ?? 0), 0) / wins.length / 100
       : null;
     const avgLoss = losses.length > 0
-      ? losses.reduce((s, o) => s + (o.move_pct_4h ?? 0), 0) / losses.length
+      ? losses.reduce((s, o) => s + (o.net_pnl_bps ?? 0), 0) / losses.length / 100
       : null;
 
     const measuredEV = computeMeasuredEV(win_rate_30d, avgWin, avgLoss);
+    const expectancy = computeExpectancyBps(
+      outcomes.map((o) => ({ net_pnl_bps: o.net_pnl_bps }))
+    );
 
     const regimeFitOutcomes = recipeRows.map((r) => ({
       is_win:     r.is_win,
-      regime_fit: regimeFitById.get(r.id) ?? null,
+      regime_fit: r.signal_id ? regimeFitBySignalId.get(r.signal_id) ?? null : null,
     }));
     const fitBuckets = computeWinRateByRegimeFit(regimeFitOutcomes);
 
@@ -265,10 +345,12 @@ async function runStatsEngine(): Promise<void> {
       });
     }
 
+    // Prove or kill: expectancy decides, not win rate. A recipe can win often
+    // and still lose money, and with a 3:2 payoff it can lose often and make it.
     let findingType = "STABLE";
-    if (!meetsMinSample(sampleSize)) findingType = "INSUFFICIENT_DATA";
-    else if (trend === "DEGRADING" && confidence > 0.70) findingType = "UNDERPERFORMING";
-    else if (trend === "IMPROVING") findingType = "IMPROVING";
+    if (!meetsMinSample(sampleSize))              findingType = "INSUFFICIENT_DATA";
+    else if (expectancy !== null && expectancy <= 0) findingType = "UNDERPERFORMING";
+    else if (trend === "IMPROVING")               findingType = "IMPROVING";
 
     findingRows.push({
       recipe_id:                recipeId,
@@ -295,9 +377,9 @@ async function runStatsEngine(): Promise<void> {
     });
 
     console.log(
-      `[signal-learning] ${recipeId}: n=${sampleSize}, wr7d=${win_rate_7d?.toFixed(2)}, ` +
-      `wr30d=${win_rate_30d?.toFixed(2)}, wr90d=${win_rate_90d?.toFixed(2)}, ` +
-      `trend=${trend}, finding=${findingType}`
+      `[signal-learning] ${recipeId}: n=${sampleSize}, wr30d=${win_rate_30d?.toFixed(2)} ` +
+      `(breakeven ${breakeven.toFixed(2)}), expectancy=${expectancy ?? "n/a"} bps, ` +
+      `conf_above_breakeven=${confidence.toFixed(2)}, trend=${trend}, finding=${findingType}`
     );
   }
 
@@ -348,23 +430,18 @@ async function updateRecipeNetStats(
       (r) => (r.created_at as string) >= cutoff60d && r.net_pnl_bps !== null
     );
 
-    const expectancy = computeExpectancyBps(
-      rows60d.map((r) => ({ net_pnl_bps: r.net_pnl_bps as number | null }))
+    // Withheld below the minimum sample so no reader can publish an expectancy
+    // built from a handful of trades.
+    const stats = computeRecipeNetStats(
+      rows60d.map((r) => ({
+        net_pnl_bps: r.net_pnl_bps as number | null,
+        is_win:      r.is_win as boolean | null,
+      }))
     );
-    const median = computeMedianNetPnlBps(
-      rows60d.map((r) => ({ net_pnl_bps: r.net_pnl_bps as number | null }))
-    );
-    const wins60d = rows60d.filter((r) => (r.is_win as boolean | null) === true).length;
-    const winRateNet = rows60d.length > 0 ? wins60d / rows60d.length : null;
 
     await supabase
       .from("recipe_performance")
-      .update({
-        median_net_pnl_bps:  median,
-        win_rate_net:        winRateNet,
-        expectancy_bps_net:  expectancy,
-        sample_size_60d:     rows60d.length > 0 ? rows60d.length : null,
-      })
+      .update(stats)
       .eq("id", id);
   }
 
@@ -412,7 +489,7 @@ async function main(): Promise<void> {
   // deleted at 30 days, so nothing was ever graded (audit 2026-08-08).
   // Statistical caution now lives where it belongs: runStatsEngine still marks
   // low-sample recipes INSUFFICIENT_DATA rather than hiding them.
-  const simulated = await backfillAtrExits();
+  const simulated = await gradeOutcomes();
   await runStatsEngine();
 
   const [{ count: gradedCount }, { data: oldestRow }] = await Promise.all([

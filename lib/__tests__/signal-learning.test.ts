@@ -5,6 +5,10 @@ import {
   computeMeasuredEV,
   meetsMinSample,
   computeConfidence,
+  breakevenWinRate,
+  confidenceAboveBreakeven,
+  EXIT_STOP_ATR,
+  EXIT_TARGET_ATR,
 } from "../signal-learning-utils";
 
 describe("computeWinRates", () => {
@@ -82,5 +86,38 @@ describe("computeConfidence", () => {
     const c = computeConfidence(50, 0.65);
     expect(c).toBeGreaterThanOrEqual(0);
     expect(c).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("breakevenWinRate", () => {
+  it("derives breakeven from the stop and target distances", () => {
+    // Risking 2 ATR to make 3 ATR breaks even at 40%, not 50%.
+    expect(breakevenWinRate(2, 3)).toBe(0.4);
+  });
+
+  it("matches the exit simulator's own stop and target", () => {
+    expect(breakevenWinRate(EXIT_STOP_ATR, EXIT_TARGET_ATR)).toBe(0.4);
+  });
+});
+
+describe("computeConfidence breakeven anchor", () => {
+  it("reports no confidence when the win rate sits on the breakeven rate", () => {
+    expect(computeConfidence(500, 0.40, 0.40)).toBeLessThan(0.1);
+  });
+
+});
+
+describe("confidenceAboveBreakeven", () => {
+  it("credits a 45% recipe that clears a 40% breakeven", () => {
+    expect(confidenceAboveBreakeven(500, 0.45, 0.40)).toBeGreaterThan(0);
+  });
+
+  it("gives no credit for the same recipe judged against a 50% anchor", () => {
+    // This is the bug it replaces: a profitable 2:3 system read as no edge.
+    expect(confidenceAboveBreakeven(500, 0.45, 0.50)).toBe(0);
+  });
+
+  it("gives no credit while the interval still straddles breakeven", () => {
+    expect(confidenceAboveBreakeven(20, 0.45, 0.40)).toBe(0);
   });
 });
