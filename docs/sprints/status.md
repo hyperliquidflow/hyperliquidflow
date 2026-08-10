@@ -22,6 +22,28 @@ Phases 0 and 1 are COMPLETE and verified in production (2026-08-08/09):
 - **momentum_stack fired for the first time ever** after the cadence-aware
   window fix. It had no record of firing in 4 months.
 
+**Grading loop rebuilt 2026-08-10** (branch `fix/grading-loop-correctness`,
+migration 022). The 2026-08-09 "grading loop verified working" note above was
+premature: rows were being written, but every one recorded a 1h time exit
+because the simulator broke out of its snapshot loop on the first non-null
+price. Stops and targets could only ever trigger at the 1h mark. Regrading
+moved measured expectancy from +2.5 bps to -97.4 bps at an unchanged 48.1% win
+rate. Grading now walks the hourly candle path, uses point-in-time ATR, and
+charges slippage and funding. Recipe headline stats are withheld below 30
+graded outcomes, so the Performance page shows a sample count and nothing else
+until the sample is real.
+
+Still open from the same audit, in priority order:
+1. **Signal supply.** 33 signals in the 30 days to 2026-08-09, zero on 25 of
+   those days. The cohort sits at 59 to 75 active wallets and shrinks intraday.
+   No amount of grading fixes a sample this thin.
+2. **No benchmark leg.** A LONG that makes 200 bps in a market that ran 180 bps
+   is beta, not edge. Every outcome needs a paired counterfactual before any
+   expectancy number means anything.
+3. **Correlated signals counted as independent.** 71 of the ungraded rows are
+   KAITO LONGs from one recipe over a few hours. That is one trade idea, not 71
+   samples, and it makes every confidence interval far too narrow.
+
 ### Weekly review checklist (the whole job this phase)
 
 1. Rank IC: needs 30 daily measurements, then compare median against MDIC 0.08.
