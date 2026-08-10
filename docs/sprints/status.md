@@ -55,6 +55,11 @@ Still open from the same audit, in priority order:
    at 30 graded outcomes with non-negative expectancy, otherwise cut it. It is
    currently producing most signal volume, so watch it closely.
 4. R13 V2 canary: decide at 30 shadow measurements, cut over or delete V2.
+   Counting starts 2026-08-11, not earlier. Phase 10b never wrote a single
+   shadow score: its upsert omitted wallets.address (NOT NULL, no default), so
+   Postgres rejected every chunk with 23502 and the error was swallowed by a
+   console.error. Fixed 2026-08-10. Verify the next nightly scan leaves
+   overall_score_shadow non-null, then expect the gate around 2026-09-10.
 5. Cohort size: G10 was raised 15x to 25x on 2026-08-09, which should lift the
    cohort well above 77 on the next nightly scan. Verify it did.
 
