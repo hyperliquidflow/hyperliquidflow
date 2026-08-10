@@ -1066,7 +1066,9 @@ async function computeLeverageStats(): Promise<{ computed: number; g10_deactivat
 async function computeShadowScores(): Promise<{ computed: number }> {
   const { data: activeWallets, error: walletErr } = await supabase
     .from("wallets")
-    .select("id, avg_leverage_60d, max_leverage_60d")
+    // address is selected because the upsert below needs it. See the comment
+    // on the upsert for why a partial payload can never be written.
+    .select("id, address, avg_leverage_60d, max_leverage_60d")
     .eq("is_active", true)
     .not("max_leverage_60d", "is", null);
 
@@ -1102,11 +1104,20 @@ async function computeShadowScores(): Promise<{ computed: number }> {
     );
     return {
       id:                     wallet.id,
+      address:                wallet.address,
       overall_score_shadow:   v2.overall_score_v2,
       shadow_formula_version: SHADOW_FORMULA_VERSION,
     };
   });
 
+  // The payload MUST carry address. PostgREST upsert emits INSERT ... ON
+  // CONFLICT, and Postgres builds the insert tuple before it detects the
+  // conflict, so wallets.address (NOT NULL, no default) is checked even when
+  // the row already exists. A payload of id + shadow columns raised 23502 on
+  // every chunk, which left overall_score_shadow null on all 87 wallets and
+  // the R13 canary stuck at zero measurements from 2026-04-21 to 2026-08-10.
+  //
+  // Throws rather than logs: swallowing this error is what hid it for months.
   const CHUNK = 500;
   let computed = 0;
   for (let i = 0; i < rows.length; i += CHUNK) {
@@ -1115,10 +1126,9 @@ async function computeShadowScores(): Promise<{ computed: number }> {
       .from("wallets")
       .upsert(chunk, { onConflict: "id" });
     if (error) {
-      console.error("[shadow-scoring] upsert error:", error.message);
-    } else {
-      computed += chunk.length;
+      throw new Error(`[shadow-scoring] upsert failed: ${error.message}`);
     }
+    computed += chunk.length;
   }
 
   console.log(`[phase-10b] shadow scores: ${computed} computed`);
