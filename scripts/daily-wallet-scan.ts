@@ -1072,12 +1072,26 @@ async function computeShadowScores(): Promise<{ computed: number }> {
     .eq("is_active", true)
     .not("max_leverage_60d", "is", null);
 
+  // Both branches below used to return 0 quietly, which is indistinguishable
+  // in the logs from "ran fine, nothing to do". A fetch error is a real
+  // failure and throws. An empty result is legitimate only before Phase 9 has
+  // ever populated leverage, so it reports the counts that explain itself
+  // rather than a bare skip line.
   if (walletErr) {
-    console.error("[phase-10b] fetch error:", walletErr.message);
-    return { computed: 0 };
+    throw new Error(`[phase-10b] wallet fetch failed: ${walletErr.message}`);
   }
   if (!activeWallets?.length) {
-    console.log("[phase-10b] no wallets with leverage data yet; skipping");
+    const { count: activeCount } = await supabase
+      .from("wallets").select("id", { count: "exact", head: true })
+      .eq("is_active", true);
+    const { count: leverageCount } = await supabase
+      .from("wallets").select("id", { count: "exact", head: true })
+      .not("max_leverage_60d", "is", null);
+    console.log(
+      `[phase-10b] nothing to score: ${activeCount ?? 0} active, ` +
+      `${leverageCount ?? 0} wallets have max_leverage_60d, ` +
+      `0 satisfy both. Phase 9 populates leverage and runs immediately before this.`,
+    );
     return { computed: 0 };
   }
 
