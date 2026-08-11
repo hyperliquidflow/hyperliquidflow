@@ -138,8 +138,16 @@ export function computePnlConsistency(dailyPnls: number[]): number {
  * 1 − max_drawdown_fraction from the cumulative 30-day PnL curve.
  * Formula:
  *   Build cumulative PnL series.
- *   max_drawdown = max (peak − trough) / (|peak| + ε) over all peaks.
+ *   Track the running peak, floored at 0 (the starting equity baseline).
+ *   max_drawdown = max (peak − value) / (max |cumulative| + ε)
  *   drawdown_score = clamp(1 − max_drawdown, 0, 1)
+ *
+ * The peak floor matters. A previous version skipped drawdown accounting until
+ * the curve rose above zero, so a wallet that only ever lost money never
+ * recorded a drawdown and collected a perfect 1.0 on this factor, which is 25%
+ * of the overall score. Normalising by the largest absolute cumulative value
+ * rather than by the peak keeps the ratio bounded when the peak sits at or near
+ * zero.
  *
  * @param dailyPnls Array of per-day realized PnL values (chronological)
  */
@@ -154,13 +162,14 @@ export function computeDrawdownScore(dailyPnls: number[]): number {
     cumulative.push(running);
   }
 
-  let peak = -Infinity;
+  const scale = Math.max(...cumulative.map(Math.abs));
+
+  let peak = 0; // starting equity, before any PnL
   let maxDrawdown = 0;
 
   for (const value of cumulative) {
     if (value > peak) peak = value;
-    if (peak <= 0) continue; // no meaningful peak yet
-    const dd = (peak - value) / (Math.abs(peak) + 0.0001);
+    const dd = (peak - value) / (scale + 0.0001);
     if (dd > maxDrawdown) maxDrawdown = dd;
   }
 

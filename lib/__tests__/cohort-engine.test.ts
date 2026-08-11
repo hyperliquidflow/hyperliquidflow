@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { getEquityTier, computeCohortScores, computeCohortScoresV2 } from "../cohort-engine";
+import {
+  getEquityTier,
+  computeCohortScores,
+  computeCohortScoresV2,
+  computeDrawdownScore,
+} from "../cohort-engine";
 import type { HlClearinghouseState, HlAssetPosition } from "../hyperliquid-api-client";
 
 describe("getEquityTier", () => {
@@ -182,5 +187,37 @@ describe("computeCohortScoresV2", () => {
     expect(r.drawdown_score).toBeLessThanOrEqual(1);
     expect(r.blow_up_distance_v2).toBeGreaterThanOrEqual(0);
     expect(r.blow_up_distance_v2).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("computeDrawdownScore", () => {
+  it("scores a wallet that only ever loses at the floor, not the ceiling", () => {
+    // The cumulative curve of a pure loser never rises above zero. Skipping
+    // drawdown accounting until a positive peak appears left maxDrawdown at 0,
+    // so 25% of the production score was awarded to wallets that only lost.
+    const loser = Array.from({ length: 30 }, () => -100);
+    // Not exactly 0: the divide-by-zero epsilon leaves a rounding tail.
+    expect(computeDrawdownScore(loser)).toBeCloseTo(0, 6);
+  });
+
+  it("still gives a perfect score to a curve that never retraces", () => {
+    const winner = Array.from({ length: 30 }, () => 10);
+    expect(computeDrawdownScore(winner)).toBe(1);
+  });
+
+  it("scores a retrace proportionally to the peak it gave back", () => {
+    // Up to 1000, back to 800: a fifth of the peak surrendered.
+    expect(computeDrawdownScore([1000, -200])).toBeCloseTo(0.8, 4);
+  });
+
+  it("counts a dip below the starting point as a real drawdown", () => {
+    // Down 500 then up to 1000. Recovering does not erase having been underwater.
+    const score = computeDrawdownScore([-500, 1500]);
+    expect(score).toBeGreaterThan(0);
+    expect(score).toBeLessThan(1);
+  });
+
+  it("treats a flat series as drawdown-free", () => {
+    expect(computeDrawdownScore(Array.from({ length: 30 }, () => 0))).toBe(1);
   });
 });
