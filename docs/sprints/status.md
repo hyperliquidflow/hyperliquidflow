@@ -77,6 +77,26 @@ coins the conviction gate now excludes, as is KAITO, so it has no track record
 at all on coins it will actually trade going forward. Nothing here is a verdict.
 Nine outcomes is a starting line.
 
+**Exit structure retuned and five recipes revived 2026-08-11** (migration 025).
+A path simulation over 2,808 random entries showed the 2/3 ATR exit timed out
+74% of trades and hit its target 6.9% of the time; the shipped structure is now
+1/1 ATR (84% resolve at the levels, outcome sd 195 vs 285 bps, which halves the
+sample needed per unit of edge). Each graded row records its stop_atr/target_atr.
+Separately, reachability checks found four silent recipes were dead code on the
+conviction-gate universe: funding_divergence and rotation_carry required funding
+levels never once observed in 6,000 coin-hours (thresholds recalibrated 0.05% to
+0.004%/hr and 0.03% to 0.0025%/hr), whale_validated required score 0.75 against
+a cohort maximum of 0.686 (now 0.60, the top decile), and accumulation_reentry's
+6% floor overrode its own vol-adaptive threshold on majors (now 3%). agent_config
+rows updated and KV invalidated. Rerun the reachability check with
+`npx tsx scripts/funding-reachability.ts` after any universe change.
+
+Sample-size arithmetic for the weekly review: at outcome sd ~195 bps, 30 graded
+outcomes detect an edge of roughly +90 bps at 80% power; +50 bps needs ~95. The
+30-outcome gate stays (it is the roadmap's prove-or-kill line) but a verdict on
+an edge smaller than ~90 bps needs more than the minimum sample, and a positive
+point estimate at n=30 is weak evidence on its own.
+
 Still open from the same audit, in priority order:
 1. **Rank IC 0.05 is thin.** The cohort ranks better than chance but well under
    the 0.08 target. Either wallet selection improves, or recipes have to add
