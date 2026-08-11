@@ -43,6 +43,8 @@ local.db
 # CI artifacts regenerated per run
 learning-summary.json
 scan-summary.json
+skill-test-summary.json
+wallet-signal-stats-summary.json
 
 # editor workspace files (user-local)
 *.code-workspace
