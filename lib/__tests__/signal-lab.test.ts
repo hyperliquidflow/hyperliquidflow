@@ -475,16 +475,16 @@ describe("rotation_carry", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("funding_divergence", () => {
-  /** Cohort net short on BTC. */
-  const shortCohort = () =>
+  /** Cohort flips from long to short while funding keeps implying a long crowd. */
+  const flipsShort = () =>
     makePairs(2, () => ({
       curr: [{ coin: "BTC", szi: -2, notional: 200_000 }],
-      prev: [{ coin: "BTC", szi: -2, notional: 200_000 }],
+      prev: [{ coin: "BTC", szi:  2, notional: 200_000 }],
     }));
 
-  it("fires when the cohort is short while positive funding implies a long crowd", async () => {
+  it("fires when the cohort flips onto the side opposite the funding-implied crowd", async () => {
     const ctx = new Map([["BTC", makeAssetCtx(0.0009)]]);
-    const events = await fundingDivergenceRecipe(shortCohort(), ctx);
+    const events = await fundingDivergenceRecipe(flipsShort(), ctx);
     expect(events).toHaveLength(1);
     expect(events[0].recipe_id).toBe("funding_divergence");
     expect(events[0].coin).toBe("BTC");
@@ -493,16 +493,41 @@ describe("funding_divergence", () => {
     expect(events[0].metadata.crowd_bias).toBe("LONG");
   });
 
+  it("does not fire again while the cohort simply holds the divergent position", async () => {
+    // One wallet held a divergent KAITO long for 13.5 hours and this recipe
+    // re-emitted it on all 83 polls, one every 10 minutes. Those were not 83
+    // signals, they were one position sampled 83 times, and they swamped every
+    // downstream statistic.
+    const heldShort = makePairs(2, () => ({
+      curr: [{ coin: "BTC", szi: -2, notional: 200_000 }],
+      prev: [{ coin: "BTC", szi: -2, notional: 200_000 }],
+    }));
+    const ctx = new Map([["BTC", makeAssetCtx(0.0009)]]);
+    const events = await fundingDivergenceRecipe(heldShort, ctx);
+    expect(events).toHaveLength(0);
+  });
+
+  it("fires when the cohort opens divergent exposure it did not hold before", async () => {
+    const opensShort = makePairs(2, () => ({
+      curr: [{ coin: "BTC", szi: -2, notional: 200_000 }],
+      prev: [],
+    }));
+    const ctx = new Map([["BTC", makeAssetCtx(0.0009)]]);
+    const events = await fundingDivergenceRecipe(opensShort, ctx);
+    expect(events).toHaveLength(1);
+    expect(events[0].direction).toBe("SHORT");
+  });
+
   it("does not fire when funding sits just under the 0.05% threshold", async () => {
     const ctx = new Map([["BTC", makeAssetCtx(0.00049)]]);
-    const events = await fundingDivergenceRecipe(shortCohort(), ctx);
+    const events = await fundingDivergenceRecipe(flipsShort(), ctx);
     expect(events).toHaveLength(0);
   });
 
   it("does not fire when the cohort and the funding-implied crowd sit on the same side", async () => {
     const longCohort = makePairs(2, () => ({
-      curr: [{ coin: "BTC", szi: 2, notional: 200_000 }],
-      prev: [{ coin: "BTC", szi: 2, notional: 200_000 }],
+      curr: [{ coin: "BTC", szi:  2, notional: 200_000 }],
+      prev: [{ coin: "BTC", szi: -2, notional: 200_000 }],
     }));
     const ctx = new Map([["BTC", makeAssetCtx(0.0009)]]);
     const events = await fundingDivergenceRecipe(longCohort, ctx);
@@ -562,5 +587,76 @@ describe("whale_validated", () => {
   it("does not count wallets under the 0.75 core-whale score", async () => {
     const events = await whaleValidatedRecipe(freshWhales(3, 0.74), pending);
     expect(events).toHaveLength(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Cross-recipe invariant: an unchanged position is not a new signal
+// ─────────────────────────────────────────────────────────────────────────────
+// Every recipe polls the cohort on a ~10 minute cadence. A recipe that keys off
+// the current state rather than the change since the last snapshot re-emits the
+// same idea on every poll, which is how one held KAITO long became 83 rows and
+// swamped the outcome statistics. These pin the invariant for all six.
+
+describe("held positions do not re-emit", () => {
+  /** Same position in prev and curr: nothing changed between polls. */
+  const held = (spec: { coin: string; szi: number; notional: number }) =>
+    makePairs(4, () => ({ curr: [spec], prev: [spec] }));
+
+  const btcLong  = { coin: "BTC", szi:  4, notional: 900_000 };
+  const btcShort = { coin: "BTC", szi: -4, notional: 900_000 };
+
+  it("momentum_stack stays silent", async () => {
+    expect(await momentumStackRecipe(held(btcLong), 60_000)).toHaveLength(0);
+  });
+
+  it("but the same fixture does fire when the position is newly opened", async () => {
+    // Positive control: proves the silence above comes from the position being
+    // unchanged, not from the fixture failing some unrelated threshold.
+    const opened = makePairs(4, () => ({ curr: [btcLong], prev: [] }));
+    expect((await momentumStackRecipe(opened, 60_000)).length).toBeGreaterThan(0);
+    const ctx = new Map([["BTC", makeAssetCtx(0.0009)]]);
+    expect((await rotationCarryRecipe(opened, ctx, new Map(), new Map())).length).toBeGreaterThan(0);
+  });
+
+  it("divergence_squeeze stays silent", async () => {
+    const pairs = makePairs(4, () => ({
+      curr: [btcLong], prev: [btcLong], liqBuffer: 0.02, score: 0.9,
+    }));
+    const candles = new Map([["BTC", [
+      makeCandle({ c: 100 }), makeCandle({ c: 100 }), makeCandle({ c: 100 }),
+      makeCandle({ c: 100 }), makeCandle({ c: 100 }), makeCandle({ c: 100 }),
+    ]]]);
+    expect(await divergenceSqueezeRecipe(pairs, candles)).toHaveLength(0);
+  });
+
+  it("accumulation_reentry stays silent", async () => {
+    // Deep drawdown present, so only the unchanged position keeps it quiet.
+    const candles = new Map([["BTC", [
+      makeCandle({ c: 100, h: 100, l: 100 }),
+      makeCandle({ c:  80, h: 100, l:  80 }),
+    ]]]);
+    expect(await accumulationReentryRecipe(held(btcLong), candles)).toHaveLength(0);
+  });
+
+  it("rotation_carry stays silent", async () => {
+    const ctx = new Map([["BTC", makeAssetCtx(0.0009)]]);
+    const events = await rotationCarryRecipe(held(btcLong), ctx, new Map(), new Map());
+    expect(events).toHaveLength(0);
+  });
+
+  it("funding_divergence stays silent", async () => {
+    const ctx = new Map([["BTC", makeAssetCtx(0.0009)]]);
+    expect(await fundingDivergenceRecipe(held(btcShort), ctx)).toHaveLength(0);
+  });
+
+  it("whale_validated stays silent", async () => {
+    const pending: SignalEvent[] = [{
+      wallet_id: "99999999-9999-9999-9999-999999999999",
+      recipe_id: "momentum_stack", coin: "BTC", signal_type: "ENTRY",
+      direction: "LONG", ev_score: null, metadata: {},
+    }];
+    const pairs = makePairs(4, () => ({ curr: [btcLong], prev: [btcLong], score: 0.9 }));
+    expect(await whaleValidatedRecipe(pairs, pending)).toHaveLength(0);
   });
 });

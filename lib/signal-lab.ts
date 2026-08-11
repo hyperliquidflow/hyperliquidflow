@@ -209,7 +209,10 @@ async function recipe1(pairs: SnapshotPair[], medianPairGapMs: number): Promise<
 // ─────────────────────────────────────────────────────────────────────────────
 // Cohort-level: 2+ qualifying wallets loading the same coin while price is flat
 // (last 30 min) and each is running thin margin (<10% liq buffer).
-// Emits one signal per coin, not one per wallet. 20-min KV cooldown per coin.
+// Emits one signal per coin, not one per wallet. Repeat emission is prevented by
+// keying off each wallet's notional delta since the previous snapshot, so an
+// unchanged position contributes nothing. There is no KV cooldown despite an
+// earlier version of this comment claiming one.
 
 async function recipe2(
   pairs: SnapshotPair[],
@@ -470,6 +473,9 @@ async function recipe4(
 // ─────────────────────────────────────────────────────────────────────────────
 // Smart-money bias opposite to retail OI proxy + funding > 0.05%.
 // Retail OI proxy = totalOI − cohort net notional (see risk-engine.ts).
+// Fires on the ONSET of divergence, not while it persists. Divergence is a state
+// that lasts as long as the position is held, so emitting on the state produced
+// one row per poll: a single held KAITO long generated 83 signals in 13.5 hours.
 
 async function recipe7(
   pairs: SnapshotPair[],
@@ -479,17 +485,27 @@ async function recipe7(
   const FUNDING_THRESHOLD = cfg["FUNDING_THRESHOLD"] ?? 0.0005;   // 0.05%/hr
   const events: SignalEvent[] = [];
 
-  // Aggregate cohort net notional per coin
-  const cohortNet = new Map<string, number>();
-  for (const { curr } of pairs) {
-    for (const ap of curr.positions) {
-      const coin = ap.position.coin;
-      const val  = parseFloat(ap.position.positionValue);
-      const szi  = parseFloat(ap.position.szi);
-      const signed = szi > 0 ? val : -val;
-      cohortNet.set(coin, (cohortNet.get(coin) ?? 0) + signed);
+  // Aggregate cohort net notional per coin, for the current snapshot and for
+  // the previous one. Divergence is a state that persists for as long as the
+  // cohort holds the position, so emitting on the state re-emits the same idea
+  // on every poll. Comparing against prev turns it into an onset event.
+  const netByCoin = (side: "curr" | "prev") => {
+    const net = new Map<string, number>();
+    for (const pair of pairs) {
+      const snapshot = side === "curr" ? pair.curr : pair.prev;
+      if (!snapshot) continue;
+      for (const ap of snapshot.positions) {
+        const val    = parseFloat(ap.position.positionValue);
+        const szi    = parseFloat(ap.position.szi);
+        const signed = szi > 0 ? val : -val;
+        net.set(ap.position.coin, (net.get(ap.position.coin) ?? 0) + signed);
+      }
     }
-  }
+    return net;
+  };
+
+  const cohortNet = netByCoin("curr");
+  const prevNet   = netByCoin("prev");
 
   for (const [coin, netNotional] of cohortNet) {
     const ctx = assetCtxMap.get(coin);
@@ -509,6 +525,18 @@ async function recipe7(
 
     // Signal only when smart money and crowd are on opposite sides
     if (cohortLong === crowdLong) continue;
+
+    // Only on the onset. A coin with no prior cohort exposure counts as not
+    // previously divergent, so newly opened divergent positions still fire.
+    // Funding is only available at its current value, so a divergence that
+    // begins with a funding flip rather than a cohort flip is missed. That is
+    // the rarer case and is preferable to re-emitting on every poll.
+    const prevNotional = prevNet.get(coin);
+    const wasDivergent =
+      prevNotional !== undefined &&
+      prevNotional !== 0 &&
+      (prevNotional > 0) !== crowdLong;
+    if (wasDivergent) continue;
 
     events.push({
       wallet_id:   "",   // cohort-level
