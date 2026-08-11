@@ -48,38 +48,42 @@ need 1% of cohort gross notional and $1M absolute to emit signals, which keeps
 outcome now carries `benchmark_bps` (BTC over the same hold, signed by
 direction) and `alpha_bps`.
 
-First alpha readings, all still under-sampled:
+**Duplicates collapsed and benchmark beta-scaled 2026-08-11** (migration 024).
+101 of 132 outcome rows were poll-cadence repeats of one KAITO long;
+`scripts/dedupe-signal-episodes.ts` collapsed them to episode starts, archiving
+into `signal_outcomes_superseded` first so it is reversible. Scoped to
+funding_divergence rows predating the emission fix: momentum_stack repeats sit
+at 46 to 132 minute gaps and are genuine re-accumulation, not artifacts.
+`alpha_bps` now scales BTC's move by each coin's OLS beta, estimated only from
+4h bars that closed before the signal.
 
-| Recipe | n | Net bps | Alpha bps | Win rate |
+Every graded outcome, deduplicated and beta-adjusted:
+
+| Recipe | Coin | Beta | Net bps | Alpha bps |
 |---|---|---|---|---|
-| funding_divergence | 43 | -21.8 | -35.6 | 0.65 |
-| momentum_stack | 4 | +77.9 | +141.2 | 0.75 |
-| funding_trend | 1 | -3379.9 | -3404.7 | 0.00 |
+| momentum_stack | ZEC SHORT | 1.52 | +336 | **+381** |
+| momentum_stack | HYPE LONG | 0.95 | +114 | **+278** |
+| momentum_stack | ZEC SHORT | 1.52 | +251 | **+265** |
+| momentum_stack | ZEC LONG | 1.52 | -389 | -327 |
+| funding_divergence | KAITO LONG | -0.68 | +468 | **+481** |
+| funding_divergence | KAITO LONG | -0.69 | +420 | **+361** |
+| funding_divergence | kBONK LONG | 1.43 | -636 | -419 |
+| funding_divergence | CASHCAT SHORT | 4.23 | -3380 | -3485 |
+| funding_trend | CASHCAT SHORT | 4.23 | -3380 | -3485 |
 
-Read those with care. A single CASHCAT trade at -3380 bps is what drags
-funding_divergence negative: its 41 KAITO rows average +75 bps net and +65 alpha
-on their own. But those 41 rows are one to three distinct ideas duplicated by
-the old polling bug, and KAITO, CASHCAT and kBONK would all now fail the
-conviction gate. So the recipe is not condemned by this data, and it is not
-vindicated either. It has to re-earn a verdict on eligible coins.
+That is the entire honest record: nine outcomes. momentum_stack is 3 of 4
+positive on alpha. funding_divergence is 2 of 4, and both its losses are on
+coins the conviction gate now excludes, as is KAITO, so it has no track record
+at all on coins it will actually trade going forward. Nothing here is a verdict.
+Nine outcomes is a starting line.
 
 Still open from the same audit, in priority order:
-1. **Historical duplicates still in the table.** 41 of 48 graded rows are the
-   same KAITO position, recorded once per poll by the pre-2026-08-11
-   funding_divergence bug. New duplicates are stopped, but these stay for the
-   180-day retention and dominate every funding_divergence aggregate. Options:
-   collapse to episode starts, exclude at read time, or leave and remember.
-   Not yet decided.
-2. **Rank IC 0.05 is thin.** The cohort ranks better than chance but well under
+1. **Rank IC 0.05 is thin.** The cohort ranks better than chance but well under
    the 0.08 target. Either wallet selection improves, or recipes have to add
    most of the edge themselves. Worth testing whether a different factor mix
    raises it, since `cohort-skill-test.ts` now makes that a minutes-long
    experiment instead of a 60-day wait.
-3. **Benchmark is not beta-scaled.** `alpha_bps` compares every coin 1:1 against
-   BTC, so a high-beta alt returning 300 bps while BTC returns 100 is credited
-   200 bps of alpha when part of that is amplified exposure. Needs per-coin beta
-   from a return history the project does not yet retain.
-4. **Recipes remain unvalidated hypotheses.** Snapshot history is far too sparse
+2. **Recipes remain unvalidated hypotheses.** Snapshot history is far too sparse
    to backtest them (May to June averages one snapshot every 5 to 8 hours, with
    a 6-week hole), so they can only be proven forward, one sample at a time.
 
