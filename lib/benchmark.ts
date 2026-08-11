@@ -10,13 +10,10 @@
 // trade's direction: a SHORT is compared against the inverse, because being
 // short in a falling market is beta too.
 //
-// Known limitation: this does not scale the benchmark by each coin's beta to
-// BTC. A high-beta alt that returns 300 bps while BTC returns 100 is credited
-// with 200 bps of alpha when some of that is amplified exposure. Estimating
-// per-coin beta needs a return history this project does not yet retain, so
-// the unscaled version ships first. It is a large improvement over no
-// benchmark and it errs toward flattering high-beta names, which is worth
-// remembering when reading per-coin results.
+// The market move is scaled by each coin's beta to BTC, estimated from returns
+// that closed before the signal fired. See lib/beta.ts. When beta cannot be
+// estimated the fallback is 1, and the grading loop records a null beta so
+// those rows can be told apart from genuinely estimated ones.
 
 export type TradeDirection = "LONG" | "SHORT";
 
@@ -33,19 +30,27 @@ export interface AlphaResult {
 }
 
 /**
- * Direction-adjusted benchmark and the alpha left over after paying it.
- * alpha = net PnL − what the same directional exposure to the market earned.
+ * Beta- and direction-adjusted benchmark, and the alpha left over after paying
+ * it. alpha = net PnL − what the same exposure to the market earned.
+ *
+ * `beta` scales the market move to the coin's own sensitivity. A 3-beta alt
+ * that returns 300 bps while BTC returns 100 earned exactly what its exposure
+ * implied, so its alpha is zero, not the 200 an unscaled comparison would show.
+ * When beta could not be estimated the fallback is 1, which is the unscaled
+ * comparison, and callers should record that no estimate was available.
  */
 export function computeAlpha(input: {
   netPnlBps:       number;
   marketReturnBps: number | null;
   direction:       TradeDirection;
+  beta?:           number | null;
 }): AlphaResult {
   if (input.marketReturnBps === null) {
     return { benchmark_bps: null, alpha_bps: null };
   }
   const sign      = input.direction === "LONG" ? 1 : -1;
-  const benchmark = parseFloat((sign * input.marketReturnBps).toFixed(2));
+  const beta      = input.beta ?? 1;
+  const benchmark = parseFloat((sign * beta * input.marketReturnBps).toFixed(2));
   return {
     benchmark_bps: benchmark,
     alpha_bps:     parseFloat((input.netPnlBps - benchmark).toFixed(2)),

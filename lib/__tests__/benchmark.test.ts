@@ -44,6 +44,32 @@ describe("computeAlpha", () => {
     expect(r.alpha_bps).toBe(-50);
   });
 
+  it("scales the benchmark by the coin's beta", () => {
+    // A 3-beta alt returning 300 bps while the market ran 100 earned exactly
+    // what its exposure implied. Unscaled, that reads as 200 bps of alpha.
+    const r = computeAlpha({ netPnlBps: 300, marketReturnBps: 100, direction: "LONG", beta: 3 });
+    expect(r.benchmark_bps).toBe(300);
+    expect(r.alpha_bps).toBe(0);
+  });
+
+  it("charges a low-beta coin less than the full market move", () => {
+    const r = computeAlpha({ netPnlBps: 100, marketReturnBps: 200, direction: "LONG", beta: 0.25 });
+    expect(r.benchmark_bps).toBe(50);
+    expect(r.alpha_bps).toBe(50);
+  });
+
+  it("applies beta and direction together for a SHORT", () => {
+    const r = computeAlpha({ netPnlBps: -100, marketReturnBps: 200, direction: "SHORT", beta: 2 });
+    expect(r.benchmark_bps).toBe(-400);
+    expect(r.alpha_bps).toBe(300);
+  });
+
+  it("falls back to a beta of 1 when it could not be estimated", () => {
+    const r = computeAlpha({ netPnlBps: 150, marketReturnBps: 200, direction: "LONG", beta: null });
+    expect(r.benchmark_bps).toBe(200);
+    expect(r.alpha_bps).toBe(-50);
+  });
+
   it("leaves alpha null when the market return is unknown", () => {
     const r = computeAlpha({ netPnlBps: 150, marketReturnBps: null, direction: "LONG" });
     expect(r.benchmark_bps).toBeNull();

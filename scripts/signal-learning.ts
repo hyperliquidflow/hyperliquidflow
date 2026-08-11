@@ -41,6 +41,7 @@ import {
 } from "../lib/signal-learning-utils";
 import { computeATRAsOf } from "../lib/atr";
 import { computeAlpha, marketReturnBps } from "../lib/benchmark";
+import { toReturns, alignReturns, computeBeta } from "../lib/beta";
 import {
   fetchCandleSnapshot,
   fetchFundingHistory,
@@ -150,11 +151,17 @@ async function gradeOutcomes(): Promise<number> {
   // BTC over the full grading span, fetched once, used as the market benchmark
   // for every outcome. Without it, expectancy cannot separate edge from beta.
   const earliestOverall = Math.min(...rows.map((r) => new Date(r.created_at as string).getTime()));
-  const btcBars = await fetchCandleSnapshot("BTC", "1h", earliestOverall - HOUR_MS, Date.now())
-    .catch(() => [] as HlCandle[]);
+  const [btcBars, btcBars4h] = await Promise.all([
+    fetchCandleSnapshot("BTC", "1h", earliestOverall - HOUR_MS, Date.now())
+      .catch(() => [] as HlCandle[]),
+    // 4h bars over the ATR lookback, used to estimate each coin's beta to BTC.
+    fetchCandleSnapshot("BTC", "4h", earliestOverall - ATR_LOOKBACK_MS, Date.now())
+      .catch(() => [] as HlCandle[]),
+  ]);
   if (btcBars.length === 0) {
     console.warn("[signal-learning] BTC benchmark unavailable, alpha will be null this run");
   }
+  const btcReturns4h = toReturns(btcBars4h);
 
   /** BTC close at or after the given time. */
   const btcPriceAt = (ms: number): number | null => {
@@ -220,7 +227,16 @@ async function gradeOutcomes(): Promise<number> {
       if (!result) continue;
 
       // Charge the trade for the market exposure it was riding over the same
-      // window it actually held.
+      // window it actually held, scaled by how much this coin moves with BTC.
+      // Beta is estimated only from bars that closed before the signal, so the
+      // trade is never scored using information it could not have had.
+      const coinReturnsBefore = toReturns(
+        market.bars4h.filter((b) => b.t + FOUR_H_MS <= entryMs)
+      );
+      const btcReturnsBefore = btcReturns4h.filter((r) => r.t + FOUR_H_MS <= entryMs);
+      const aligned = alignReturns(coinReturnsBefore, btcReturnsBefore);
+      const beta    = computeBeta(aligned.coin, aligned.market);
+
       const btcEntry = btcPriceAt(entryMs);
       const btcExit  = btcPriceAt(entryMs + result.hold_hours * HOUR_MS);
       const { benchmark_bps, alpha_bps } = computeAlpha({
@@ -229,6 +245,7 @@ async function gradeOutcomes(): Promise<number> {
           ? marketReturnBps(btcEntry, btcExit)
           : null,
         direction:       row.direction as "LONG" | "SHORT",
+        beta,
       });
 
       const { error: updErr } = await supabase
@@ -245,6 +262,7 @@ async function gradeOutcomes(): Promise<number> {
           is_win:              result.is_win,
           benchmark_bps,
           alpha_bps,
+          beta,
           resolved_at:         new Date().toISOString(),
         })
         .eq("id", row.id);
