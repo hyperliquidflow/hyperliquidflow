@@ -51,3 +51,6 @@ wallet-signal-stats-summary.json
 
 # claude worktrees
 .claude/worktrees/
+
+# one-off remediation audit, permanent copy lives in docs/audit/
+restore-liq-false-positives.json
