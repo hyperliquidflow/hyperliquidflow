@@ -221,6 +221,57 @@ Still open from the same audit, in priority order:
    to backtest them (May to June averages one snapshot every 5 to 8 hours, with
    a 6-week hole), so they can only be proven forward, one sample at a time.
 
+**The backwards test exists now (`scripts/fill-study.ts`, 2026-08-11).** The
+forward path needs 331 graded outcomes to detect a 30 bps edge, six months at the
+current rate, and can only confirm an edge near +90 bps that whale-following has
+no business having. Fills answer the same question retrospectively: the daily
+scan already downloads every cohort fill and reduces it to a win rate. Each fill
+carries coin, side, size, price and a timestamp, so joined to minute candles it
+becomes one observation of "the cohort bought here, then what". Fetch once to a
+local cache, then every hypothesis is a re-slice rather than a re-download.
+
+First run said nothing, honestly. Three defects each produced a confident wrong
+answer before the instrument was trustworthy:
+
+- **candleSnapshot truncates silently.** It caps near 5,000 rows and returns the
+  most recent rather than erroring, so a 7-day 1m request covered 3.6 days.
+  Fills older than that resolved at long horizons and not short ones, so every
+  row of the decay table used a different set of trades and the 24h row had more
+  observations than the 4h row. Windows are now held under the cap, and
+  `fullyCovered` requires entry and furthest horizon inside the span.
+- **Fills are not independent.** One wallet opening a position emits dozens of
+  fills seconds apart. Counted separately they inflate t by about the square root
+  of the cluster size, which produced a score decile at t=51. `toEpisodes` merges
+  same wallet, coin and direction within 30 minutes. **12,801 fills collapsed to
+  269 episodes, roughly 47 fills each.** Any future study on this data that does
+  not collapse first will report fiction.
+- **Direction was unbenchmarked.** The cohort is mostly long and the market
+  drifted, so signed raw returns collected beta: the 24h column read +137 bps at
+  every latency, including latencies where a real signal would be long gone.
+
+The score decile slice is disabled behind `--unsafe-score-slice`, not deleted.
+`overall_score` is computed from recent PnL, so on a window inside that lookback
+it already knows how those trades resolved. It needs point-in-time scores from
+`wallet_score_history`.
+
+After all three fixes: 269 independent episodes over 3 days and 98 wallets, t
+between 0.0 and 2.0 across 28 cells. That is no evidence of an edge and none
+against one. The instrument is sound and the sample is not.
+
+Path to power, in order of leverage:
+1. **More wallets.** The study pulled only the 98 currently active. There are
+   6,624 discovered wallets with fill history, a 60x larger pool. Fill fetching
+   is one API call per wallet.
+2. **Longer window without breaking the candle cap.** 5m candles reach 17 days
+   in one request against 3.4 days at 1m. Run the long window at 5m for the
+   hold-length question, and keep a short 1m window for the sub-5-minute latency
+   question, which is the one 5m candles cannot answer.
+3. **Point-in-time scores** before the score slice means anything.
+
+Only after that does the decay curve carry enough weight to decide whether the
+10-minute polling architecture can clear costs, which remains the open
+architectural question.
+
 ### Weekly review checklist (the whole job this phase)
 
 1. Rank IC: needs 30 daily measurements, then compare median against MDIC 0.08.

@@ -175,7 +175,7 @@ async function fetchAll(): Promise<Cache> {
 
   const candles: Record<string, [number, number][]> = {};
   for (const coin of coins) {
-    let series: [number, number][] = [];
+    const series: [number, number][] = [];
     try {
       const raw = await hl<Array<Record<string, unknown>>>({
         type: "candleSnapshot",
