@@ -97,13 +97,35 @@ outcomes detect an edge of roughly +90 bps at 80% power; +50 bps needs ~95. The
 an edge smaller than ~90 bps needs more than the minimum sample, and a positive
 point estimate at n=30 is weak evidence on its own.
 
+**Accumulation was measuring price, not trades (2026-08-11).** momentum_stack
+and divergence_squeeze differenced `positionValue`, which is size x mark price,
+so it rises when price rises with no trade at all. Of 6,440 notional increases
+in 24h of live snapshots, 6,383 (99.1%) came with no size added. Both recipes
+now use size added, priced at the current mark. Thresholds recalibrated against
+genuine accumulation: momentum_stack MIN_WALLETS 3 to 2 and COMBINED_NOTIONAL
+$500K to $100K, divergence_squeeze MIN_NOTIONAL_DELTA $75K to $25K.
+
+**THE BINDING CONSTRAINT IS COHORT SIZE.** `scripts/recipe-dry-run.ts --replay`
+replays stored snapshots through all six recipes and writes nothing. After every
+fix above, the measured rate is **0.3 signals/day**, which is 100 days to a
+single 30-outcome verdict. The cause is upstream of any recipe: 76 active
+wallets produced only **64 genuine accumulation events** across every coin in
+the whole retained window, and **not once did three wallets add the same coin
+and direction** within 2 hours. The system had 493 active wallets in April.
+
+Threshold tuning is exhausted. Lowering further fits noise instead of measuring
+conviction. Nothing downstream can be validated until the cohort is rebuilt
+toward its former size, which makes cohort recovery the single highest-leverage
+work item, ahead of everything else on this list.
+
 Still open from the same audit, in priority order:
-1. **Rank IC 0.05 is thin.** The cohort ranks better than chance but well under
+1. **Cohort size, 76 active vs 493 in April.** See above. Everything else waits.
+2. **Rank IC 0.05 is thin.** The cohort ranks better than chance but well under
    the 0.08 target. Either wallet selection improves, or recipes have to add
    most of the edge themselves. Worth testing whether a different factor mix
    raises it, since `cohort-skill-test.ts` now makes that a minutes-long
    experiment instead of a 60-day wait.
-2. **Recipes remain unvalidated hypotheses.** Snapshot history is far too sparse
+3. **Recipes remain unvalidated hypotheses.** Snapshot history is far too sparse
    to backtest them (May to June averages one snapshot every 5 to 8 hours, with
    a 6-week hole), so they can only be proven forward, one sample at a time.
 
