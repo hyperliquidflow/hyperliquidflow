@@ -33,16 +33,55 @@ charges slippage and funding. Recipe headline stats are withheld below 30
 graded outcomes, so the Performance page shows a sample count and nothing else
 until the sample is real.
 
+**Foundation measured 2026-08-11.** `scripts/cohort-skill-test.ts` answers the
+question rank_ic_history never could: score each wallet on the first half of its
+own daily PnL series, then rank-correlate against what it earned in the second
+half. Across the full population of 6,624 wallets, **rank IC is 0.0500** against
+a 0.08 minimum. Top decile forward PnL $19,964 vs bottom decile $12,185. With
+n=6,624 the standard error is about 0.012, so the correlation is statistically
+real and economically thin. Wallet selection carries signal. It does not carry
+much. Rerun with `npx tsx scripts/cohort-skill-test.ts`.
+
+**Conviction gate and benchmark leg shipped 2026-08-11** (migration 023). Coins
+need 1% of cohort gross notional and $1M absolute to emit signals, which keeps
+12 coins covering ~90% of cohort capital and drops the tail. Every graded
+outcome now carries `benchmark_bps` (BTC over the same hold, signed by
+direction) and `alpha_bps`.
+
+First alpha readings, all still under-sampled:
+
+| Recipe | n | Net bps | Alpha bps | Win rate |
+|---|---|---|---|---|
+| funding_divergence | 43 | -21.8 | -35.6 | 0.65 |
+| momentum_stack | 4 | +77.9 | +141.2 | 0.75 |
+| funding_trend | 1 | -3379.9 | -3404.7 | 0.00 |
+
+Read those with care. A single CASHCAT trade at -3380 bps is what drags
+funding_divergence negative: its 41 KAITO rows average +75 bps net and +65 alpha
+on their own. But those 41 rows are one to three distinct ideas duplicated by
+the old polling bug, and KAITO, CASHCAT and kBONK would all now fail the
+conviction gate. So the recipe is not condemned by this data, and it is not
+vindicated either. It has to re-earn a verdict on eligible coins.
+
 Still open from the same audit, in priority order:
-1. **Signal supply.** 33 signals in the 30 days to 2026-08-09, zero on 25 of
-   those days. The cohort sits at 59 to 75 active wallets and shrinks intraday.
-   No amount of grading fixes a sample this thin.
-2. **No benchmark leg.** A LONG that makes 200 bps in a market that ran 180 bps
-   is beta, not edge. Every outcome needs a paired counterfactual before any
-   expectancy number means anything.
-3. **Correlated signals counted as independent.** 71 of the ungraded rows are
-   KAITO LONGs from one recipe over a few hours. That is one trade idea, not 71
-   samples, and it makes every confidence interval far too narrow.
+1. **Historical duplicates still in the table.** 41 of 48 graded rows are the
+   same KAITO position, recorded once per poll by the pre-2026-08-11
+   funding_divergence bug. New duplicates are stopped, but these stay for the
+   180-day retention and dominate every funding_divergence aggregate. Options:
+   collapse to episode starts, exclude at read time, or leave and remember.
+   Not yet decided.
+2. **Rank IC 0.05 is thin.** The cohort ranks better than chance but well under
+   the 0.08 target. Either wallet selection improves, or recipes have to add
+   most of the edge themselves. Worth testing whether a different factor mix
+   raises it, since `cohort-skill-test.ts` now makes that a minutes-long
+   experiment instead of a 60-day wait.
+3. **Benchmark is not beta-scaled.** `alpha_bps` compares every coin 1:1 against
+   BTC, so a high-beta alt returning 300 bps while BTC returns 100 is credited
+   200 bps of alpha when part of that is amplified exposure. Needs per-coin beta
+   from a return history the project does not yet retain.
+4. **Recipes remain unvalidated hypotheses.** Snapshot history is far too sparse
+   to backtest them (May to June averages one snapshot every 5 to 8 hours, with
+   a 6-week hole), so they can only be proven forward, one sample at a time.
 
 ### Weekly review checklist (the whole job this phase)
 
