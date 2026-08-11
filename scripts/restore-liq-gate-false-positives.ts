@@ -90,7 +90,7 @@ async function main() {
     try {
       const state = (await clearinghouseState(row.address)) as {
         marginSummary?: { accountValue?: string };
-        assetPositions?: unknown[];
+        assetPositions?: Parameters<typeof liquidationDistance>[0];
       };
       const equity    = parseFloat(state?.marginSummary?.accountValue ?? "");
       const positions = Array.isArray(state?.assetPositions) ? state.assetPositions : [];

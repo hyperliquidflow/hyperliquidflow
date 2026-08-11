@@ -54,6 +54,38 @@ export function scoreFromDailyPnls(dailyPnls: number[]): number {
   return Math.min(1, Math.max(0, score));
 }
 
+/**
+ * Forward performance expressed in units of the wallet's own daily risk:
+ * mean(test) / sd(train). Null when the train half is flat, or the test half
+ * is empty.
+ *
+ * Why this exists: the forward variable used to be the raw dollar sum of the
+ * test half. The score side is built from scale-free factors (Sharpe proxy,
+ * consistency, drawdown), so correlating it against dollars mixed a scale-free
+ * predictor with a scale-dependent outcome, and a large account beat a small
+ * one at identical skill. Size then enters the forward variable as noise, which
+ * biases the measured correlation toward zero, so a thin reading on the dollar
+ * measure is not by itself evidence that selection is weak.
+ *
+ * The normalizer comes from the train half alone. Using test-half volatility
+ * would let the forward period set its own yardstick.
+ */
+export function normalizedForwardPerformance(
+  train: number[],
+  test:  number[],
+): number | null {
+  if (train.length < 2 || test.length === 0) return null;
+
+  const trainMean = train.reduce((s, v) => s + v, 0) / train.length;
+  const variance  = train.reduce((s, v) => s + (v - trainMean) ** 2, 0) / train.length;
+  const sd        = Math.sqrt(variance);
+  if (!Number.isFinite(sd) || sd === 0) return null;
+
+  const testMean = test.reduce((s, v) => s + v, 0) / test.length;
+  const value    = testMean / sd;
+  return Number.isFinite(value) ? value : null;
+}
+
 export interface RankICResult {
   rho: number;
   n:   number;

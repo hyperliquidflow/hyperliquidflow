@@ -42,6 +42,52 @@ n=6,624 the standard error is about 0.012, so the correlation is statistically
 real and economically thin. Wallet selection carries signal. It does not carry
 much. Rerun with `npx tsx scripts/cohort-skill-test.ts`.
 
+**That 0.0500 was diluted, and the corrected reading clears the target
+(2026-08-11, later the same day).** Two defects in how it was measured:
+
+*The forward variable was raw dollars.* The score is built from scale-free
+factors (Sharpe proxy, consistency, drawdown), so correlating it against dollar
+PnL mixed a scale-free predictor with a scale-dependent outcome, and a large
+account outranked a small one at identical skill. `normalizedForwardPerformance`
+now expresses forward performance in units of each wallet's own train-half daily
+risk. On its own this changed little: 0.0431 normalized against 0.0500 dollar.
+The size effect was not the problem.
+
+*The population was padded with dormant accounts.* A wallet that stopped trading
+contributes a forward value of zero, which is not weak skill, it is no
+measurement at all. The tell was the bottom decile's median sitting at exactly
+0.0000. Restricting to wallets with at least 5 non-zero PnL days in the scoring
+half, selected on the train half alone so no forward information enters the
+filter, gives **rank IC 0.0939** (se 0.0191, n=2,740). That is above the 0.08
+minimum, for the first time in the project's life.
+
+The effect rises monotonically with how much a wallet actually trades, which is
+what rules out a fitted threshold:
+
+| Min active days in scoring half | Wallets | Rank IC | se |
+|---|---|---|---|
+| 1 (the old, diluted reading) | 5,302 | 0.0431 | 0.0137 |
+| 3 | 3,706 | 0.0767 | 0.0164 |
+| 5 | 2,740 | 0.0939 | 0.0191 |
+| 10 | 1,290 | 0.1193 | 0.0279 |
+| 20 | 172 | 0.2599 | 0.0765 |
+
+Sweep it with `--min-active=N`. Two honest caveats. Part of that rise is
+mechanical: more trading days means less estimation noise in both the score and
+the forward measure, so precision alone lifts a correlation. And at n=2,740 the
+95% interval around 0.0939 is roughly 0.056 to 0.131, so the point estimate
+clears 0.08 while the interval still contains values below it. A variant that
+conditions on activity in **both** halves reads 0.1469, but that filter uses the
+forward period and no live system can apply it, so it is reported only as the
+ceiling the clean number is reaching toward.
+
+What this changes: the foundation is stronger than the project has believed, and
+the lever is trading frequency, not more discovery. The current activation gate
+asks for 60 trades in 60 days. The measurement says the score sharpens
+considerably on wallets more active than that, so the gate is worth re-cutting
+on non-zero PnL days rather than raw trade count. That is a cohort composition
+change of the same family as the two shipped earlier today.
+
 **Conviction gate and benchmark leg shipped 2026-08-11** (migration 023). Coins
 need 1% of cohort gross notional and $1M absolute to emit signals, which keeps
 12 coins covering ~90% of cohort capital and drops the tail. Every graded
