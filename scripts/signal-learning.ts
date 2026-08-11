@@ -40,6 +40,7 @@ import {
   EXIT_TARGET_ATR,
 } from "../lib/signal-learning-utils";
 import { computeATRAsOf } from "../lib/atr";
+import { computeAlpha, marketReturnBps } from "../lib/benchmark";
 import {
   fetchCandleSnapshot,
   fetchFundingHistory,
@@ -146,6 +147,26 @@ async function gradeOutcomes(): Promise<number> {
 
   console.log(`[signal-learning] grading ${rows.length} rows across ${byCoin.size} coins`);
 
+  // BTC over the full grading span, fetched once, used as the market benchmark
+  // for every outcome. Without it, expectancy cannot separate edge from beta.
+  const earliestOverall = Math.min(...rows.map((r) => new Date(r.created_at as string).getTime()));
+  const btcBars = await fetchCandleSnapshot("BTC", "1h", earliestOverall - HOUR_MS, Date.now())
+    .catch(() => [] as HlCandle[]);
+  if (btcBars.length === 0) {
+    console.warn("[signal-learning] BTC benchmark unavailable, alpha will be null this run");
+  }
+
+  /** BTC close at or after the given time. */
+  const btcPriceAt = (ms: number): number | null => {
+    for (const b of btcBars) {
+      if (b.t >= ms) {
+        const px = parseFloat(b.c);
+        return isFinite(px) && px > 0 ? px : null;
+      }
+    }
+    return null;
+  };
+
   let graded = 0;
   let noData = 0;
   let noAtr  = 0;
@@ -198,6 +219,18 @@ async function gradeOutcomes(): Promise<number> {
       });
       if (!result) continue;
 
+      // Charge the trade for the market exposure it was riding over the same
+      // window it actually held.
+      const btcEntry = btcPriceAt(entryMs);
+      const btcExit  = btcPriceAt(entryMs + result.hold_hours * HOUR_MS);
+      const { benchmark_bps, alpha_bps } = computeAlpha({
+        netPnlBps:       result.net_pnl_bps,
+        marketReturnBps: btcEntry !== null && btcExit !== null
+          ? marketReturnBps(btcEntry, btcExit)
+          : null,
+        direction:       row.direction as "LONG" | "SHORT",
+      });
+
       const { error: updErr } = await supabase
         .from("signal_outcomes")
         .update({
@@ -210,6 +243,8 @@ async function gradeOutcomes(): Promise<number> {
           net_pnl_bps:         result.net_pnl_bps,
           realized_r_multiple: result.realized_r_multiple,
           is_win:              result.is_win,
+          benchmark_bps,
+          alpha_bps,
           resolved_at:         new Date().toISOString(),
         })
         .eq("id", row.id);
@@ -238,7 +273,7 @@ async function runStatsEngine(): Promise<void> {
     .from("signal_outcomes")
     .select(
       "id, signal_id, recipe_id, coin, direction, created_at, " +
-      "is_win, move_pct_4h, net_pnl_bps, exit_reason"
+      "is_win, move_pct_4h, net_pnl_bps, alpha_bps, exit_reason"
     )
     .not("resolved_at", "is", null)
     .gte("created_at", cutoff90d);
@@ -258,6 +293,7 @@ async function runStatsEngine(): Promise<void> {
     is_win: boolean | null;
     move_pct_4h: number | null;
     net_pnl_bps: number | null;
+    alpha_bps: number | null;
     exit_reason: string | null;
   };
   const typedRows = rows as unknown as OutcomeRow[];
@@ -401,7 +437,7 @@ async function runStatsEngine(): Promise<void> {
 // ─── Update recipe_performance net PnL fields ─────────────────────────────────
 
 async function updateRecipeNetStats(
-  byRecipe: Map<string, Array<{ net_pnl_bps: number | null; is_win: boolean | null; created_at: string }>>,
+  byRecipe: Map<string, Array<{ net_pnl_bps: number | null; is_win: boolean | null; alpha_bps: number | null; created_at: string }>>,
   cutoff60d: string,
 ): Promise<void> {
   const recipeIds = [...byRecipe.keys()];
@@ -436,6 +472,7 @@ async function updateRecipeNetStats(
       rows60d.map((r) => ({
         net_pnl_bps: r.net_pnl_bps as number | null,
         is_win:      r.is_win as boolean | null,
+        alpha_bps:   r.alpha_bps as number | null,
       }))
     );
 

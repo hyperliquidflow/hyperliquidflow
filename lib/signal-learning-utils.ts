@@ -327,10 +327,11 @@ export function simulateExitFromCandles(params: CandleExitParams): CandleExitRes
 }
 
 export interface RecipeNetStats {
-  median_net_pnl_bps: number | null;
-  win_rate_net:       number | null;
-  expectancy_bps_net: number | null;
-  sample_size_60d:    number | null;
+  median_net_pnl_bps:   number | null;
+  win_rate_net:         number | null;
+  expectancy_bps_net:   number | null;
+  expectancy_alpha_bps: number | null;
+  sample_size_60d:      number | null;
 }
 
 /**
@@ -341,27 +342,28 @@ export interface RecipeNetStats {
  * The sample count is always reported so the wait is visible.
  */
 export function computeRecipeNetStats(
-  rows: Array<{ net_pnl_bps: number | null; is_win: boolean | null }>,
+  rows: Array<{ net_pnl_bps: number | null; is_win: boolean | null; alpha_bps?: number | null }>,
 ): RecipeNetStats {
   const graded = rows.filter((r) => r.net_pnl_bps !== null);
-  if (graded.length === 0) {
-    return {
-      median_net_pnl_bps: null, win_rate_net: null,
-      expectancy_bps_net: null, sample_size_60d: null,
-    };
-  }
-  if (!meetsMinSample(graded.length)) {
-    return {
-      median_net_pnl_bps: null, win_rate_net: null,
-      expectancy_bps_net: null, sample_size_60d: graded.length,
-    };
-  }
-  const wins = graded.filter((r) => r.is_win === true).length;
+  const empty: RecipeNetStats = {
+    median_net_pnl_bps: null, win_rate_net: null, expectancy_bps_net: null,
+    expectancy_alpha_bps: null, sample_size_60d: null,
+  };
+  if (graded.length === 0) return empty;
+  if (!meetsMinSample(graded.length)) return { ...empty, sample_size_60d: graded.length };
+
+  const wins       = graded.filter((r) => r.is_win === true).length;
+  const withAlpha  = graded.filter((r) => r.alpha_bps !== null && r.alpha_bps !== undefined);
+  const alphaMean  = withAlpha.length > 0
+    ? parseFloat((withAlpha.reduce((s, r) => s + (r.alpha_bps as number), 0) / withAlpha.length).toFixed(2))
+    : null;
+
   return {
-    median_net_pnl_bps: computeMedianNetPnlBps(graded),
-    win_rate_net:       wins / graded.length,
-    expectancy_bps_net: computeExpectancyBps(graded),
-    sample_size_60d:    graded.length,
+    median_net_pnl_bps:   computeMedianNetPnlBps(graded),
+    win_rate_net:         wins / graded.length,
+    expectancy_bps_net:   computeExpectancyBps(graded),
+    expectancy_alpha_bps: alphaMean,
+    sample_size_60d:      graded.length,
   };
 }
 

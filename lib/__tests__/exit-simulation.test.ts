@@ -232,6 +232,19 @@ describe("computeRecipeNetStats", () => {
     expect(stats.win_rate_net).toBe(0.5);
   });
 
+  it("reports mean alpha once the sample clears the minimum", () => {
+    const rows = Array.from({ length: 30 }, (_, i) => ({
+      ...row(i < 15 ? 100 : -50, i < 15),
+      alpha_bps: i < 15 ? 40 : -20,
+    }));
+    expect(computeRecipeNetStats(rows).expectancy_alpha_bps).toBe(10);
+  });
+
+  it("withholds alpha below the minimum sample too", () => {
+    const rows = [{ ...row(100, true), alpha_bps: 40 }];
+    expect(computeRecipeNetStats(rows).expectancy_alpha_bps).toBeNull();
+  });
+
   it("reports a zero sample as null rather than zero", () => {
     const stats = computeRecipeNetStats([]);
     expect(stats.sample_size_60d).toBeNull();

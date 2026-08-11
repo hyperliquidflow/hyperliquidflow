@@ -20,6 +20,7 @@ import type { HlL2Book, HlCandle, HlAssetCtx } from "@/lib/hyperliquid-api-clien
 import { getRecipeConfig } from "@/lib/recipe-config";
 import { buildOutcomeRows } from "@/lib/outcome-helpers";
 import { tieredNotional } from "@/lib/token-tiers";
+import { grossNotionalByCoin, eligibleCoins } from "@/lib/coin-eligibility";
 import { computeWalletRegimeFit } from "@/lib/signal-validation";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -777,7 +778,39 @@ export async function runSignalLab(inputs: SignalLabInputs): Promise<SignalLabRe
   const dedupedPre = preValidation.filter(
     (s) => !validatedKeys.has(`${s.wallet_id}:${s.coin}:${s.direction ?? ""}`)
   );
-  const allEvents = [...dedupedPre, ...r8];
+  const emitted = [...dedupedPre, ...r8];
+
+  // Single choke point: drop signals on coins the cohort has no real capital in.
+  // Applied here rather than inside each recipe so it covers all six, and any
+  // recipe added later, without each needing to remember.
+  const grossByCoin = grossNotionalByCoin(
+    pairs.flatMap((p) =>
+      p.curr.positions.map((ap) => ({
+        coin:          ap.position.coin,
+        szi:           parseFloat(ap.position.szi),
+        positionValue: parseFloat(ap.position.positionValue),
+      }))
+    )
+  );
+  const eligible  = eligibleCoins(grossByCoin);
+  const allEvents = emitted.filter((e) => eligible.has(e.coin));
+
+  if (allEvents.length < emitted.length) {
+    // Never drop silently: a shrinking feed must be explainable.
+    const droppedByCoin = new Map<string, number>();
+    for (const e of emitted) {
+      if (!eligible.has(e.coin)) droppedByCoin.set(e.coin, (droppedByCoin.get(e.coin) ?? 0) + 1);
+    }
+    const summary = [...droppedByCoin.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .map(([coin, n]) => `${coin}x${n}`)
+      .join(", ");
+    console.log(
+      `[signal-lab] conviction gate dropped ${emitted.length - allEvents.length} of ` +
+      `${emitted.length} signals on low-conviction coins: ${summary}. ` +
+      `${eligible.size} coins eligible.`
+    );
+  }
 
   // Enrich with EV scores
   const enriched = enrichWithEv(allEvents, backtestMap, l2Books, inputs.recipeCalibrationMap ?? new Map(), walletSignalStatsMap);
