@@ -57,6 +57,26 @@ const REQUEST_GAP  = 120;                     // ms between Hyperliquid calls
 const CANDLE_CAP    = 5_000;
 const FORWARD_BUFFER_MIN = 6 * 60;            // horizons reach past the last fill
 
+/**
+ * Minutes per bar by interval, and the calendar window each can reach inside
+ * the ~5,000 bar cap. Measured against the live API on 2026-08-11:
+ *   1m -> 3.5d, 5m -> 17.4d, 15m -> 52.1d, 1h -> 208.3d
+ * Finer bars resolve latency, coarser bars buy sample. Nothing resolves both,
+ * so the latency question and the hold question want separate runs.
+ */
+const BAR_MINUTES: Record<string, number> = { "1m": 1, "5m": 5, "15m": 15, "1h": 60 };
+const INTERVAL = process.argv.find((a) => a.startsWith("--interval="))?.split("=")[1] ?? "1m";
+
+/**
+ * userFillsByTime returns at most 2,000 fills per call, oldest first from
+ * startTime, and gives no indication that it truncated. A busy wallet can spend
+ * that budget in under a quarter of a day, so a single call over a long window
+ * silently yields only the oldest sliver of that wallet's history. Paginate by
+ * walking startTime forward past the newest fill seen.
+ */
+const FILL_PAGE_CAP  = 2_000;
+const MAX_FILL_PAGES = 40;
+
 // Round-trip taker cost. Hyperliquid taker is 3.5 bps a side, so 7 bps in and
 // out, before any market impact.
 const ROUND_TRIP_BPS = 7;
@@ -74,6 +94,7 @@ interface Fill {
 interface Cache {
   fetched_at: string;
   days: number;
+  interval?: string;
   fills: Fill[];
   candles: Record<string, [number, number][]>; // coin -> [ms, close][] ascending
 }
@@ -98,14 +119,20 @@ async function fetchAll(): Promise<Cache> {
   const end   = Date.now();
   const start = end - DAYS * 24 * 3600_000;
 
-  // Score every wallet we pull, so the analysis can slice by score decile.
-  // Scores live on the latest snapshot, not on the wallets row.
-  const { data: wallets, error } = await supabase
-    .from("wallets")
-    .select("id, address")
-    .eq("is_active", true)
+  // The active cohort is ~98 wallets, which is what limited the first run to
+  // 269 episodes. Thousands more have been discovered and scored and still have
+  // public fill history, and whether they are active today has no bearing on
+  // what their past trades did next. --pool=all widens to every wallet the scan
+  // has ever scored.
+  const POOL = process.argv.find((a) => a.startsWith("--pool="))?.split("=")[1] ?? "active";
+  let query = supabase.from("wallets").select("id, address");
+  if (POOL === "active") query = query.eq("is_active", true);
+  else query = query.not("last_scanned_at", "is", null);
+  const { data: wallets, error } = await query
+    .order("last_scanned_at", { ascending: false })
     .limit(MAX_WALLETS);
   if (error) throw new Error(`wallet query: ${error.message}`);
+  console.log(`[fill-study] pool=${POOL}, ${wallets?.length ?? 0} wallets, interval=${INTERVAL}`);
 
   const ids = (wallets ?? []).map((w) => w.id as string);
   const { data: snaps } = await supabase
@@ -123,14 +150,42 @@ async function fetchAll(): Promise<Cache> {
   const fills: Fill[] = [];
   let done = 0;
 
+  let truncatedWallets = 0;
+
   for (const w of wallets ?? []) {
     try {
-      const raw = await hl<Array<Record<string, unknown>>>({
-        type: "userFillsByTime",
-        user: w.address,
-        startTime: start,
-        endTime: end,
-      });
+      // Walk startTime forward until a page comes back short of the cap.
+      // Dedup by tid because a page boundary can land inside a group of fills
+      // sharing a millisecond, and advancing the cursor past them would drop
+      // trades while advancing to them exactly would loop forever.
+      const raw: Array<Record<string, unknown>> = [];
+      const seenTid = new Set<number>();
+      let cursor = start;
+      let pages = 0;
+      for (; pages < MAX_FILL_PAGES; pages++) {
+        const page = await hl<Array<Record<string, unknown>>>({
+          type: "userFillsByTime",
+          user: w.address,
+          startTime: cursor,
+          endTime: end,
+        });
+        if (!page?.length) break;
+        let newest = cursor;
+        for (const f of page) {
+          const tid = Number(f.tid);
+          if (Number.isFinite(tid) && seenTid.has(tid)) continue;
+          if (Number.isFinite(tid)) seenTid.add(tid);
+          raw.push(f);
+          const t = Number(f.time);
+          if (Number.isFinite(t) && t > newest) newest = t;
+        }
+        if (page.length < FILL_PAGE_CAP) break;
+        if (newest <= cursor) break;   // no forward progress, stop rather than spin
+        cursor = newest;
+        await new Promise((r) => setTimeout(r, REQUEST_GAP));
+      }
+      if (pages >= MAX_FILL_PAGES) truncatedWallets++;
+
       for (const f of raw ?? []) {
         const dir = String(f.dir ?? "");
         // Opening fills only. A close is the cohort leaving a trade, which is a
@@ -162,13 +217,23 @@ async function fetchAll(): Promise<Cache> {
   console.log(`[fill-study] ${fills.length} opening fills across ${byCoin.size} coins`);
   console.log(`[fill-study] keeping top ${coins.length} coins, dropping ${dropped} fills on thinner coins`);
 
+  if (truncatedWallets > 0) {
+    console.warn(`[fill-study] ${truncatedWallets} wallets hit the ${MAX_FILL_PAGES}-page ceiling and are incomplete`);
+  }
+
+  const barMin = BAR_MINUTES[INTERVAL];
+  if (!barMin) {
+    console.error(`[fill-study] FATAL: unknown interval ${INTERVAL}. Use one of ${Object.keys(BAR_MINUTES).join(", ")}`);
+    process.exit(1);
+  }
   const candleEnd = end + FORWARD_BUFFER_MIN * MIN;
-  const requestedMinutes = Math.ceil((candleEnd - start) / MIN);
-  if (requestedMinutes > CANDLE_CAP) {
+  const requestedBars = Math.ceil((candleEnd - start) / MIN / barMin);
+  if (requestedBars > CANDLE_CAP) {
+    const maxDays = Math.floor((CANDLE_CAP * barMin - FORWARD_BUFFER_MIN) / 1440);
     console.error(
-      `[fill-study] FATAL: ${requestedMinutes} 1m candles requested per coin, cap is ${CANDLE_CAP}. ` +
+      `[fill-study] FATAL: ${requestedBars} ${INTERVAL} bars requested per coin, cap is ${CANDLE_CAP}. ` +
       `Hyperliquid truncates silently, which breaks horizon comparability. ` +
-      `Use --days=${Math.floor((CANDLE_CAP - FORWARD_BUFFER_MIN) / 1440)} or lower.`
+      `At ${INTERVAL} the window ceiling is ${maxDays}d, so use --days=${maxDays} or a coarser --interval.`
     );
     process.exit(1);
   }
@@ -179,7 +244,7 @@ async function fetchAll(): Promise<Cache> {
     try {
       const raw = await hl<Array<Record<string, unknown>>>({
         type: "candleSnapshot",
-        req: { coin, interval: "1m", startTime: start, endTime: candleEnd },
+        req: { coin, interval: INTERVAL, startTime: start, endTime: candleEnd },
       });
       for (const c of raw ?? []) {
         const t = Number(c.t);
@@ -192,18 +257,20 @@ async function fetchAll(): Promise<Cache> {
     series.sort((a, b) => a[0] - b[0]);
     candles[coin] = series;
 
-    const coverage = series.length / requestedMinutes;
+    const coverage = series.length / requestedBars;
     const flag = coverage < 0.9 ? "  <- thin, fills outside the span are dropped in analysis" : "";
-    console.log(`[fill-study]   ${coin}: ${series.length} candles, ${(coverage * 100).toFixed(0)}% coverage${flag}`);
+    console.log(`[fill-study]   ${coin}: ${series.length} ${INTERVAL} bars, ${(coverage * 100).toFixed(0)}% coverage${flag}`);
     await new Promise((r) => setTimeout(r, REQUEST_GAP));
   }
 
-  return { fetched_at: new Date().toISOString(), days: DAYS, fills, candles };
+  return { fetched_at: new Date().toISOString(), days: DAYS, interval: INTERVAL, fills, candles };
 }
 
 // ── Analysis ─────────────────────────────────────────────────────────────────
 
 /** Close of the first candle at or after `t`, or null past the end of the series. */
+let staleToleranceMs = 10 * 60_000;   // set from the cache's bar interval at analysis time
+
 function priceAt(series: [number, number][], t: number): number | null {
   if (!series.length) return null;
   let lo = 0, hi = series.length - 1, best = -1;
@@ -212,9 +279,13 @@ function priceAt(series: [number, number][], t: number): number | null {
     if (series[mid][0] >= t) { best = mid; hi = mid - 1; } else { lo = mid + 1; }
   }
   if (best === -1) return null;
-  // Refuse a match more than 10 minutes past the request: a gap that wide means
-  // the market data is missing, not that the price simply did not change.
-  if (series[best][0] - t > 10 * 60_000) return null;
+  // Refuse a match too far past the request: a gap that wide means the market
+  // data is missing, not that the price simply did not change. The tolerance
+  // has to scale with the bar interval. Fixed at 10 minutes it silently dropped
+  // a third of a 15m-bar run, because bars are 15 minutes apart and most
+  // lookups legitimately land more than 10 minutes before the next one, and the
+  // rows that survived were not a random subset.
+  if (series[best][0] - t > staleToleranceMs) return null;
   return series[best][1];
 }
 
@@ -309,6 +380,10 @@ function toEpisodes(fills: Fill[]): Fill[] {
 
 function main(cache: Cache) {
   const { fills, candles } = cache;
+  // One and a half bars: wide enough that a legitimate next bar always matches,
+  // tight enough that a genuine data hole still fails.
+  const barMin = BAR_MINUTES[cache.interval ?? "1m"] ?? 1;
+  staleToleranceMs = Math.max(10 * 60_000, barMin * 1.5 * 60_000);
   const onCoveredCoins = toEpisodes(fills.filter((f) => candles[f.c]?.length));
   console.log(`\n[fill-study] window ${cache.days}d, fetched ${cache.fetched_at}`);
   console.log(`[fill-study] ${fills.length} opening fills, ${onCoveredCoins.length} on coins with candles`);
