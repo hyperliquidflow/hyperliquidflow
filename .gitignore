@@ -54,3 +54,6 @@ wallet-signal-stats-summary.json
 
 # one-off remediation audit, permanent copy lives in docs/audit/
 restore-liq-false-positives.json
+
+# scratch probes (never commit)
+.probe.ts
