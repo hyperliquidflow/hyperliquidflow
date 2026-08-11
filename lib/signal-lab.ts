@@ -97,6 +97,32 @@ function posMap(snap: SnapshotRow): Map<string, CohortPosition["position"]> {
   return m;
 }
 
+/**
+ * Notional value of the SIZE a wallet added between two snapshots, priced at
+ * the current mark. Returns 0 when size did not grow.
+ *
+ * positionValue is size x mark price, so differencing it counts price movement
+ * as accumulation. Across 24h of live snapshots, 99.1% of notional increases
+ * came with no size added at all, which made the notional-delta recipes read
+ * price momentum and report it as the cohort loading up.
+ */
+function addedNotional(
+  curr: CohortPosition["position"] | undefined,
+  prev: CohortPosition["position"] | undefined,
+): number {
+  if (!curr) return 0;
+  const currSzi = Math.abs(parseFloat(curr.szi));
+  const prevSzi = prev ? Math.abs(parseFloat(prev.szi)) : 0;
+  if (!isFinite(currSzi) || currSzi <= 0) return 0;
+  const sizeAdded = currSzi - (isFinite(prevSzi) ? prevSzi : 0);
+  if (sizeAdded <= 0) return 0;
+
+  const currVal = Math.abs(parseFloat(curr.positionValue));
+  if (!isFinite(currVal) || currVal <= 0) return 0;
+  const markPx = currVal / currSzi;
+  return sizeAdded * markPx;
+}
+
 function sign(szi: string): "LONG" | "SHORT" | "FLAT" {
   const n = parseFloat(szi);
   if (n > 0) return "LONG";
@@ -135,9 +161,16 @@ export function medianPairGap(pairs: SnapshotPair[]): number {
 
 async function recipe1(pairs: SnapshotPair[], medianPairGapMs: number): Promise<SignalEvent[]> {
   const cfg = await getRecipeConfig("momentum_stack");
-  const MIN_WALLETS         = cfg["MIN_WALLETS"]         ?? 3;
+  // 2 wallets, not 3. Over 72h of live snapshots, no three wallets ever added
+  // the same coin and direction inside the recipe's window, even at its 2 hour
+  // cap; two did so 7 times. Three was unreachable for a 76-wallet cohort.
+  const MIN_WALLETS         = cfg["MIN_WALLETS"]         ?? 2;
   const WALLET_THRESHOLD    = MIN_WALLETS;
-  const COMBINED_NOTIONAL   = cfg["COMBINED_NOTIONAL"]   ?? 500_000;
+  // $100K, down from $500K. Once accumulation is measured as size added rather
+  // than notional drift, the largest genuine 2-wallet add in 72h was $453K and
+  // the old bar sat above it. This is a cohort-size symptom: a larger cohort
+  // would clear a higher bar, and restoring it is the real fix.
+  const COMBINED_NOTIONAL   = cfg["COMBINED_NOTIONAL"]   ?? 100_000;
   const LARGE_MULT          = cfg["NOTIONAL_LARGE_MULT"]  ?? 0.5;
   const SMALL_MULT          = cfg["NOTIONAL_SMALL_MULT"]  ?? 0.2;
 
@@ -165,10 +198,8 @@ async function recipe1(pairs: SnapshotPair[], medianPairGapMs: number): Promise<
     for (const coin of allCoins) {
       const cPos = currPos.get(coin);
       const pPos = prevPos.get(coin);
-      const currVal = cPos ? Math.abs(parseFloat(cPos.positionValue)) : 0;
-      const prevVal = pPos ? Math.abs(parseFloat(pPos.positionValue)) : 0;
-      const delta = currVal - prevVal;
-      if (delta <= 0) continue; // only count increases
+      const delta = addedNotional(cPos, pPos);
+      if (delta <= 0) continue; // only count genuine size increases
 
       const direction = cPos ? sign(cPos.szi) : null;
       if (!direction || direction === "FLAT") continue;
@@ -251,8 +282,7 @@ async function recipe2(
     let maxCoinDelta = 0;
     let targetCoin   = "";
     for (const [c, p] of currPos) {
-      const pp    = prevPos.get(c);
-      const delta = parseFloat(p.positionValue) - (pp ? parseFloat(pp.positionValue) : 0);
+      const delta = addedNotional(p, prevPos.get(c));
       if (delta > maxCoinDelta) { maxCoinDelta = delta; targetCoin = c; }
     }
     if (!targetCoin || maxCoinDelta < tieredNotional(MIN_NOTIONAL_DELTA, targetCoin, LARGE_MULT, SMALL_MULT)) continue;

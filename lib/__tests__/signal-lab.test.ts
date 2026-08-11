@@ -273,8 +273,11 @@ describe("momentum_stack", () => {
     expect(events[0].metadata.combined_delta).toBe(600_000);
   });
 
-  it("does not fire with only 2 wallets, one short of the convergence threshold", async () => {
-    const pairs = makePairs(2, () => ({
+  it("does not fire with a single wallet, one short of the convergence threshold", async () => {
+    // MIN_WALLETS is 2, not 3: measured over 72h of live snapshots, no three
+    // wallets ever added the same coin and direction inside the recipe's
+    // window, even at its 2 hour cap. Two happened 7 times.
+    const pairs = makePairs(1, () => ({
       curr:  [{ coin: "BTC", szi: 10, notional: 1_000_000 }],
       prev:  [{ coin: "BTC", szi: 1, notional: 100_000 }],
       gapMs: 60_000,
@@ -284,10 +287,13 @@ describe("momentum_stack", () => {
   });
 
   it("does not fire when combined notional lands just under the tier threshold", async () => {
-    // 3 wallets x $166K = $498K, $2K short of the $500K MAJOR-tier bar.
-    const pairs = makePairs(3, () => ({
-      curr:  [{ coin: "BTC", szi: 3, notional: 266_000 }],
-      prev:  [{ coin: "BTC", szi: 1, notional: 100_000 }],
+    // Mark $100K. Each wallet adds 0.499 size = $49.9K of new exposure, so the
+    // two together reach $99.8K, just under the $100K MAJOR-tier bar. Sized in
+    // units rather than notional because accumulation is measured as size
+    // added, priced at the current mark.
+    const pairs = makePairs(2, () => ({
+      curr:  [{ coin: "BTC", szi: 1.499, notional: 149_900 }],
+      prev:  [{ coin: "BTC", szi: 1,     notional: 100_000 }],
       gapMs: 60_000,
     }));
     const events = await momentumStackRecipe(pairs, 0);
@@ -684,5 +690,47 @@ describe("held positions do not re-emit", () => {
     }];
     const pairs = makePairs(4, () => ({ curr: [btcLong], prev: [btcLong], score: 0.9 }));
     expect(await whaleValidatedRecipe(pairs, pending)).toHaveLength(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Accumulation must mean size added, not notional drifting with price
+// ─────────────────────────────────────────────────────────────────────────────
+// positionValue is size x mark price, so it rises whenever price rises even
+// though the wallet did nothing. Measured over 24h of live snapshots, 99.1% of
+// notional increases came with no size added at all. Recipes keying off
+// notional delta were reading price momentum and calling it accumulation.
+
+describe("accumulation is measured in size, not notional", () => {
+  /** Same size in prev and curr, but the mark price doubled. */
+  const priceDriftOnly = () =>
+    makePairs(4, () => ({
+      curr: [{ coin: "BTC", szi: 5, notional: 2_000_000 }],
+      prev: [{ coin: "BTC", szi: 5, notional: 1_000_000 }],
+    }));
+
+  /** Size genuinely doubled at an unchanged mark price. */
+  const realAccumulation = () =>
+    makePairs(4, () => ({
+      curr: [{ coin: "BTC", szi: 10, notional: 2_000_000 }],
+      prev: [{ coin: "BTC", szi:  5, notional: 1_000_000 }],
+    }));
+
+  it("momentum_stack ignores a position that only grew because price rose", async () => {
+    expect(await momentumStackRecipe(priceDriftOnly(), 60_000)).toHaveLength(0);
+  });
+
+  it("momentum_stack still fires when wallets actually added size", async () => {
+    expect((await momentumStackRecipe(realAccumulation(), 60_000)).length).toBeGreaterThan(0);
+  });
+
+  it("divergence_squeeze ignores notional that only drifted with price", async () => {
+    const pairs = makePairs(4, () => ({
+      curr: [{ coin: "BTC", szi: 5, notional: 2_000_000 }],
+      prev: [{ coin: "BTC", szi: 5, notional: 1_000_000 }],
+      liqBuffer: 0.02, score: 0.9,
+    }));
+    const flat = new Map([["BTC", Array.from({ length: 6 }, () => makeCandle({ c: 100 }))]]);
+    expect(await divergenceSqueezeRecipe(pairs, flat)).toHaveLength(0);
   });
 });
