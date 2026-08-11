@@ -118,8 +118,54 @@ conviction. Nothing downstream can be validated until the cohort is rebuilt
 toward its former size, which makes cohort recovery the single highest-leverage
 work item, ahead of everything else on this list.
 
+**The cohort was never 76 (2026-08-11).** The intraday shrink (75 wallets at
+03:00 UTC, 59 by 17:00) was measured to hygiene rather than discovery, and the
+measurement found two separate faults plus a headline number that was mostly
+fiction.
+
+*The active count is 65% empty accounts.* Of 76 active wallets, **49 held
+exactly $0** and 26 were funded and holding a position, which is the only state
+from which a wallet can contribute to a signal. `scoreWallet` reads live equity
+from the leaderboard snapshot, so every candidate not on today's leaderboard
+reaches the equity gate with `liveEquity === null` and skips it, deferring to
+the cron dust check. The cron does remove them, six hours later, and the next
+nightly scan activates them again. All 12 sampled addresses returned $0 from a
+live clearinghouse query. Fixed by Phase 9b in `daily-wallet-scan.ts`, which
+queries clearinghouseState for the **activated** set only (roughly 76 to 500
+wallets, not the 4,500-candidate pool that blew the API budget when this was
+tried at gate time) and deactivates the empty ones with reason `unfunded`.
+
+*The liquidation gate measured the wrong quantity.* `liq_buffer_pct` is
+`(accountValue - totalMarginUsed) / accountValue`, the fraction of equity not
+committed as margin. That is a statement about leverage, not about how far price
+must move before a position is liquidated. A wallet running its whole balance as
+margin scores 0 and was removed as "liquidation imminent" while sitting 25% away
+from its liquidation price. Of 36 wallets removed on that gate in 48 hours,
+**30 were false positives**: median true distance to liquidation 25.6%, and only
+2 were genuinely inside the 5% threshold. Between them they held $7.0M, median
+wallet $41K. `liquidationDistance` in `lib/risk-engine.ts` now computes distance
+from mark to the nearest `liquidationPx` carried in the same snapshot, and
+hygiene gates on that. No migration was needed: `cohort_snapshots.positions`
+already holds the data, so the correction applies to existing rows. A null
+distance passes the gate, because unknown is not the same as unsafe.
+
+Replaying the last 48 hours of hygiene decisions through the new gate retains 30
+of 36 and takes the signal-producing cohort from **26 to 56**. That is a
+counterfactual on stored snapshots, not a live measurement. The real numbers
+arrive after the next nightly scan and a day of refresh cycles, at which point
+`scripts/recipe-dry-run.ts --replay 24` gives the signal rate that decides
+whether validation is possible. Rerunning it before then measures nothing, since
+the stored snapshots it replays have not changed.
+
+Note for the thresholds tuned on 2026-08-11: momentum_stack was cut to
+MIN_WALLETS=2 / $100K because three wallets never once coordinated across what
+was recorded as a 76-wallet cohort. It was a 26-wallet cohort, shrinking through
+the day as the liquidation gate removed funded traders. Recalibrate against the
+recovered cohort before reading anything into those numbers.
+
 Still open from the same audit, in priority order:
-1. **Cohort size, 76 active vs 493 in April.** See above. Everything else waits.
+1. **Cohort size, 26 signal-producing vs 493 active in April.** Two causes fixed
+   2026-08-11 (see above); verify against the next nightly scan.
 2. **Rank IC 0.05 is thin.** The cohort ranks better than chance but well under
    the 0.08 target. Either wallet selection improves, or recipes have to add
    most of the edge themselves. Worth testing whether a different factor mix
@@ -147,6 +193,11 @@ Still open from the same audit, in priority order:
    overall_score_shadow non-null, then expect the gate around 2026-09-10.
 5. Cohort size: G10 was raised 15x to 25x on 2026-08-09, which should lift the
    cohort well above 77 on the next nightly scan. Verify it did.
+6. Cohort recovery: after the next scan, check `unfunded_deactivated` in the
+   scan summary (empty accounts should now be cut at scan time, not six hours
+   later) and confirm `liq_imminent` removals have collapsed. Count wallets that
+   are funded and holding, not wallets that are merely flagged active. Then
+   rerun `npx tsx scripts/recipe-dry-run.ts --replay 24`.
 
 Caveat for early data: outcomes created before 2026-08-09 were priced under the
 old broken horizon logic (price_4h held a ~25h price). Treat their magnitudes as

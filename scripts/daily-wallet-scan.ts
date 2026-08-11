@@ -520,9 +520,10 @@ async function scoreWallet(
   });
 
   // Live equity comes from the leaderboard snapshot for tier1. For tier2/tier3
-  // (not on today's leaderboard) we defer equity gating to the cron dust-check —
-  // firing clearinghouseState here roughly doubled API calls and pushed the scan
-  // past its 50-min budget.
+  // (not on today's leaderboard) it is null here and the equity gate below is
+  // skipped: firing clearinghouseState for every candidate roughly doubled API
+  // calls and pushed the scan past its 50-min budget. Phase 9b closes the gap by
+  // checking the activated set instead, which is far smaller.
   const liveEquity: number | null = leaderboardEntry?.accountValue ?? null;
 
   // Only closing fills carry realized PnL (opening fills have closedPnl = "0")
@@ -943,6 +944,79 @@ async function computeWalletProfiles(): Promise<{ computed: number; skipped: num
 }
 
 // -- Leverage stats + G10 gate ------------------------------------------------
+
+/**
+ * Phase 9b: confirm the wallets that just activated are actually funded.
+ *
+ * scoreWallet reads live equity from the leaderboard snapshot, which only
+ * carries tier1 addresses. Every other candidate reaches the equity gate with
+ * liveEquity === null and skips it, on the reasoning that the 5-minute cron
+ * would catch an empty account later. It does catch them, six hours later,
+ * after which the next nightly scan activates them again.
+ *
+ * Measured on 2026-08-11: 49 of 76 active wallets held exactly $0. A wallet
+ * with no equity holds no positions, so it can never contribute to a signal.
+ * The cohort headline was 76 and the cohort that could actually emit a signal
+ * was 26.
+ *
+ * Firing clearinghouseState for every candidate is what blew the scan budget
+ * before, so this runs on the activated set only, which is smaller than the
+ * candidate pool by roughly two orders of magnitude and scales with the cohort
+ * rather than with discovery.
+ */
+async function verifyLiveEquity(): Promise<{ verified: number; deactivated: number }> {
+  const { data: activeWallets, error } = await supabase
+    .from("wallets")
+    .select("id, address")
+    .eq("is_active", true);
+
+  if (error || !activeWallets?.length) {
+    console.warn("[equity-check] could not fetch active wallets:", error?.message);
+    return { verified: 0, deactivated: 0 };
+  }
+
+  const unfunded: string[] = [];
+  let verified = 0;
+  let failures = 0;
+
+  await Promise.allSettled(
+    activeWallets.map(async (w) => {
+      await sem.acquire();
+      try {
+        const state = await hlPost<{ marginSummary?: { accountValue?: string } }>({
+          type: "clearinghouseState",
+          user: w.address,
+        });
+        const equity = parseFloat(state?.marginSummary?.accountValue ?? "");
+        if (!Number.isFinite(equity)) return;   // unreadable, leave the wallet alone
+        verified++;
+        if (equity < MIN_EQUITY_FOR_ACTIVATION) unfunded.push(w.id);
+      } catch {
+        failures++;                              // transient API failure is not evidence of an empty account
+      } finally {
+        sem.release();
+      }
+    })
+  );
+
+  if (unfunded.length > 0) {
+    const now = new Date().toISOString();
+    const CHUNK = 100;
+    for (let i = 0; i < unfunded.length; i += CHUNK) {
+      const { error: updErr } = await supabase
+        .from("wallets")
+        .update({ is_active: false, deactivation_reason: "unfunded", deactivated_at: now })
+        .in("id", unfunded.slice(i, i + CHUNK));
+      if (updErr) console.error("[equity-check] deactivate error:", updErr.message);
+    }
+  }
+
+  console.log(
+    `[equity-check] verified ${verified}/${activeWallets.length} (${failures} unreadable), ` +
+    `deactivated ${unfunded.length} unfunded`
+  );
+  return { verified, deactivated: unfunded.length };
+}
 
 async function computeLeverageStats(): Promise<{ computed: number; g10_deactivated: number }> {
   const { data: activeWallets, error: walletErr } = await supabase
@@ -1532,6 +1606,8 @@ async function main(): Promise<void> {
     profiles_skipped:          0,
     leverage_computed:         0,
     g10_deactivated:           0,
+    equity_verified:           0,
+    unfunded_deactivated:      0,
     shadow_scores_computed:    0,
     attrition_upserted:        0,
     score_history_written:     0,
@@ -1809,6 +1885,13 @@ async function main(): Promise<void> {
   const shadowResult = await computeShadowScores();
   summary.shadow_scores_computed = shadowResult.computed;
   console.log(`[phase-10b] shadow scores: ${shadowResult.computed} computed`);
+
+  // ── Phase 9b: live equity check on the activated cohort ───────────────────
+  // Runs after G10 so it only pays for wallets that survived every other gate.
+  console.log("\n[Phase 9b] Verifying live equity for activated wallets...");
+  const equityResult = await verifyLiveEquity();
+  summary.equity_verified      = equityResult.verified;
+  summary.unfunded_deactivated = equityResult.deactivated;
 
   // ── Phase 10: Cohort attrition upsert ─────────────────────────────────────
   console.log("\n[Phase 10] Upserting cohort attrition states...");

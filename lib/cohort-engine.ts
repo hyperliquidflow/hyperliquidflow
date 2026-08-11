@@ -483,9 +483,13 @@ export async function saveCohortSnapshot(
   const ms = state.marginSummary;
   const accountValue    = parseFloat(ms.accountValue);
   const totalMarginUsed = parseFloat(ms.totalMarginUsed);
+  // Free margin as a fraction of equity, floored at 0 to match computeLiqBuffer
+  // in the refresh route. The two writers disagreed until 2026-08-11, so the
+  // column held negative values against a documented range of [0, 1].
+  // This is a leverage statistic. Distance to liquidation is liquidationDistance.
   const liqBuffer =
     accountValue > 0
-      ? (accountValue - totalMarginUsed) / accountValue
+      ? Math.max(0, (accountValue - totalMarginUsed) / accountValue)
       : null;
 
   const { error } = await supabase.from("cohort_snapshots").insert({

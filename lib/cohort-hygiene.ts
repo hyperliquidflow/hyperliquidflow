@@ -1,12 +1,19 @@
 import { createClient } from "@supabase/supabase-js";
 import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from "@/lib/env";
+import { liquidationDistance } from "@/lib/risk-engine";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const DEACTIVATION_EQUITY_FLOOR    = 10_000;
-const MIN_LIQ_BUFFER               = 0.05;
+
+/**
+ * Minimum distance from mark to the nearest liquidation price, as a fraction of
+ * mark. Measured against live data on 2026-08-11: of 32 wallets the old gate
+ * removed, only 2 were inside 5%, and the median sat 25.6% away.
+ */
+const MIN_LIQ_DISTANCE             = 0.05;
 const MAX_7D_DRAWDOWN              = 0.50;
 const MIN_DRAWDOWN_SNAPSHOTS       = 3;
 const MAX_CYCLE_DEACTIVATION_PCT   = 0.25;
@@ -108,13 +115,21 @@ export function failsEquityGate(
   return accountValue < floor;
 }
 
-export function failsLiqBufferGate(
-  liqBuffer:     number | null,
+/**
+ * True when an open position sits closer to its liquidation price than the
+ * minimum distance. A null distance means no open position reported a
+ * liquidation price, which is unknown rather than unsafe, so the gate passes.
+ *
+ * This replaced a free-margin check on 2026-08-11. See liquidationDistance in
+ * lib/risk-engine.ts for why margin used was the wrong quantity to ask for.
+ */
+export function failsLiquidationGate(
+  distance:      number | null,
   positionCount: number,
-  minBuffer:     number = MIN_LIQ_BUFFER,
+  minDistance:   number = MIN_LIQ_DISTANCE,
 ): boolean {
-  if (positionCount === 0 || liqBuffer === null) return false;
-  return liqBuffer < minBuffer;
+  if (positionCount === 0 || distance === null) return false;
+  return distance < minDistance;
 }
 
 /** Returns true if 7d peak-to-current drawdown exceeds threshold.
@@ -218,7 +233,7 @@ export async function applyHygieneGates(
   // 1. Latest snapshot per active wallet (dedupe to newest per wallet_id)
   const { data: latestSnaps, error: snapErr } = await supabase
     .from("cohort_snapshots")
-    .select("wallet_id, account_value, liq_buffer_pct, position_count, snapshot_time")
+    .select("wallet_id, account_value, liq_buffer_pct, position_count, positions, snapshot_time")
     .in("wallet_id", activeWalletIds)
     .order("wallet_id")
     .order("snapshot_time", { ascending: false });
@@ -229,6 +244,7 @@ export async function applyHygieneGates(
     account_value:  number;
     liq_buffer_pct: number | null;
     position_count: number;
+    positions:      unknown;
     snapshot_time:  string;
   }>();
   for (const row of latestSnaps ?? []) {
@@ -317,8 +333,11 @@ export async function applyHygieneGates(
       continue;
     }
 
-    // Liq-buffer gate
-    const bufferFailing = failsLiqBufferGate(snap.liq_buffer_pct, snap.position_count);
+    // Liquidation gate: how far price must move, not how much margin is committed.
+    const liqDistance = liquidationDistance(
+      Array.isArray(snap.positions) ? snap.positions : [],
+    );
+    const bufferFailing = failsLiquidationGate(liqDistance, snap.position_count);
     const bufferResult  = nextGraceCycles(grace.low_buffer_cycles, bufferFailing, fresh, bufferThreshold);
 
     if (bufferResult.deactivate) {

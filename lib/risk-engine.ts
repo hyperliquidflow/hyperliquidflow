@@ -175,6 +175,54 @@ export function liquidationBuffer(
   return clamp((accountValue - totalMarginUsed) / accountValue, 0, 1);
 }
 
+/** Position shape as stored in cohort_snapshots.positions, either the raw
+ *  assetPosition wrapper from Hyperliquid or the bare position object. */
+type PositionLike =
+  | { position?: unknown; szi?: unknown; positionValue?: unknown; liquidationPx?: unknown }
+  | null
+  | undefined;
+
+/**
+ * Distance from the current mark to the nearest liquidation price, as a
+ * fraction of mark. Returns null when no open position carries a usable
+ * liquidation price, which the caller should read as "unknown", not "safe".
+ *
+ * Why this exists separately from liquidationBuffer: margin used measures how
+ * much equity a wallet has deployed, which is a leverage statement. It says
+ * nothing about how far price has to move before the position is liquidated. A
+ * wallet running its full balance as margin scores ~0 on the margin ratio while
+ * sitting 25% away from its liquidation price. On 2026-08-11 that difference
+ * removed 30 of 32 wallets from the cohort in 48 hours, every one of them
+ * solvent and trading. Distance is the quantity the risk gate meant to ask for.
+ *
+ * Mark is derived as positionValue / |szi| so no extra price fetch is needed;
+ * both fields come from the same clearinghouse payload as liquidationPx.
+ */
+export function liquidationDistance(positions: PositionLike[]): number | null {
+  let nearest: number | null = null;
+
+  for (const entry of positions ?? []) {
+    if (!entry || typeof entry !== "object") continue;
+    const p = ("position" in entry && entry.position ? entry.position : entry) as Record<string, unknown>;
+
+    const liqPx = p.liquidationPx == null ? NaN : parseFloat(String(p.liquidationPx));
+    const szi   = parseFloat(String(p.szi ?? ""));
+    const value = parseFloat(String(p.positionValue ?? ""));
+
+    if (!Number.isFinite(liqPx) || liqPx <= 0) continue;
+    if (!Number.isFinite(szi) || szi === 0) continue;
+    if (!Number.isFinite(value) || value <= 0) continue;
+
+    const mark = value / Math.abs(szi);
+    if (!Number.isFinite(mark) || mark <= 0) continue;
+
+    const distance = Math.abs(mark - liqPx) / mark;
+    if (nearest === null || distance < nearest) nearest = distance;
+  }
+
+  return nearest;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Sharpe (raw, annualised) — used for display only
 // ─────────────────────────────────────────────────────────────────────────────

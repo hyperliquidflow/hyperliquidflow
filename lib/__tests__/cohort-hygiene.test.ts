@@ -53,7 +53,7 @@ import {
   isSnapshotFresh,
   isScanFresh,
   failsEquityGate,
-  failsLiqBufferGate,
+  failsLiquidationGate,
   failsDrawdownGate,
   failsIdleGate,
   nextGraceCycles,
@@ -84,6 +84,24 @@ const healthySnap = (id: string) => ({
   position_count: 0,
   snapshot_time: ago(5 * MIN),
 });
+
+/** One long position whose liquidation price sits `distance` below a mark of 100. */
+const positionsAtDistance = (distance: number) => [
+  {
+    position: {
+      coin: "BTC",
+      szi: "1",
+      entryPx: "100",
+      positionValue: "100",
+      unrealizedPnl: "0",
+      returnOnEquity: "0",
+      liquidationPx: String(100 * (1 - distance)),
+      leverage: { type: "cross", value: 10 },
+      cumFunding: { allTime: "0", sinceChange: "0", sinceOpen: "0" },
+    },
+    type: "oneWay",
+  },
+];
 
 const zeroGrace = (id: string) => ({ id, low_equity_cycles: 0, low_buffer_cycles: 0 });
 
@@ -122,21 +140,21 @@ describe("failsEquityGate", () => {
   });
 });
 
-describe("failsLiqBufferGate", () => {
-  it("fails when buffer below min and positions open", () => {
-    expect(failsLiqBufferGate(0.04, 2)).toBe(true);
+describe("failsLiquidationGate", () => {
+  it("fails when the nearest liquidation is inside the minimum distance", () => {
+    expect(failsLiquidationGate(0.04, 2)).toBe(true);
   });
-  it("passes when buffer at exactly min", () => {
-    expect(failsLiqBufferGate(0.05, 2)).toBe(false);
+  it("passes at exactly the minimum distance", () => {
+    expect(failsLiquidationGate(0.05, 2)).toBe(false);
   });
-  it("passes when no positions even if buffer is low", () => {
-    expect(failsLiqBufferGate(0.01, 0)).toBe(false);
+  it("passes when no positions are open", () => {
+    expect(failsLiquidationGate(0.01, 0)).toBe(false);
   });
-  it("passes when buffer is null (no margin info)", () => {
-    expect(failsLiqBufferGate(null, 3)).toBe(false);
+  it("passes when distance is unknown, since unknown is not the same as unsafe", () => {
+    expect(failsLiquidationGate(null, 3)).toBe(false);
   });
-  it("passes when buffer is fine", () => {
-    expect(failsLiqBufferGate(0.5, 5)).toBe(false);
+  it("passes when price is a long way from liquidation", () => {
+    expect(failsLiquidationGate(0.5, 5)).toBe(false);
   });
 });
 
@@ -576,6 +594,7 @@ describe("applyHygieneGates", () => {
             account_value: 100_000,
             liq_buffer_pct: 0.03,
             position_count: 3,
+            positions: positionsAtDistance(0.03),
             snapshot_time: ago(5 * MIN),
           },
           { wallet_id: "w2", account_value: 100_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
@@ -602,6 +621,79 @@ describe("applyHygieneGates", () => {
 
     expect(result.deactivated).toEqual([{ wallet_id: "w1", reason: "liq_imminent" }]);
     expect(result.breakdown.liq_imminent).toBe(1);
+  });
+
+  // Regression for the 2026-08-11 cohort melt. The gate used to read
+  // liq_buffer_pct, the fraction of equity not committed as margin, so a wallet
+  // that deployed its whole balance scored 0 and was removed as "liquidation
+  // imminent" while price sat 25% away from its liquidation. Over 48 hours that
+  // took out 30 of 32 wallets, all of them solvent, from a cohort of 26 that
+  // could actually emit signals.
+  it("keeps a fully deployed wallet whose liquidation price is far from mark", async () => {
+    mockSnapshotResponses = [
+      {
+        data: [
+          {
+            wallet_id: "w1",
+            account_value: 84_019,
+            liq_buffer_pct: 0,            // no free margin at all
+            position_count: 1,
+            positions: positionsAtDistance(0.226), // but liquidation is 22.6% away
+            snapshot_time: ago(5 * MIN),
+          },
+          healthySnap("w2"), healthySnap("w3"), healthySnap("w4"),
+        ],
+        error: null,
+      },
+      { data: seriesAt("w1", 5 * MIN, 12, 84_019), error: null },
+    ];
+    mockWalletResponses = [
+      {
+        data: [
+          { id: "w1", low_equity_cycles: 0, low_buffer_cycles: 23 }, // one cycle from removal
+          zeroGrace("w2"), zeroGrace("w3"), zeroGrace("w4"),
+        ],
+        error: null,
+      },
+    ];
+
+    const result = await applyHygieneGates(["w1", "w2", "w3", "w4"]);
+
+    expect(result.deactivated).toEqual([]);
+    expect(result.breakdown.liq_imminent).toBe(0);
+  });
+
+  it("still removes a wallet that is genuinely close to liquidation", async () => {
+    mockSnapshotResponses = [
+      {
+        data: [
+          {
+            wallet_id: "w1",
+            account_value: 84_019,
+            liq_buffer_pct: 0.9,          // plenty of free margin
+            position_count: 1,
+            positions: positionsAtDistance(0.01), // but 1% from liquidation
+            snapshot_time: ago(5 * MIN),
+          },
+          healthySnap("w2"), healthySnap("w3"), healthySnap("w4"),
+        ],
+        error: null,
+      },
+      { data: seriesAt("w1", 5 * MIN, 12, 84_019), error: null },
+    ];
+    mockWalletResponses = [
+      {
+        data: [
+          { id: "w1", low_equity_cycles: 0, low_buffer_cycles: 23 },
+          zeroGrace("w2"), zeroGrace("w3"), zeroGrace("w4"),
+        ],
+        error: null,
+      },
+    ];
+
+    const result = await applyHygieneGates(["w1", "w2", "w3", "w4"]);
+
+    expect(result.deactivated).toEqual([{ wallet_id: "w1", reason: "liq_imminent" }]);
   });
 
   it("holds grace counter on stale snapshot even when equity is failing", async () => {
@@ -691,7 +783,7 @@ describe("applyHygieneGates", () => {
           // wB: drawdown (peak 100k, current 20k = 80% drawdown)
           { wallet_id: "wB", account_value: 20_000, liq_buffer_pct: 0.3, position_count: 0, snapshot_time: ago(5 * MIN) },
           // wC: liq buffer failing at threshold -> liq_imminent
-          { wallet_id: "wC", account_value: 100_000, liq_buffer_pct: 0.02, position_count: 2, snapshot_time: ago(5 * MIN) },
+          { wallet_id: "wC", account_value: 100_000, liq_buffer_pct: 0.02, position_count: 2, positions: positionsAtDistance(0.02), snapshot_time: ago(5 * MIN) },
           // wD: healthy
           { wallet_id: "wD", account_value: 500_000, liq_buffer_pct: 0.5, position_count: 1, snapshot_time: ago(5 * MIN) },
           ...healthySnaps,
@@ -851,7 +943,7 @@ describe("applyHygieneGates", () => {
     mockSnapshotResponses = [
       {
         data: [
-          { wallet_id: "w1", account_value: 100_000, liq_buffer_pct: 0.03, position_count: 3, snapshot_time: ago(1 * MIN) },
+          { wallet_id: "w1", account_value: 100_000, liq_buffer_pct: 0.03, position_count: 3, positions: positionsAtDistance(0.03), snapshot_time: ago(1 * MIN) },
           healthySnap("w2"), healthySnap("w3"), healthySnap("w4"),
         ],
         error: null,
@@ -881,7 +973,7 @@ describe("applyHygieneGates", () => {
     mockSnapshotResponses = [
       {
         data: [
-          { wallet_id: "w1", account_value: 100_000, liq_buffer_pct: 0.03, position_count: 3, snapshot_time: ago(1 * MIN) },
+          { wallet_id: "w1", account_value: 100_000, liq_buffer_pct: 0.03, position_count: 3, positions: positionsAtDistance(0.03), snapshot_time: ago(1 * MIN) },
           healthySnap("w2"), healthySnap("w3"), healthySnap("w4"),
         ],
         error: null,
