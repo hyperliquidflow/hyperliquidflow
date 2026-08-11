@@ -57,3 +57,6 @@ restore-liq-false-positives.json
 
 # scratch probes (never commit)
 .probe.ts
+
+# fill study local cache (large, regenerable)
+fill-study-cache.json
