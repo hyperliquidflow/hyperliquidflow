@@ -260,6 +260,8 @@ async function gradeOutcomes(): Promise<number> {
           net_pnl_bps:         result.net_pnl_bps,
           realized_r_multiple: result.realized_r_multiple,
           is_win:              result.is_win,
+          stop_atr:            EXIT_STOP_ATR,
+          target_atr:          EXIT_TARGET_ATR,
           benchmark_bps,
           alpha_bps,
           beta,

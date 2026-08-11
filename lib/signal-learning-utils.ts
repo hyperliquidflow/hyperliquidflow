@@ -184,8 +184,16 @@ export function dominantRegime(
 export const ROUND_TRIP_FEE_BPS = 10;
 
 // Stop and target distances, in ATR multiples. These set the breakeven win rate.
-export const EXIT_STOP_ATR   = 2;
-export const EXIT_TARGET_ATR = 3;
+//
+// Chosen from a path simulation over 2,808 random entries on conviction-gate
+// coins at a 24h hold (scripts/exit-structure-analysis.ts, 2026-08-11). The
+// original 2/3 structure timed out 74% of trades and reached its target 6.9%
+// of the time, so its assumed 3:2 payoff never actually paid. 1/1 resolves 84%
+// of trades at the levels and has the lowest outcome variance on the grid
+// (sd 195 bps vs 285), which roughly halves the samples needed to detect a
+// given edge. Symmetric payoff puts breakeven at a clean 50% before costs.
+export const EXIT_STOP_ATR   = 1;
+export const EXIT_TARGET_ATR = 1;
 
 /**
  * Round-trip slippage assumption in bps, by coin liquidity tier. Order book
@@ -233,6 +241,10 @@ export interface CandleExitParams {
   slippageBps?:       number;
   /** Signed hourly funding in bps. Positive means longs pay shorts. */
   fundingBpsPerHour?: number;
+  /** Stop distance in ATR multiples. Defaults to the shipped EXIT_STOP_ATR. */
+  stopAtr?:           number;
+  /** Target distance in ATR multiples. Defaults to the shipped EXIT_TARGET_ATR. */
+  targetAtr?:         number;
 }
 
 const HOUR_MS = 3600_000;
@@ -255,13 +267,15 @@ export function simulateExitFromCandles(params: CandleExitParams): CandleExitRes
     feeBps            = ROUND_TRIP_FEE_BPS,
     slippageBps       = 0,
     fundingBpsPerHour = 0,
+    stopAtr           = EXIT_STOP_ATR,
+    targetAtr         = EXIT_TARGET_ATR,
   } = params;
 
   if (entryPrice <= 0 || atr <= 0) return null;
 
   const sign     = direction === "LONG" ? 1 : -1;
-  const stopPx   = entryPrice - sign * EXIT_STOP_ATR   * atr;
-  const targetPx = entryPrice + sign * EXIT_TARGET_ATR * atr;
+  const stopPx   = entryPrice - sign * stopAtr   * atr;
+  const targetPx = entryPrice + sign * targetAtr * atr;
   const windowEnd = entryMs + maxHoldHours * HOUR_MS;
 
   const window = bars.filter((b) => b.t >= entryMs && b.t < windowEnd);
@@ -311,7 +325,7 @@ export function simulateExitFromCandles(params: CandleExitParams): CandleExitRes
   const fundingBps  = sign * fundingBpsPerHour * holdHours;
   const costBps     = feeBps + slippageBps + fundingBps;
   const netPnlBps   = grossPnlBps - costBps;
-  const oneRBps     = (EXIT_STOP_ATR * atr) / entryPrice * 10_000;
+  const oneRBps     = (stopAtr * atr) / entryPrice * 10_000;
 
   return {
     entry_price:         entryPrice,

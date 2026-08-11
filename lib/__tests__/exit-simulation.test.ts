@@ -3,6 +3,9 @@ import {
   simulateExitFromCandles,
   slippageBpsForCoin,
   computeRecipeNetStats,
+  breakevenWinRate,
+  EXIT_STOP_ATR,
+  EXIT_TARGET_ATR,
   type ExitBar,
 } from "../signal-learning-utils";
 
@@ -22,6 +25,8 @@ describe("simulateExitFromCandles", () => {
       entryPrice: 100,
       atr:        5,
       entryMs:    0,
+      stopAtr:    2,
+      targetAtr:  3,
       bars:       [bar(0, 104, 99, 103), bar(1, 103, 88, 89)],
     });
 
@@ -37,6 +42,8 @@ describe("simulateExitFromCandles", () => {
       entryPrice: 100,
       atr:        5,
       entryMs:    0,
+      stopAtr:    2,
+      targetAtr:  3,
       bars:       [bar(0, 104, 99, 103), bar(1, 116, 102, 114)],
     });
 
@@ -52,6 +59,8 @@ describe("simulateExitFromCandles", () => {
       entryPrice: 100,
       atr:        5,
       entryMs:    0,
+      stopAtr:    2,
+      targetAtr:  3,
       bars:       [bar(0, 116, 88, 100)],
     });
 
@@ -65,6 +74,8 @@ describe("simulateExitFromCandles", () => {
       entryPrice: 100,
       atr:        5,
       entryMs:    0,
+      stopAtr:    2,
+      targetAtr:  3,
       bars:       [bar(0, 104, 99, 103), bar(1, 105, 98, 102)],
     });
 
@@ -80,6 +91,8 @@ describe("simulateExitFromCandles", () => {
       entryPrice: 100,
       atr:        5,
       entryMs:    0,
+      stopAtr:    2,
+      targetAtr:  3,
       bars:       [bar(0, 102, 84, 86)],
     });
 
@@ -94,6 +107,8 @@ describe("simulateExitFromCandles", () => {
       entryPrice: 100,
       atr:        5,
       entryMs:    2 * HOUR,
+      stopAtr:    2,
+      targetAtr:  3,
       bars:       [bar(0, 104, 80, 82), bar(1, 104, 80, 82), bar(2, 105, 98, 102)],
     });
 
@@ -108,6 +123,8 @@ describe("simulateExitFromCandles", () => {
       entryPrice:   100,
       atr:          5,
       entryMs:      0,
+      stopAtr:      2,
+      targetAtr:    3,
       bars,
       maxHoldHours: 2,
     });
@@ -123,6 +140,8 @@ describe("simulateExitFromCandles", () => {
       entryPrice:        100,
       atr:               5,
       entryMs:           0,
+      stopAtr:           2,
+      targetAtr:         3,
       bars:              [bar(0, 104, 99, 103), bar(1, 105, 98, 102)],
       feeBps:            9,
       slippageBps:       6,
@@ -141,6 +160,8 @@ describe("simulateExitFromCandles", () => {
       entryPrice:        100,
       atr:               5,
       entryMs:           0,
+      stopAtr:           2,
+      targetAtr:         3,
       bars:              [bar(0, 101, 99, 99), bar(1, 101, 98, 99)],
       feeBps:            0,
       slippageBps:       0,
@@ -158,6 +179,8 @@ describe("simulateExitFromCandles", () => {
       entryPrice:  100,
       atr:         5,
       entryMs:     0,
+      stopAtr:     2,
+      targetAtr:   3,
       bars:        [bar(0, 116, 102, 114)],
       feeBps:      10,
       slippageBps: 0,
@@ -174,6 +197,8 @@ describe("simulateExitFromCandles", () => {
       entryPrice: 100,
       atr:        5,
       entryMs:    10 * HOUR,
+      stopAtr:    2,
+      targetAtr:  3,
       bars:       [bar(0, 104, 99, 103)],
     });
 
@@ -203,6 +228,8 @@ describe("simulateExitFromCandles hold_hours", () => {
       entryPrice: 100,
       atr:        5,
       entryMs:    0.5 * HOUR,
+      stopAtr:    2,
+      targetAtr:  3,
       bars:       [bar(0, 104, 99, 103), bar(1, 105, 98, 102), bar(2, 105, 98, 101)],
     });
 
@@ -249,5 +276,32 @@ describe("computeRecipeNetStats", () => {
     const stats = computeRecipeNetStats([]);
     expect(stats.sample_size_60d).toBeNull();
     expect(stats.expectancy_bps_net).toBeNull();
+  });
+});
+
+describe("empirical exit multiples", () => {
+  it("defaults to the empirically chosen multiples rather than the decorative 3R", () => {
+    // Path-simulated over 2,808 random entries on eligible coins at a 24h
+    // hold, the shipped 2/3 structure timed out 74% of trades and hit its
+    // target 7% of the time: the payoff its breakeven math assumed never
+    // materialised. 1/1 resolves 84% of trades at the levels (42% stop, 42%
+    // target), has the lowest outcome variance on the grid (sd 195 vs 285),
+    // and that variance halves the samples needed to detect a real edge.
+    expect(EXIT_STOP_ATR).toBe(1);
+    expect(EXIT_TARGET_ATR).toBe(1);
+  });
+
+  it("keeps breakeven consistent with the shipped multiples", () => {
+    expect(breakevenWinRate(EXIT_STOP_ATR, EXIT_TARGET_ATR)).toBeCloseTo(0.5, 6);
+  });
+
+  it("uses the shipped multiples when none are passed", () => {
+    // entry 100, atr 5: stop 95 (1 ATR), target 105 (1 ATR).
+    const result = simulateExitFromCandles({
+      direction: "LONG", entryPrice: 100, atr: 5, entryMs: 0,
+      bars: [bar(0, 106, 99, 104)],
+    });
+    expect(result?.exit_reason).toBe("target");
+    expect(result?.exit_price).toBe(105);
   });
 });

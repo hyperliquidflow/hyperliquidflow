@@ -335,7 +335,11 @@ async function recipe3(
   const cfg = await getRecipeConfig("accumulation_reentry");
   const HIGH_SCORE           = cfg["HIGH_SCORE"] ?? 0.65;
   const DRAWDOWN_MULTIPLIER  = cfg["DRAWDOWN_MULTIPLIER"] ?? 2.0;  // threshold = 2x the coin's typical 4h range
-  const DRAWDOWN_MIN         = cfg["DRAWDOWN_MIN"] ?? 0.06; // floor: even stable coins need a real dip
+  // Floor 3%: with the 2x-range multiplier this lets the vol-adaptive bar
+  // govern on majors (BTC 4h range ~1.5% -> ~3% threshold). The old 6% floor
+  // required a dip BTC produces a few times a year, so the recipe was
+  // effectively major-proof while claiming to adapt per coin.
+  const DRAWDOWN_MIN         = cfg["DRAWDOWN_MIN"] ?? 0.03;
   const DRAWDOWN_MAX         = cfg["DRAWDOWN_MAX"] ?? 0.15; // ceiling: above this is capitulation, not dip-buy
   const DRAWDOWN_FALLBACK    = 0.09; // for coins without candle data (outside top-10)
   const events: SignalEvent[] = [];
@@ -416,7 +420,10 @@ async function recipe4(
   recipeGradedCounts: Map<string, number>
 ): Promise<SignalEvent[]> {
   const cfg = await getRecipeConfig("rotation_carry");
-  const MIN_FUNDING = cfg["MIN_FUNDING"] ?? 0.0003;           // 0.03%/hr minimum positive funding
+  // 0.0025%/hr, 2x baseline. Same reachability bug as funding_divergence: the
+  // old 0.03%/hr floor was above every funding print observed on eligible
+  // coins in 30 days (scripts/funding-reachability.ts, 2026-08-11).
+  const MIN_FUNDING = cfg["MIN_FUNDING"] ?? 0.000025;
   const MIN_HISTORICAL_WINRATE = cfg["MIN_HISTORICAL_WINRATE"] ?? 0.60;
   const events: SignalEvent[] = [];
 
@@ -483,7 +490,12 @@ async function recipe7(
   assetCtxMap: Map<string, HlAssetCtx>
 ): Promise<SignalEvent[]> {
   const cfg = await getRecipeConfig("funding_divergence");
-  const FUNDING_THRESHOLD = cfg["FUNDING_THRESHOLD"] ?? 0.0005;   // 0.05%/hr
+  // 0.004%/hr, about 3x the 0.00125%/hr baseline. The old 0.05%/hr gate was
+  // calibrated on illiquid names and was never once reached in 6,000 measured
+  // coin-hours on conviction-gate coins (max observed 0.0075%/hr), so the
+  // recipe was unreachable code on the universe it is allowed to trade
+  // (scripts/funding-reachability.ts, 2026-08-11).
+  const FUNDING_THRESHOLD = cfg["FUNDING_THRESHOLD"] ?? 0.00004;
   const events: SignalEvent[] = [];
 
   // Aggregate cohort net notional per coin, for the current snapshot and for
@@ -568,7 +580,11 @@ async function recipe8(
 ): Promise<SignalEvent[]> {
   const cfg = await getRecipeConfig("whale_validated");
   const MIN_WALLETS     = cfg["MIN_WALLETS"] ?? 3;
-  const MIN_SCORE       = cfg["MIN_SCORE"] ?? 0.75;
+  // Top decile of the live cohort. The old 0.75 bar sat above the cohort
+  // maximum of 0.686 (p90 0.608), so zero wallets could ever qualify and the
+  // recipe never fired. Re-check this constant whenever scoring changes; the
+  // 2026-08-11 drawdown fix shifts scores on the next nightly scan.
+  const MIN_SCORE       = cfg["MIN_SCORE"] ?? 0.60;
   const MIN_WHALE_COUNT = MIN_WALLETS;
   const WHALE_SCORE     = MIN_SCORE;
   const events: SignalEvent[] = [];

@@ -452,8 +452,18 @@ describe("rotation_carry", () => {
     expect(events[0].signal_type).toBe("ENTRY");
   });
 
-  it("does not fire when funding sits just under the 0.03% minimum", async () => {
-    const ctx = new Map([["BTC", makeAssetCtx(0.00029)]]);
+  it("fires at funding levels majors actually reach", async () => {
+    // 0.003%/hr sits above the recalibrated gate but far below the old 0.03%
+    // one. This is the regression test for the unreachable-threshold bug.
+    const ctx = new Map([["BTC", makeAssetCtx(0.00003)]]);
+    const events = await rotationCarryRecipe(newEntryPairs(), ctx, new Map(), new Map());
+    expect(events).toHaveLength(1);
+  });
+
+  it("does not fire when funding sits just under the 0.0025% minimum", async () => {
+    // Recalibrated 2026-08-11: the old 0.03%/hr gate was never once reached in
+    // 6,000 measured coin-hours on eligible coins (max observed 0.0075%/hr).
+    const ctx = new Map([["BTC", makeAssetCtx(0.000024)]]);
     const events = await rotationCarryRecipe(newEntryPairs(), ctx, new Map(), new Map());
     expect(events).toHaveLength(0);
   });
@@ -518,8 +528,16 @@ describe("funding_divergence", () => {
     expect(events[0].direction).toBe("SHORT");
   });
 
-  it("does not fire when funding sits just under the 0.05% threshold", async () => {
-    const ctx = new Map([["BTC", makeAssetCtx(0.00049)]]);
+  it("fires at a funding extreme majors actually reach", async () => {
+    // 0.005%/hr: above the recalibrated gate, 10x below the old one.
+    const ctx = new Map([["BTC", makeAssetCtx(0.00005)]]);
+    const events = await fundingDivergenceRecipe(flipsShort(), ctx);
+    expect(events).toHaveLength(1);
+  });
+
+  it("does not fire when funding sits just under the 0.004% threshold", async () => {
+    // Recalibrated 2026-08-11 alongside rotation_carry: same reachability bug.
+    const ctx = new Map([["BTC", makeAssetCtx(0.000039)]]);
     const events = await fundingDivergenceRecipe(flipsShort(), ctx);
     expect(events).toHaveLength(0);
   });
@@ -584,9 +602,17 @@ describe("whale_validated", () => {
     expect(events).toHaveLength(0);
   });
 
-  it("does not count wallets under the 0.75 core-whale score", async () => {
-    const events = await whaleValidatedRecipe(freshWhales(3, 0.74), pending);
+  it("does not count wallets under the 0.60 core-whale score", async () => {
+    // Recalibrated 2026-08-11: the cohort maximum was 0.686 and its p90 0.608,
+    // so the old 0.75 bar meant zero wallets could ever be whales. 0.60 makes
+    // the whale set the cohort's top decile. Re-check after scoring changes.
+    const events = await whaleValidatedRecipe(freshWhales(3, 0.59), pending);
     expect(events).toHaveLength(0);
+  });
+
+  it("counts a top-decile 0.62 wallet as a whale", async () => {
+    const events = await whaleValidatedRecipe(freshWhales(3, 0.62), pending);
+    expect(events).toHaveLength(1);
   });
 });
 

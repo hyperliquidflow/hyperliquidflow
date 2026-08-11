@@ -96,7 +96,8 @@ describe("breakevenWinRate", () => {
   });
 
   it("matches the exit simulator's own stop and target", () => {
-    expect(breakevenWinRate(EXIT_STOP_ATR, EXIT_TARGET_ATR)).toBe(0.4);
+    // 1 ATR both sides: symmetric payoff, breakeven at 50% before costs.
+    expect(breakevenWinRate(EXIT_STOP_ATR, EXIT_TARGET_ATR)).toBe(0.5);
   });
 });
 
