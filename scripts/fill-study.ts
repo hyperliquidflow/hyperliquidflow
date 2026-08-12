@@ -171,9 +171,17 @@ async function fetchAll(): Promise<Cache> {
     if (error) throw new Error(`wallet query: ${error.message}`);
     wallets = (data ?? []) as typeof wallets;
   } else {
+    // Ordering by trade count alone selects the highest frequency accounts,
+    // which are bots and market makers: the first attempt drew wallets averaging
+    // 8,500 trades over 120 days. The scan itself rejects those, MAX_TRADES_30D
+    // is 1000 and commented "wash/farm", so that pool is the opposite of the
+    // population the system follows. Band it to the scan's own activity window
+    // so the sample is the kind of wallet the cohort is actually drawn from.
     const { data: bt, error: btErr } = await supabase
       .from("user_pnl_backtest")
       .select("wallet_id, total_trades")
+      .gte("total_trades", 60)
+      .lte("total_trades", 1000)
       .order("total_trades", { ascending: false })
       .limit(MAX_WALLETS);
     if (btErr) throw new Error(`backtest query: ${btErr.message}`);
