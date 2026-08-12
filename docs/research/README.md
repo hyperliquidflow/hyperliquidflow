@@ -31,6 +31,9 @@ audit re-ran it (dossier finding R2, confirmed by both external reviews).
   under the full cost model, day clustering, trimmed means, bootstrap, and
   momentum baselines. Both FAIL their 2.5 confirmation bars at 120 days and
   survive every falsification test; both proceed to the 200-day extension.
+- [2026-08-12-capacity.md](2026-08-12-capacity.md): what a surviving edge would
+  be worth. Honest capacity is about $100k of book, roughly $364/day if the
+  edge is real, bounded by the thin coins the factor prefers.
 - [2026-08-12-frozen-pool.md](2026-08-12-frozen-pool.md): the survivorship
   control. Both leads stay positive and below the bar. Establishes the hard
   bound that no clean window can predate 2026-04-11, which is why the forward
