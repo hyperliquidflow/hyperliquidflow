@@ -35,6 +35,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { fetchAllMids, fetchFundingHistory } from "../lib/hyperliquid-api-client";
 import { describe, trimmedMean, bootstrapMeanCI } from "../lib/study-stats";
+import { expectedT } from "../lib/power";
 
 const SUPABASE_URL = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -283,7 +284,9 @@ async function report(): Promise<void> {
   }
 
   console.log(`\n=== Positioning factor, forward out-of-sample record ===`);
-  console.log(`  pre-registered gate: 60 days, day-clustered t at least 1.5, mean above 0`);
+  console.log(`  Amendment 3 staged gates, powered against the observed effect:`);
+  console.log(`    day 60  diagnostic IC t >= 1.5 (82% power). Traded book: sign and trimmed mean only.`);
+  console.log(`    day 283 traded book t >= 1.5 (80% power). A 60-day traded bar would false-kill 2 times in 3.`);
   if (daily.length === 0) {
     console.log(`  ${byDay.size} day(s) recorded, none scorable yet. The gate needs 60.`);
     return;
@@ -295,11 +298,15 @@ async function report(): Promise<void> {
   }
   const tm = trimmedMean(daily, 0.1);
   const ci = bootstrapMeanCI(daily, { iters: 2000, seed: 42 });
-  console.log(`  days scored   ${st.n} of 60`);
+  console.log(`  days scored   ${st.n} (checkpoint at 60, traded confirmation at 283)`);
   console.log(`  mean per day  ${(st.mean * 10_000).toFixed(1)} bps  (t ${st.t.toFixed(2)}, win ${(st.winRate * 100).toFixed(0)}%)`);
   console.log(`  trimmed10     ${tm === null ? "n/a" : (tm * 10_000).toFixed(1)} bps`);
   console.log(`  boot95        [${ci ? `${(ci.lo * 10_000).toFixed(1)}, ${(ci.hi * 10_000).toFixed(1)}` : "n/a"}] bps`);
-  if (st.n < 60) console.log(`  VERDICT WITHHELD until 60 days. Nothing here is evidence yet.`);
+  console.log(`  expected t here if the backtest effect is real: ${expectedT(1.42, 104, st.n).toFixed(2)}`);
+  if (st.n < 60) {
+    console.log(`  VERDICT WITHHELD. Nothing here is evidence yet, and the traded book is`);
+    console.log(`  not expected to look significant before roughly day 283.`);
+  }
 }
 
 async function main() {

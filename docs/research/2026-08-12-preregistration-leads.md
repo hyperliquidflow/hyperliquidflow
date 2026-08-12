@@ -125,6 +125,76 @@ governs, per the amendment rule above.
    Both the filtered and unfiltered books will be reported; the filtered one is
    the pre-registered candidate.
 
+## Amendment 2 (2026-08-12 late, BEFORE the 200-day fetch completed)
+
+The 200-day run is in flight and its role must be fixed before its results
+exist, because the discovery bound makes it readable in only one direction.
+
+Zero study-band wallets existed 200 days ago, so the window cannot be frozen
+and survivorship contamination works **in the leads' favour**. Therefore:
+
+- **A failure on the 200-day window counts as a kill.** If a lead cannot clear
+  its bar even with survivorship helping it, the lead is dead.
+- **A pass confirms nothing** and may not be cited as confirmation anywhere. It
+  is recorded as "not killed by the contaminated window".
+
+This asymmetry is the only reason the run is worth reading at all. It is
+pre-committed here so that a pass cannot quietly be counted as evidence later.
+
+## Amendment 3 (2026-08-12 late, BEFORE any forward data matures)
+
+An external review found that the forward gate as written schedules a false
+kill. The arithmetic is confirmed with `lib/power.ts` (15 tests), using the
+standard one-sample model where an effect with daily Sharpe s reads t = s
+times the square root of the number of days.
+
+| Instrument | Observed | Expected t at 60d | Power vs t 1.5 at 60d | Days for 80% power at t 1.5 |
+|---|---|---|---|---|
+| Traded book | t 1.42 / 104d | 1.08 | **34%** | **283** |
+| Diagnostic IC | t 3.17 / 104d | 2.41 | **82%** | 57 |
+
+The traded book cannot be confirmed in 60 days. A bar of 1.5 rejects a real
+edge about two times in three, and a bar of 2.5 rejects it nineteen times in
+twenty. Only a bar of 0.24 would carry 80% power at day 60, which is not a
+test. The reviewer assumed the forward bar was 2.5; it was 1.5, which is
+better and still badly under-powered. The gate is therefore restaged, not
+relaxed:
+
+**Day 60 (the first checkpoint, powered):**
+- Diagnostic IC must clear day-clustered **t 1.5** on the forward record. This
+  carries 82% power and is a genuine test.
+- The traded book is a **consistency check only** at this stage: same sign as
+  the backtest and a positive 10% trimmed mean. It cannot pass or fail the
+  lead by itself.
+- Failing the IC bar at day 60 is a kill, because that instrument is powered.
+
+**Day 283 (the traded confirmation, powered):**
+- Traded book must clear day-clustered **t 1.5** net of the full cost model,
+  which is 80% power against the current point estimate.
+- Reaching day 283 requires the day-60 checkpoint to have passed.
+
+Both horizons are fixed now. If the effect is larger than the point estimate
+the bars clear sooner, and that is allowed; if it is smaller, no bar written
+today would have found it, and that is the honest cost of a t 1.4 effect.
+
+## Verdict states, and the expiry on "failed but alive"
+
+The reviews correctly noted that a lead which fails its bar while surviving
+falsification has no defined status, and an undefined status is how dead ideas
+stay warm. The permitted states are:
+
+- **Confirmed.** Cleared a powered forward bar. Only this state permits paper
+  trading, and only paper trading permits an execution decision.
+- **Failed but alive.** Below bar, above zero, no falsification test has killed
+  it. **The only promotion path out of this state is the forward record. No
+  historical rerun, no re-slice, and no new backtest window may promote a lead,
+  ever.** Both current leads are in this state.
+- **Dead.** Failed a powered bar, or a falsification test killed it, or a dumb
+  baseline replicated it. Deleted, not tuned.
+
+"Failed but alive" expires. If the forward record fails its powered bars at the
+horizons above, the state resolves to dead with no further appeal.
+
 ## If both leads fail
 
 The follow premise and the positioning premise are both dead. Per the dossier's
