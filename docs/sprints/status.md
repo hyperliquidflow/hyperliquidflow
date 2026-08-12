@@ -3,6 +3,50 @@
 Update this file whenever a sprint starts, progresses, or completes.
 At the start of each session, read this file to know where to pick up.
 
+## Where this stands, 2026-08-13: two external reviews answered in full
+
+Read `docs/research/README.md` first. Every result now lives there with its
+command, cache fingerprint and pass/fail against a bar written before the run.
+
+**The map, after a night of pre-registered tests.**
+
+| Hypothesis | State | Evidence |
+|---|---|---|
+| Wallet ranking (who is in the cohort) | supported | rank IC 0.0939 clean of lookahead |
+| Positioning factor, diagnostic | **strongest thing here** | IC 0.0641, t 3.13 frozen; beat 4 dumb rivals |
+| Positioning factor, traded book | failed but alive | +39.0 bps/day, t 1.42, capacity ~$100k |
+| Long holds on entries | failed but alive, weakened | +48.7 at 48h (t 1.6); 3d momentum ties it at 72h |
+| Short-hold entry copying | dead | negative at every hold, even at zero latency |
+| Coordination | dead | no dose-response |
+| **Exit copying** | **dead (new)** | -60.5 bps at 24h, t -3.7 |
+| **Skill-selected entries** | **dead (new)** | pre-registered contrast -13.0 bps/day, t -0.47 |
+
+**Three findings worth carrying forward.** The cohort sells winners that keep
+winning, which with the entry and holding results makes one story: they pick
+well, hold well, and give money back on the way out. Wallet skill predicts a
+wallet's own returns and does not transfer to a follower copying single entries,
+found twice by independent routes. And the diagnostic is far stronger than the
+traded book, which favours selling the ranking over trading it
+(`docs/research/2026-08-13-path-c-note.md`).
+
+**Gates, powered (Amendment 3).** The 60-day forward bar was scheduling a false
+kill at 34% power. Day 60 is now a powered checkpoint on the diagnostic
+(t 1.5, 82% power); the traded book confirms at day 283. `lib/power.ts` does
+the arithmetic. Forward record started 2026-08-12, runs itself at 03:00 UTC,
+visible at `/portfolio/journal`.
+
+**Six defects caught before publication this session**: a fetch heading for a
+1GB crash, a conservation check that would have dropped every wallet ending
+flat, a capacity table pricing only fillable book, the mis-powered gate, a
+decile-9 headline the pre-registration blocked, and a volume lookahead showing
+a false IC of 0.1014. Every one first appeared as an exciting result.
+
+**Open, none blocking:** true open interest (no data source), fills and funding
+halves of the cache audit (candles verified exactly, 8,405 bars), naming the
+mechanism behind the lean, and the fill-timestamp fix (documented, deliberately
+unbuilt). **Owner decision:** personal income or a business, which decides how
+the day-60 number is read.
+
 ## Where this stands, 2026-08-12 evening: audited, externally reviewed, re-aimed
 
 A full audit dossier was produced, adversarially hardened, and reviewed by two
