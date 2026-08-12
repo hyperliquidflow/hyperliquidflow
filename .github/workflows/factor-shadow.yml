@@ -1,0 +1,33 @@
+# Forward out-of-sample record for the positioning factor.
+#
+# The one gate that cannot be hurried: it finishes 60 days after it starts, so
+# it runs unattended from the day it was created (2026-08-12) and needs no
+# decision in between. A missed day is a missing row, not a corrupted record,
+# because each row carries its own snapshot and resolution timestamps.
+#
+# 03:00 UTC keeps it clear of the nightly scan (00:00), signal learning (01:00)
+# and rank IC (02:00), and a fixed hour keeps every hold close to 24 hours.
+name: factor-shadow
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  shadow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Resolve yesterday, record today
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          HYPERLIQUID_API_URL: ${{ secrets.HYPERLIQUID_API_URL }}
+        run: npx tsx scripts/factor-shadow.ts
