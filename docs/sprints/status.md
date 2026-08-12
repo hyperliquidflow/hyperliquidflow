@@ -3,6 +3,50 @@
 Update this file whenever a sprint starts, progresses, or completes.
 At the start of each session, read this file to know where to pick up.
 
+## Where this stands, 2026-08-12 evening: audited, externally reviewed, re-aimed
+
+A full audit dossier was produced, adversarially hardened, and reviewed by two
+independent frontier models. Read in this order before doing anything:
+
+1. `docs/audit/2026-08-12-external-review-synthesis.md`, the deduplicated
+   learnings and the revised order of work. Headline: the two surviving leads
+   (positioning factor, long holds) have not yet faced their cheapest killers,
+   which are real funding costs, day-level clustering, trimmed means, and dumb
+   baselines (is it just momentum or OI change?). Run those executioners first,
+   on the existing 120-day cache, before the 200-day fetch.
+2. `docs/research/2026-08-12-preregistration-leads.md`, numeric pass/fail bars
+   for both leads, DRAFT until the owner commits. No run against them may
+   reframe the bar afterward.
+3. `docs/research/README.md`, the results register. Every future research number
+   lands there or it does not exist.
+4. Dossier artifact (v1.1): https://claude.ai/code/artifact/59f120f5-cecf-4653-bad7-b792f3a5e11f
+   and the local copy `docs/audit/2026-08-12-audit-dossier.html`.
+
+Shipped 2026-08-12 evening: `.github/workflows/ci.yml` (typecheck + lint + 523
+tests on every push; study-stats regressions can no longer ship silently) and
+`.env.example` completed with the four production-required secrets.
+
+Standing decisions from the reviews: entry-copy recipes get zero tuning
+attention (gates fill on their own); the exit re-cut to multi-day holds waits
+for out-of-sample confirmation; the forward shadow record of the positioning
+factor should start as soon as a daily snapshot job exists, because its clock
+is free and Path C needs the track record anyway.
+
+**The executioners ran the same evening
+(`docs/research/2026-08-12-executioner-run.md`). Both leads FAIL their
+pre-registered 2.5 confirmation bars at 120 days and survive every
+falsification test.** Under the verified fee tier (4.5 bps a side, not 3.5),
+5 bps slippage, path-wise funding at 100% coverage, and day-level clustering:
+Lead 2 reads +58.6 bps at 48h (t 2.0, trimmed +42.7) and Lead 1's full-cost
+book reads +51.5 bps/day (t 1.51, trimmed +28.4, both halves positive).
+Momentum explains neither: the momentum baseline loses at every long hold and
+rank corr(lean, momentum) is 0.045. Consequence, per the pre-registration:
+both leads proceed to the 200-day extension with frozen pool membership and
+leg width fixed at 5 (Amendment 1), and the forward shadow record starts as
+soon as the daily snapshot exists. lib/study-stats.ts gained clusterByDay,
+trimmedMean, bootstrapMeanCI (seeded) and fundingOverHold, all tested (534
+tests green); R6 is closed, no local statistics copies remain in any script.
+
 ## Where this stands, 2026-08-12
 
 Read the Edge Readiness gates before picking anything up. Six of seventeen are

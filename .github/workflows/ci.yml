@@ -1,0 +1,25 @@
+# CI quality gate (dossier finding R3, elevated to P0 by external review 2026-08-12).
+# 523 tests existed with nothing running them on push; a silent regression in
+# lib/study-stats.ts would corrupt every future research verdict. This gate runs
+# typecheck, lint, and the full test suite on every push and pull request.
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test

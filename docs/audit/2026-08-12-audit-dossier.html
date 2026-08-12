@@ -1,0 +1,655 @@
+<title>HyperliquidFLOW Audit Dossier, 2026-08-12</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --surface: #f7f6f3;
+    --surface2: #f1f0ec;
+    --ink: #37352f;
+    --muted: #787774;
+    --faint: #9b9894;
+    --border: rgba(55,53,47,0.16);
+    --border-soft: rgba(55,53,47,0.09);
+    --green: #3e7550;
+    --green-bg: rgba(106,170,122,0.14);
+    --red: #c92435;
+    --red-bg: rgba(201,36,53,0.09);
+    --amber: #8f6432;
+    --amber-bg: rgba(196,146,90,0.16);
+    --neutral: #6b7280;
+    --neutral-bg: rgba(156,163,175,0.15);
+    --mono-bg: rgba(55,53,47,0.06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #191919;
+      --surface: #232322;
+      --surface2: #2a2a28;
+      --ink: rgba(255,255,255,0.86);
+      --muted: rgba(255,255,255,0.5);
+      --faint: rgba(255,255,255,0.34);
+      --border: rgba(255,255,255,0.14);
+      --border-soft: rgba(255,255,255,0.08);
+      --green: #6aaa7a;
+      --green-bg: rgba(106,170,122,0.14);
+      --red: #d95d6a;
+      --red-bg: rgba(201,36,53,0.16);
+      --amber: #c4925a;
+      --amber-bg: rgba(196,146,90,0.14);
+      --neutral: #9ca3af;
+      --neutral-bg: rgba(156,163,175,0.12);
+      --mono-bg: rgba(255,255,255,0.07);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #191919;
+    --surface: #232322;
+    --surface2: #2a2a28;
+    --ink: rgba(255,255,255,0.86);
+    --muted: rgba(255,255,255,0.5);
+    --faint: rgba(255,255,255,0.34);
+    --border: rgba(255,255,255,0.14);
+    --border-soft: rgba(255,255,255,0.08);
+    --green: #6aaa7a;
+    --green-bg: rgba(106,170,122,0.14);
+    --red: #d95d6a;
+    --red-bg: rgba(201,36,53,0.16);
+    --amber: #c4925a;
+    --amber-bg: rgba(196,146,90,0.14);
+    --neutral: #9ca3af;
+    --neutral-bg: rgba(156,163,175,0.12);
+    --mono-bg: rgba(255,255,255,0.07);
+  }
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    font-size: 16px;
+    line-height: 1.65;
+    margin: 0;
+  }
+  .page { max-width: 780px; margin: 0 auto; padding: 56px 32px 120px; }
+  .eyebrow {
+    font-family: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--faint);
+  }
+  h1 { font-size: 32px; font-weight: 700; line-height: 1.2; margin: 10px 0 8px; text-wrap: balance; }
+  .subtitle { font-size: 16px; color: var(--muted); margin: 0 0 32px; }
+  h2 { font-size: 26px; font-weight: 700; line-height: 1.25; margin: 56px 0 12px; text-wrap: balance; }
+  h3 { font-size: 16px; font-weight: 700; margin: 32px 0 8px; }
+  p { margin: 0 0 14px; }
+  ul, ol { margin: 0 0 14px; padding-left: 24px; }
+  li { margin-bottom: 6px; }
+  hr { border: none; border-top: 1px solid var(--border-soft); margin: 40px 0; }
+  a { color: var(--ink); text-decoration: underline; text-decoration-color: var(--border); text-underline-offset: 3px; }
+  a:hover { text-decoration-color: var(--muted); }
+  strong { font-weight: 700; }
+
+  .props { display: grid; grid-template-columns: 172px 1fr; row-gap: 7px; column-gap: 16px;
+           font-size: 13px; margin: 0 0 8px; padding: 16px 0; border-top: 1px solid var(--border-soft); border-bottom: 1px solid var(--border-soft); }
+  .props .k { color: var(--faint); display: flex; align-items: baseline; gap: 6px; }
+  .props .v { color: var(--ink); }
+
+  .pill { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: 0.05em;
+          padding: 2px 8px; border-radius: 4px; text-transform: uppercase; white-space: nowrap;
+          font-family: 'DM Sans', system-ui, sans-serif; }
+  .pill.good { color: var(--green); background: var(--green-bg); }
+  .pill.bad { color: var(--red); background: var(--red-bg); }
+  .pill.warn { color: var(--amber); background: var(--amber-bg); }
+  .pill.na { color: var(--neutral); background: var(--neutral-bg); }
+
+  .callout { display: flex; gap: 14px; background: var(--surface); border: 1px solid var(--border-soft);
+             border-radius: 6px; padding: 16px 18px; margin: 20px 0; }
+  .callout .tag { flex-shrink: 0; }
+  .callout .body { font-size: 13px; line-height: 1.7; color: var(--ink); }
+  .callout .body p { margin: 0 0 8px; } .callout .body p:last-child { margin: 0; }
+
+  .verdictbox { background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+                padding: 18px 20px; margin: 20px 0; }
+  .verdictbox .vh { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint); margin-bottom: 8px; }
+
+  .toc { font-size: 13px; columns: 2; column-gap: 32px; margin: 12px 0 0; padding: 0; list-style: none; }
+  .toc li { margin-bottom: 5px; break-inside: avoid; }
+  .toc a { text-decoration: none; color: var(--muted); }
+  .toc a:hover { color: var(--ink); }
+  .toc .n { font-family: 'Geist Mono', ui-monospace, monospace; font-size: 11px; color: var(--faint); margin-right: 6px; }
+
+  .tablewrap { overflow-x: auto; margin: 16px 0 20px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th { text-align: left; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--border);
+       padding: 6px 10px 6px 0; white-space: nowrap; }
+  td { border-bottom: 1px solid var(--border-soft); padding: 6px 10px 6px 0; vertical-align: top; }
+  td.num, th.num { text-align: right; font-family: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+                   font-variant-numeric: tabular-nums; font-size: 12.5px; white-space: nowrap; }
+  .pos { color: var(--green); } .neg { color: var(--red); } .dim { color: var(--faint); }
+
+  code, .mono { font-family: 'Geist Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+        font-size: 13px; background: var(--mono-bg); border-radius: 4px; padding: 1px 5px; font-variant-numeric: tabular-nums; }
+  .filecode { font-size: 12.5px; }
+
+  details { border: 1px solid var(--border-soft); border-radius: 6px; margin: 12px 0; background: var(--bg); }
+  summary { cursor: pointer; padding: 12px 16px; font-weight: 600; font-size: 13px; list-style: none; }
+  summary::before { content: "▸"; display: inline-block; margin-right: 8px; color: var(--faint); transition: transform 0.15s; }
+  details[open] summary::before { transform: rotate(90deg); }
+  details .inner { padding: 0 16px 16px; font-size: 13px; }
+  @media (prefers-reduced-motion: reduce) { summary::before { transition: none; } }
+
+  .quote { border-left: 2px solid var(--border); padding: 2px 0 2px 16px; color: var(--muted); margin: 14px 0; font-size: 15px; }
+  .caption { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--faint); font-weight: 700; margin: 20px 0 0; }
+</style>
+
+<div class="page">
+
+<div class="eyebrow">Confidential review copy · Owner-controlled distribution</div>
+<h1>HyperliquidFLOW: Full Audit and Review Dossier</h1>
+<p class="subtitle">An end-to-end review of the system, its research record, its security, its operations, and its honest distance from the goal it exists for: making money.</p>
+
+<div class="props">
+  <div class="k">Status</div><div class="v"><span class="pill na">Version 1.1</span>&nbsp; hardened after an adversarial internal review, see Appendix D</div>
+  <div class="k">Prepared</div><div class="v">2026-08-12, afternoon UTC</div>
+  <div class="k">Prepared by</div><div class="v">Claude (AI engineering assistant), commissioned by the project owner</div>
+  <div class="k">Written for</div><div class="v">The owner, and any external party asked to check this work</div>
+  <div class="k">Scope</div><div class="v">Codebase, live production database, research program, security, operations, governance, economics</div>
+  <div class="k">Method</div><div class="v">Read-only. Live SQL against production, code inspection, document review, one re-run of a committed research script. Nothing in the system was modified.</div>
+  <div class="k">Repository state</div><div class="v"><span class="mono filecode">main @ d6cd5aa</span>, clean working tree, all sessions' work committed</div>
+</div>
+
+<div class="callout">
+  <span class="tag"><span class="pill warn">Read first</span></span>
+  <div class="body">
+    <p><strong>On independence.</strong> This dossier is written to external-audit standards but was prepared by the project's own AI assistant, not a third-party firm. To compensate, every material claim cites its source: a file in the repository, a named migration, a production SQL query run on 2026-08-12, or a dated document. An external reviewer can verify any number here without trusting the author.</p>
+    <p><strong>On the house rule.</strong> This project operates under a written discipline: assume any result from this codebase is wrong until its sample is checked against a previous run. This dossier applies that rule to the project itself, including to its most flattering numbers.</p>
+  </div>
+</div>
+
+<div class="caption">Contents</div>
+<ol class="toc">
+  <li><span class="n">01</span><a href="#s1">Executive summary</a></li>
+  <li><span class="n">02</span><a href="#s2">What the system is</a></li>
+  <li><span class="n">03</span><a href="#s3">Can it make money today?</a></li>
+  <li><span class="n">04</span><a href="#s4">What went wrong before</a></li>
+  <li><span class="n">05</span><a href="#s5">The rebuild and the grading loop</a></li>
+  <li><span class="n">06</span><a href="#s6">The cohort today, live numbers</a></li>
+  <li><span class="n">07</span><a href="#s7">The evidence: proven, disproven, open</a></li>
+  <li><span class="n">08</span><a href="#s8">Live recipes and their record</a></li>
+  <li><span class="n">09</span><a href="#s9">Measurement discipline: the defect ledger</a></li>
+  <li><span class="n">10</span><a href="#s10">Security review</a></li>
+  <li><span class="n">11</span><a href="#s11">Operations, cost, reliability</a></li>
+  <li><span class="n">12</span><a href="#s12">Governance: gates and kill criteria</a></li>
+  <li><span class="n">13</span><a href="#s13">The path to money</a></li>
+  <li><span class="n">14</span><a href="#s14">Findings and recommendations</a></li>
+  <li><span class="n">15</span><a href="#s15">Appendices</a></li>
+</ol>
+
+<hr>
+
+<h2 id="s1">1. Executive summary</h2>
+
+<p>HyperliquidFLOW watches roughly 60 carefully filtered trading accounts on the Hyperliquid derivatives exchange, currently controlling $31.5M of their own equity, and tries to turn what they do into trading signals. The project's four-month history divides into two eras. Until 2026-08-08, the system looked alive and was not: every pipeline that could have measured whether its signals made money was silently dead, and a full audit concluded that no measured edge existed and none was measurable. Since 2026-08-08, the project has rebuilt itself into an honest measurement instrument and has used it aggressively. This dossier reports what that instrument now says.</p>
+
+<div class="verdictbox">
+  <div class="vh">The five verdicts that matter</div>
+  <ul style="margin:0">
+    <li><span class="pill good">Supported</span>&nbsp; <strong>Wallet skill ranking carries real signal, thinly.</strong> On a retrospective instrument, wallets with enough history to score (2,740 of 6,624) rank-correlate with future risk-adjusted performance at 0.0939, clean of lookahead; the point estimate clears the project's 0.08 bar, the confidence interval does not yet. The pre-registered live version of this test stands at 0 of 30 measurements, verdict around October.</li>
+    <li><span class="pill bad">Disproven</span>&nbsp; <strong>Short-hold entry copying, and coordination, do not make money.</strong> Tested across 120 days and 2,403 independent coin-days: negative after costs at every hold inside four hours even with zero latency, and coordination between wallets shows no dose-response at any hold. Full-pool long holds were statistically indistinguishable from zero, which is inconclusive rather than disproven.</li>
+    <li><span class="pill warn">Open</span>&nbsp; <strong>Two leads are alive, pending pre-registered tests.</strong> Copying what the cohort holds (not when it trades) predicts next-day relative returns at t near 3. And on an activity-matched pool, long holds of 24 to 72 hours stay positive after an overlap correction (t 2.6 to 3.1). Both were mined from the same 120-day cache; neither is proven, and the out-of-sample tests that decide them are already written down.</li>
+    <li><span class="pill na">Not built</span>&nbsp; <strong>The system cannot place a real trade, and holds no real capital.</strong> There is no order code, no signing key, no exchange write path anywhere in the codebase. This is deliberate and gated by written criteria.</li>
+    <li><span class="pill good">Sound</span>&nbsp; <strong>Security and operations pass review.</strong> Zero exploitable findings. Infrastructure runs on free tiers at roughly $0/month, with monitoring that now fails loudly instead of silently.</li>
+  </ul>
+</div>
+
+<p>The honest bottom line for the goal of making money: <strong>today the system makes no money, cannot trade, and has not yet proven an edge worth trading.</strong> What it has that most projects like it never get: a measurement layer that has already killed two false hopes cheaply, two specific live leads with named scripts and named thresholds that will confirm or kill them, and written criteria for when to stop. Section 13 lays out the paths from here in money terms.</p>
+
+<div class="callout">
+  <span class="tag"><span class="pill na">ELI5</span></span>
+  <div class="body"><p>Imagine you built a telescope to watch 60 of the best traders you could find, hoping to copy their trades and profit. For months the telescope was secretly broken and its dashboard said everything was fine. It got fixed in early August. Now that you can finally see clearly, the answer so far is: copying their trades loses a little money every time, because by the time you see a trade, the price has already moved. But two other ideas look promising: copying what they <em>own</em> rather than what they <em>do</em>, and holding copied positions for days rather than hours. Neither is proven yet. Also important: the machine has no money in it and no ability to trade. It is a research instrument, and now a trustworthy one.</p></div>
+</div>
+
+<hr>
+
+<h2 id="s2">2. What the system is</h2>
+
+<p>HyperliquidFLOW is a web application plus a set of scheduled jobs. It has no users other than its owner. Its parts:</p>
+
+<ul>
+  <li><strong>Discovery and filtering.</strong> A nightly job (GitHub Actions, 00:00 UTC) scans the Hyperliquid leaderboard and fill history, has recorded 39,972 wallets over the project's life, and pushes each candidate through nine activation gates (win rate, trade count, profit factor, drawdown, equity, leverage, regime coverage, and others), plus wash-trading and Sybil-cluster detection, plus behavior profiling. Survivors become the "cohort": currently 59 wallets.</li>
+  <li><strong>Scoring.</strong> Each cohort wallet gets a 0-to-1 score built from four factors: a Sharpe-style risk-adjusted return proxy, PnL consistency, drawdown behavior, and fit to the current market regime (<span class="mono filecode">lib/cohort-engine.ts</span>).</li>
+  <li><strong>Live watching.</strong> The cohort's open positions are snapshotted every few minutes around the clock (an uptime service pings the app every 5 minutes; a stale cache triggers a refresh). Snapshots land in Postgres (<span class="mono filecode">cohort_snapshots</span>).</li>
+  <li><strong>Signals.</strong> Six rule-based "recipes" read consecutive snapshots and emit events like "several high-scored wallets just added to the same coin" (<span class="mono filecode">lib/signal-lab.ts</span>). A conviction gate restricts signals to 12 coins that carry roughly 90% of cohort capital.</li>
+  <li><strong>Grading.</strong> Every signal is later scored as if it had been traded: entry at signal price, exit at a stop, a target, or a time limit, charged 7 bps round-trip cost plus slippage and funding, benchmarked against BTC scaled by each coin's beta. Results accumulate in <span class="mono filecode">signal_outcomes</span>.</li>
+  <li><strong>Research layer.</strong> Separate read-only scripts answer strategy questions offline from a local cache of 120 days of trading history, without waiting months for live signals to accumulate. This layer produced most of what Section 7 reports.</li>
+  <li><strong>Interfaces.</strong> A dashboard (overview, leaderboard, signal feed, market radar, per-wallet lookup), a read-only Telegram bot for status checks, and a watchdog that messages the owner only when a health check changes state.</li>
+</ul>
+
+<p>Architecture in one line: Next.js 15 app on Vercel, Postgres on Supabase, a KV cache for hot reads, GitHub Actions for heavy nightly compute, and the Hyperliquid public info API as the sole data source. All computation is server-side; the browser is a thin poller.</p>
+
+<div class="callout">
+  <span class="tag"><span class="pill na">ELI5</span></span>
+  <div class="body"><p>Think of it as a fishing operation. A big net (discovery) pulls in thousands of traders. A series of sieves (gates) throws back all but about 60 proven ones. A camera watches what those 60 do all day. A rulebook (recipes) turns their behavior into "maybe buy this" notes. A scorekeeper (grading) checks later whether each note would have made money after fees. And a lab (research scripts) replays months of old footage to test new ideas overnight instead of waiting months to find out.</p></div>
+</div>
+
+<hr>
+
+<h2 id="s3">3. Can it make money today?</h2>
+
+<p>Three questions decide this, and all three have clean answers.</p>
+
+<h3>3.1 Can it place a trade? No.</h3>
+<p>Verified by direct code inspection across the entire repository: there is no order-placement code path, no exchange write endpoint, no signing library, and no key material. <span class="mono filecode">package.json</span> contains no wallet or signing dependency. The Hyperliquid client (<span class="mono filecode">lib/hyperliquid-api-client.ts</span>) posts exclusively to the read-only info endpoint; the trading endpoint is never referenced. No private-key variable exists in any environment file, example file, or CI secret list. Making the system trade would require building a signer, key storage, and an execution path from scratch. This is by design: the roadmap gates automated execution behind a written decision that itself sits behind paper-trading results that do not exist yet.</p>
+
+<h3>3.2 Does it hold or manage real capital? No.</h3>
+<p>The $31.5M this dossier mentions belongs to the watched traders, not to the project. The only trading-like feature is paper trading, which lives entirely in the owner's browser storage, charges no fees, models no slippage, and has no server record. The 2026-08-08 audit explicitly lists "paper trading as validation" among unproven claims, and this dossier concurs: the current paper feature is a toy, not evidence.</p>
+
+<h3>3.3 Does it have a proven edge worth trading? Not yet.</h3>
+<p>The founding premise, "follow what skilled wallets do," was tested three ways over 120 days and 2,403 independent coin-days (the honest unit of evidence; see Section 9) and failed each test at short holds (Section 7.2). Two successor ideas are alive and unproven (Section 7.3). The live signal recipes have 29 graded outcomes against a 30-outcome minimum per recipe before any verdict is allowed (Section 8). So the strict answer is: there is nothing today that written project standards would allow trading.</p>
+
+<div class="verdictbox">
+  <div class="vh">What stands between today and the first dollar</div>
+  <ol style="margin:0">
+    <li>A confirmed edge: one of the two open leads surviving out-of-sample confirmation, or a live recipe reaching 30 graded outcomes with positive expectancy.</li>
+    <li>A validation layer: server-side paper trading with real cost modeling (already specified as roadmap Phase 3, gated on step 1).</li>
+    <li>An execution layer: signer, key management, order placement, risk limits. Does not exist; deliberately last.</li>
+    <li>Capital and a written risk decision, which the project's own kill criteria require to be made from documented numbers, not conviction.</li>
+  </ol>
+</div>
+
+<div class="callout">
+  <span class="tag"><span class="pill na">ELI5</span></span>
+  <div class="body"><p>Three questions: Does the machine have hands to trade with? No, on purpose. Does it hold anyone's money? No. Does it know something the market doesn't? Not provably, yet. It has two promising hunches and a strict house rule: no real money until a hunch survives every test, then fake-money trading with honest costs, and only then a deliberate decision to build hands.</p></div>
+</div>
+
+<hr>
+
+<h2 id="s4">4. What went wrong before</h2>
+
+<p>External reviewers should know this history because it explains both the project's paranoia and why its current numbers deserve more trust than its old ones.</p>
+
+<h3>4.1 The 2026-08-08 audit verdict</h3>
+<div class="quote">"No measured edge exists, and none was ever measurable. In four months the system produced zero rank IC measurements, zero surviving graded signal outcomes, and zero recipe calibrations. [...] The machinery is well built; integration and observability failed, silently, in five specific places."</div>
+
+<p>The five root causes, each verified with file-level evidence at the time:</p>
+<ol>
+  <li><strong>A phantom database column (since 2026-04-19).</strong> The nightly scan selected a column that never existed. The error was swallowed and the job stayed green for 64 runs, so the score-history table that all skill measurement depends on had zero rows, ever.</li>
+  <li><strong>GitHub disabled all four scheduled workflows on 2026-06-22.</strong> GitHub turns off schedules after 60 days without a commit. The watchdog was itself one of the disabled workflows. No failure email exists for an auto-disable, so nothing alerted. The cohort then decayed from 493 wallets to 58 as hygiene kept pruning with no scan refilling.</li>
+  <li><strong>The real heartbeat was an unmonitored third-party pinger,</strong> which died around 2026-07-16. Refresh cadence fell to once per day, which structurally killed 3 recipes outright and starved 7 more; only the 3 funding-based ones could still fire, at roughly one signal per week.</li>
+  <li><strong>A learning deadlock.</strong> Signal outcomes were deleted after 30 days, while the learning job refused to start below 100 accumulated outcomes: a gate that could never open at the actual signal rate. A separate bug stamped 4-hour outcomes with 25-hour prices.</li>
+  <li><strong>Expected-value circularity.</strong> The script meant to calibrate signal quality from real outcomes was never wired into any workflow, so signal EV silently fell back to backtest win rates: the exact circular logic it was built to remove.</li>
+</ol>
+
+<p>Compounding all five, the dashboard fabricated health: a permanently green monitoring dot, a hardcoded "ok" pipeline card, and stale data restamped with the current time. An earlier audit (2026-07-22) failed precisely here: it reported two empty tables as populated without querying them.</p>
+
+<div class="callout">
+  <span class="tag"><span class="pill na">ELI5</span></span>
+  <div class="body"><p>The factory's machines had been unplugged for months, but the control room lights were painted green. Nobody lied on purpose; the system was built to look healthy rather than to prove it was healthy. The August audit unplugged the painted panel and wired every light to the actual machine. The most important cultural change: now, when something fails, it is designed to fail loudly.</p></div>
+</div>
+
+<hr>
+
+<h2 id="s5">5. The rebuild and the grading loop</h2>
+
+<p>Phases 0 and 1 of the rebuild roadmap shipped on 2026-08-08/09 and are verified in production: all five workflows active, a monthly keepalive commit preventing the 60-day auto-disable, a 5-minute external heartbeat that emails on failure, per-outcome grading replacing the deadlocked batch gate, recipes cut from 15 to 6, and an honesty pass that put a real data age on every screen. The test suite grew from 312 to 523 passing tests, including first-ever coverage of the signal engine and the scoring formula.</p>
+
+<h3>5.1 The grading loop had to be rebuilt twice</h3>
+<p>The 2026-08-09 claim "grading loop verified working" was retracted a day later. Rows were being written, but the simulator exited on the first available price, so every trade was graded as a 1-hour time exit; stops and targets could never trigger. The rebuilt loop (migration 022) walks the hourly candle path, uses point-in-time volatility, and charges slippage and funding. Regrading moved measured expectancy from +2.5 bps to <strong>-97.4 bps</strong> per signal at an unchanged 48.1% win rate. The comfortable number was the broken one.</p>
+
+<h3>5.2 Four deliberate regrades</h3>
+<p>Migrations 022 through 025 each wiped all existing grades and regraded from scratch, as the pricing logic improved: true horizons, then a BTC benchmark, then a beta-scaled benchmark, then a recorded stop/target structure. Each reset archived what it replaced (a superseded-rows table, reversible). The cost is a small live sample today; the benefit is that the 29 outcomes that now exist are priced under one consistent, defensible method.</p>
+
+<h3>5.3 The exit structure was retuned on evidence</h3>
+<p>A path simulation over 2,808 random entries showed the original exit (2 ATR stop, 3 ATR target) timed out 74% of trades and hit its target 6.9% of the time. The shipped structure is now 1 ATR both sides: 84% of trades resolve at their levels, and outcome dispersion fell from 285 to 195 bps, which roughly halves the sample needed to detect a given edge. Section 7.3 notes the tension this creates with the long-hold lead.</p>
+
+<div class="callout">
+  <span class="tag"><span class="pill na">ELI5</span></span>
+  <div class="body"><p>The scorekeeper was rebuilt. The first version accidentally gave every trade the same easy grade, which made results look mildly positive. The honest version says the signals so far would have lost about 1% per trade. That sounds like bad news, and it is, but it is the kind of bad news that saves money: you learn it on paper instead of on a brokerage statement. The scoring rules were then rewritten four times, each time re-marking every old trade, so today's records are small but clean.</p></div>
+</div>
+
+<hr>
+
+<h2 id="s6">6. The cohort today, live numbers</h2>
+
+<p>All figures in this section were queried directly from the production database on 2026-08-12 (read-only).</p>
+
+<div class="tablewrap"><table>
+  <tr><th>Measure</th><th class="num">Value</th><th>Source</th></tr>
+  <tr><td>Wallets ever discovered</td><td class="num">39,972</td><td>wallets table</td></tr>
+  <tr><td>Active cohort</td><td class="num">59</td><td>wallets, is_active</td></tr>
+  <tr><td>Active wallets funded (equity above $0)</td><td class="num">59 of 59</td><td>latest snapshots, 24h</td></tr>
+  <tr><td>Funded and holding a position</td><td class="num">57</td><td>latest snapshots, 24h</td></tr>
+  <tr><td>Cohort equity watched</td><td class="num">$31,510,655</td><td>latest snapshots</td></tr>
+  <tr><td>Cohort open notional</td><td class="num">$156,782,906</td><td>latest snapshots</td></tr>
+  <tr><td>Median wallet equity</td><td class="num">$103,378</td><td>latest snapshots</td></tr>
+</table></div>
+
+<h3>6.1 Why 59 is a recovery, not a decline</h3>
+<p>Yesterday's headline count was 76, but 49 of those 76 held exactly $0. Two defects caused this, both found and fixed on 2026-08-11/12:</p>
+<ul>
+  <li><strong>Unfunded activation.</strong> The scoring gate read live equity only from the leaderboard snapshot, so wallets absent from that day's leaderboard were activated without any balance check. The fix (scan Phase 9b) queries the exchange directly for the activated set. Its first run cut 147 unfunded wallets. Confirmed live: deactivations in the last 48 hours show <span class="mono">unfunded: 147</span>.</li>
+  <li><strong>A liquidation gate measuring the wrong thing.</strong> The old gate used free margin as a proxy for liquidation risk. A trader deploying their full balance scored zero and was ejected as "liquidation imminent" while sitting 25% from any liquidation price. Of 36 wallets removed on that gate in 48 hours, 30 were false positives holding $7.0M between them. The gate now measures actual distance to the liquidation price. Intraday liquidation-gate removals collapsed from 36 per 48 hours to single digits.</li>
+</ul>
+<p>The signal-producing cohort (funded, holding) went from 26 to 56 in the stored-snapshot replay that validated the fix; today's live query reads 57. 100% of today's active wallets are funded, against 34% two days ago. What the recovery has done for signal volume is not yet measurable, and this dossier declines to credit it with the recent jump in outcome rows (9 on 08-10, 14 on 08-11, against roughly 0.3 per day before): the 08-10 rows predate the cohort fixes entirely, and the 08-11 rows are fourteen entries of one recipe on a single coin, plausibly one episode counted repeatedly, the exact duplicate pattern Section 8 warns about. The first clean read of post-recovery signal volume comes from replaying the days after 2026-08-12 through the recipes.</p>
+
+<h3>6.2 The remaining size problem</h3>
+<p>The system had 493 active wallets in April. Recipes that need several wallets to coordinate scale with roughly the square of cohort size, so today's 59 produce few coordination events. The project measured the obvious fix, tightening activation on trading activity, and deliberately rejected it: the thresholds that lift scoring quality would cut the live cohort to 27 wallets or fewer and cost roughly 98% of pair-coordination events. The stated direction instead: discovery should prefer wallets that trade on many distinct days, and the gate question gets revisited when the cohort is comfortably larger.</p>
+
+<div class="callout">
+  <span class="tag"><span class="pill na">ELI5</span></span>
+  <div class="body"><p>The watch list said 76 traders, but 49 of those accounts were empty shells; only 26 could actually move money. Two broken filters caused it: one let empty accounts onto the list, the other kicked off good traders for a made-up reason. Both are fixed. The list now says 59, and all 59 are real, funded traders, together holding about $31 million. Smaller number, far healthier list. The next problem is growth: 59 is too few for signals that need several traders to agree at once.</p></div>
+</div>
+
+<hr>
+
+<h2 id="s7">7. The evidence: proven, disproven, open</h2>
+
+<p>This is the heart of the dossier. Every result here comes from named, re-runnable scripts, and each headline number is reported with its sample size and its caveats. Terms used below: <strong>bps</strong> is basis points, hundredths of a percent. <strong>IC</strong> (information coefficient) is a rank correlation between a prediction and an outcome; 0 is worthless, 0.05 is faint, 0.10 is genuinely useful in this domain. <strong>t</strong> is a signal-to-noise score; roughly, above 2 means unlikely to be luck, below 2 means unproven.</p>
+
+<h3>7.1 <span class="pill good">Supported</span>&nbsp; Wallet skill ranking carries real signal, thinly</h3>
+<p><strong>Question:</strong> does the project's wallet score actually predict future performance? For four months this was unmeasurable (the history table was empty). The answer now comes from <span class="mono filecode">scripts/cohort-skill-test.ts</span>: score each wallet on the first half of its own daily PnL series, then rank-correlate against the second half, expressed in each wallet's own risk units so account size cannot masquerade as skill.</p>
+
+<div class="tablewrap"><table>
+  <tr><th>Minimum active days in scoring half</th><th class="num">Wallets</th><th class="num">Rank IC</th><th class="num">Std. error</th></tr>
+  <tr><td>1 (the old, diluted reading)</td><td class="num">5,302</td><td class="num">0.0431</td><td class="num">0.0137</td></tr>
+  <tr><td>3</td><td class="num">3,706</td><td class="num">0.0767</td><td class="num">0.0164</td></tr>
+  <tr><td><strong>5 (headline)</strong></td><td class="num">2,740</td><td class="num"><strong>0.0939</strong></td><td class="num">0.0191</td></tr>
+  <tr><td>10</td><td class="num">1,290</td><td class="num">0.1193</td><td class="num">0.0279</td></tr>
+  <tr><td>20</td><td class="num">172</td><td class="num">0.2599</td><td class="num">0.0765</td></tr>
+</table></div>
+
+<p>The 0.0939 filter uses only past information (activity in the training half), so a live system could apply it. That the correlation is above zero is close to certain (about five standard errors). Whether it clears the project's pre-committed 0.08 minimum is not settled: the point estimate does, the 95% interval (roughly 0.056 to 0.131) does not, and 0.0939 is one row of a five-threshold sweep whose min-active-3 row reads 0.0767, below the bar. The pattern that earns the "supported" verdict is the monotone rise across the whole sweep, not any single row. Two further honesty notes, recorded by the project and endorsed here: part of that rise is mechanical (more data means less noise in both halves), and a stronger variant (0.1469) filtering on both halves is only a ceiling, since no live system could apply it. The pre-registered version of this test, live daily measurements against the same 0.08 bar, stands at 0 of 30; this retrospective instrument is the early answer, not the official one. Earlier full-population readings (0.0500 raw dollars, 6,624 wallets) were diluted by dormant accounts whose "zero" forward PnL is not a measurement at all. One scope note: the live cohort skews less active than this instrument's pool, so the live gate may read lower.</p>
+
+<h3>7.2 <span class="pill bad">Disproven</span>&nbsp; Short-hold entry copying, and coordination</h3>
+<p><strong>Question:</strong> if you enter where a cohort wallet entered, benchmarked against the market and net of 7 bps round-trip cost, do you make money? The instrument is <span class="mono filecode">scripts/fill-study.ts</span> over a cached 120 days of fills. A promising 45-day result (+45.7 bps at a 24-hour hold, t 2.3) was published internally, then attacked with a larger sample, and retracted:</p>
+
+<div class="tablewrap"><table>
+  <tr><th>Hold</th><th class="num">45-day window</th><th class="num">120-day window</th><th class="num">t (120d)</th></tr>
+  <tr><td>1 hour</td><td class="num neg">-5.1</td><td class="num neg">-6.4</td><td class="num">-7.5</td></tr>
+  <tr><td>4 hours</td><td class="num pos">+2.0</td><td class="num neg">-4.8</td><td class="num">-2.7</td></tr>
+  <tr><td>12 hours</td><td class="num pos">+23.0</td><td class="num pos">+1.2</td><td class="num">0.4</td></tr>
+  <tr><td>24 hours</td><td class="num pos">+45.7</td><td class="num pos">+5.6</td><td class="num">1.0</td></tr>
+  <tr><td>48 hours</td><td class="num dim">n/a</td><td class="num pos">+13.9</td><td class="num">1.5</td></tr>
+  <tr><td>72 hours</td><td class="num dim">n/a</td><td class="num pos">+6.3</td><td class="num">0.6</td></tr>
+</table></div>
+<p class="caption" style="margin-top:0">Net bps after per-coin beta benchmark and 7 bps costs, entry 10 minutes late. 2,403 independent coin-days in the 120d window.</p>
+
+<p>The split-half test showed the 45-day positives were regime, not skill: the two halves of the 120-day window carried opposite signs, each statistically significant, which is what a market-direction artifact looks like. Precision about what this table kills: holds inside four hours are disproven (negative with strong t-values, even at zero latency); holds beyond four hours on this full pool are indistinguishable from zero, which is inconclusive, and Section 7.3 revisits exactly that region on a cleaner pool. What is real: the cohort's entries do drift in their favor from the fill price (+14 bps, t 12.6, flat across horizons). That is genuine but useless to a follower: it is market exposure, and stripping the benchmark and charging costs consumes it entirely.</p>
+
+<p><strong>Coordination</strong> (several wallets entering the same coin and direction within 2 hours) was the premise under all six live recipes. Tested at N = 1 through 5 wallets: no dose-response. If agreement carried information, the effect should strengthen with N; instead N = 3 and N = 4 are the worst rows at short holds, and the one attractive cell (N = 2 at 24h) reproduces identically at N = 1, where there is no coordination at all. The project recorded the correct conclusion: continuing to tune entry-copy recipes is not supported by the measurement.</p>
+
+<h3>7.3 <span class="pill warn">Open</span>&nbsp; Two live leads, neither proven</h3>
+
+<p><strong>Lead one: positioning, not timing.</strong> <span class="mono filecode">scripts/positioning-factor.ts</span> tests a different expression of the same wallets' skill: each day, rank coins by how hard the cohort leans into them, and hold that book. This converts a timing bet (which failed) into a holdings bet, and amortizes trading costs over days. Result: cohort exposure level predicts next-day relative returns at <strong>IC 0.0640 (t 3.12) across 104 days</strong>, positive on 61% of days. The project calls it, correctly, "the strongest signal this project has measured." A traded long-short version reaches only t 1.92 at its best width (about 37 to 47 bps/day gross mean), and the split-half is same-signed but front-loaded (61.4 bps then 14.1). Unproven; measured honestly; the next test is out-of-sample confirmation.</p>
+
+<p><strong>Lead two: long holds on an activity-matched pool.</strong> The newest fill-study run bands the wallet pool to the scan's own activity range (60 to 1000 trades), which removes market makers and dormant accounts. On that pool, following entries turns positive at every hold past 12 hours with both split halves agreeing, the first time that has happened. The commit reporting this also flagged its own weakness: 72-hour windows overlap, so consecutive entries on the same coin share a price path and the t-statistics overcount. The correction, entries spaced at least one full hold apart per coin so no two observations share a price path, was committed as a check that had to pass before the lead could be taken seriously.</p>
+
+<p>The correction was run twice on 2026-08-12, by two different operators: once by the research session that built it, once by this audit. The outputs match row for row. Stated precisely, that match is a <strong>determinism check</strong>, not independent confirmation: both runs used the same code on the same cache, so it establishes that the pipeline has no hidden state, and nothing about whether the cache is faithful to the exchange or the statistic is the right one. With that framing, the corrected numbers:</p>
+
+<div class="tablewrap"><table>
+  <tr><th>Hold</th><th class="num">n (non-overlapping)</th><th class="num">Mean bps, net</th><th class="num">t</th><th class="num">Win rate</th></tr>
+  <tr><td>1 hour</td><td class="num">11,014</td><td class="num neg">-6.5</td><td class="num">-4.9</td><td class="num">39%</td></tr>
+  <tr><td>4 hours</td><td class="num">5,820</td><td class="num neg">-4.5</td><td class="num">-1.5</td><td class="num">43%</td></tr>
+  <tr><td>12 hours</td><td class="num">3,026</td><td class="num pos">+12.2</td><td class="num">1.7</td><td class="num">46%</td></tr>
+  <tr><td>24 hours</td><td class="num">1,898</td><td class="num pos">+32.5</td><td class="num">2.6</td><td class="num">48%</td></tr>
+  <tr><td>48 hours</td><td class="num">1,107</td><td class="num pos">+74.3</td><td class="num">3.1</td><td class="num">50%</td></tr>
+  <tr><td>72 hours</td><td class="num">793</td><td class="num pos">+87.5</td><td class="num">2.6</td><td class="num">51%</td></tr>
+</table></div>
+<p class="caption" style="margin-top:0">First recorded output of the non-overlapping re-score. Net of per-coin beta and 7 bps, entry 10 minutes late, banded pool, 120 days.</p>
+
+<p>Why this is a lead and not a proof, in five parts. <strong>One window, one regime:</strong> 120 days in which BTC fell 15.3% (as measured by this run on its own pool). <strong>Skewed payoff:</strong> win rates near 50% with strongly positive means say the return is carried by a right tail of large winners; realizing it requires letting winners run, which matters for sizing later. <strong>An untested cost term:</strong> the 7 bps charged here is two taker fees and nothing else. The research tables charge no slippage and, more importantly for multi-day holds, no funding: crowded alt perpetuals pay funding daily, often on exactly the side the cohort is leaning, so the 48 and 72 hour means could shrink materially once funding is charged. The live grading system charges funding and slippage; the research layer does not yet. <strong>Survivorship in the pool:</strong> the study draws wallets from today's discovery table, and discovery is performance-conditioned, so replayed windows include wallets a real-time follower could not have known about at the time. Freezing pool membership as of window start is a required control in the next run. <strong>Selection pressure:</strong> this table sits inside a research program that examined dozens of cells, grids, and sweeps on the same cache; two survivors at t near 3 must be read against that family. The post-correction split-half has also not been run yet. Every one of these is addressed by the next experiment already on the books: a 200-day fetch, four sub-period splits instead of two, and pre-registered hypotheses. Note also the direct design tension: the live grading system's 1 ATR exits optimize for fast resolution, while this measurement says the return, if real, lives at 24 to 72 hours.</p>
+
+<p><strong>Two candidates this audit can close.</strong> First, the point-in-time score decile table (scores rebuilt from each wallet's history strictly before each trade, no lookahead) produced its first recorded output in this audit's re-run: no monotone pattern across deciles at a 4-hour hold, all t-values below 1.6. The "fade the weakest wallets" idea has no support at short holds. Second, the combined-features experiment (<span class="mono filecode">scripts/signal-stack.ts</span>) settled its own question in the closing hours of 2026-08-12: an equal-weight blend of all seven features scored IC 0.0006, because six of the seven are cohort-derived and highly correlated (entry flow and its inverse at -0.88); a feature-subset sweep then showed <strong>nothing improves on the cohort-lean feature alone (IC 0.0627, t 3.2)</strong>, which is the same positioning idea as lead one computed a second way from the same cache: corroboration of the code path, not an independent confirmation. Funding at its hypothesized mean-reversion sign actively hurts the stack (crowded positioning continued rather than reversed); the sign-flipped variant reads better but was chosen after seeing the data, so the project has quarantined it as a hypothesis for the next, longer run to confirm or kill out of sample. That refusal is the discipline of Section 9 working as intended.</p>
+
+<div class="callout">
+  <span class="tag"><span class="pill na">ELI5</span></span>
+  <div class="body"><p>Three findings. One: the system's "who is skilled" rankings are real; skilled traders stay skilled a little more often than chance. Two: copying a skilled trader's <em>purchase</em> doesn't work at short holds; by the time you see it, the easy money is gone, and even perfectly instant copying loses after fees. Three: two ideas still look good. Copy the <em>portfolio</em> (what they hold overall) instead of the purchases. And if you do copy a purchase, hold it for two or three days, not two or three hours; the data says patience is where any remaining profit lives. Both ideas passed their first hard test. Passed a test, not all the tests: the remaining ones include real funding costs, a fair replay that only uses traders you could have known about at the time, and fresh data the ideas have never seen.</p></div>
+</div>
+
+<hr>
+
+<h2 id="s8">8. Live recipes and their record</h2>
+
+<p>Live production totals as of 2026-08-12: 34 outcome rows, 29 graded (a graded outcome carries a win flag, net PnL, and an exit reason).</p>
+
+<div class="tablewrap"><table>
+  <tr><th>Recipe</th><th class="num">Graded</th><th class="num">Avg net bps</th><th class="num">Avg alpha bps</th><th class="num">Win rate</th><th>Status at the 30-outcome gate</th></tr>
+  <tr><td>funding_divergence</td><td class="num">18</td><td class="num neg">-56.8</td><td class="num neg">-84.1</td><td class="num">33%</td><td>Suspended from the feed; still recording. 12 to go.</td></tr>
+  <tr><td>momentum_stack</td><td class="num">10</td><td class="num neg">-86.3</td><td class="num neg">-27.9</td><td class="num">30%</td><td>Live. 20 to go.</td></tr>
+  <tr><td>funding_trend</td><td class="num">1</td><td class="num neg">-1,697</td><td class="num neg">-1,681</td><td class="num">0%</td><td>Deleted recipe; one legacy row (a single disastrous CASHCAT short).</td></tr>
+  <tr><td>rotation_carry</td><td class="num">0</td><td class="num dim"></td><td class="num dim"></td><td class="num dim"></td><td>2 ungraded rows.</td></tr>
+  <tr><td>divergence_squeeze, accumulation_reentry, whale_validated</td><td class="num">0</td><td class="num dim"></td><td class="num dim"></td><td class="num dim"></td><td>No graded outcomes yet.</td></tr>
+</table></div>
+
+<p>Three things an external reader should hold together. First, every average above is negative, and Section 7.2 explains why that is expected rather than surprising: these recipes are built on the entry-copy premise the research has since undermined. Second, no sample has reached the 30-outcome minimum, and the project's own arithmetic says even 30 outcomes only detect an edge of roughly ±90 bps at 80% power; the system itself withholds headline stats below 30 for exactly this reason, and this dossier reports them only as an audit of what exists. Third, raw outcome-row counts have jumped (9 on 08-10, 14 on 08-11 against roughly 0.3 per day before), but Section 6.1 explains why those raw counts cannot yet be attributed to the cohort recovery or even confidently called distinct signals; the clean post-recovery rate arrives with the next replay.</p>
+
+<p>Sound governance already in place: coins must carry 1% of cohort notional and $1M absolute to emit signals; duplicate poll-cadence signals were deduplicated into an archive table (101 of 132 rows were repeats of one episode, a defect worth remembering when reading any older claim about signal volume); and each graded row records the exit structure it was graded under.</p>
+
+<div class="callout">
+  <span class="tag"><span class="pill na">ELI5</span></span>
+  <div class="body"><p>The six "maybe buy this" rulebooks have produced only 29 fully scored notes so far, and on average those notes would have lost money. The house rule says no verdict on any rulebook before 30 scored notes each, like refusing to judge a baseball player on ten at-bats. The pipeline that produces notes just got 30 times faster, so the verdicts will arrive within weeks now, not years. Expect several rulebooks to be deleted; the rules say deleted, not tweaked.</p></div>
+</div>
+
+<hr>
+
+<h2 id="s9">9. Measurement discipline: the defect ledger</h2>
+
+<p>On 2026-08-12 the project recorded a sentence this dossier treats as its most valuable asset: <em>"Any result from this codebase should be assumed wrong until its sample has been checked against a previous run."</em> It was earned. Six defects were found in the measurement code in two days; five had already produced a confident, publishable-looking answer:</p>
+
+<div class="tablewrap"><table>
+  <tr><th>Defect</th><th>The wrong answer it produced</th><th>Fix</th></tr>
+  <tr><td>Candle API truncates silently near 5,000 bars</td><td>Every row of a results table used a different set of trades</td><td>Windows held under the cap; coverage check on every row</td></tr>
+  <tr><td>Fills are not independent (one decision emits ~47 fills)</td><td>A skill decile at t = 51</td><td>Fills merged into episodes; 12,801 fills became 269</td></tr>
+  <tr><td>Wallets cluster within a coin-day</td><td>A 24h edge at t = 2.7</td><td>Cluster to coin-days; the honest unit fell to 435, later 2,403</td></tr>
+  <tr><td>Returns not benchmarked against the market</td><td>+137 bps at every latency (market beta wearing an alpha costume)</td><td>Per-coin beta benchmark, estimated only from data before each signal</td></tr>
+  <tr><td>Stale-price guard tuned for the wrong bar size</td><td>Dropped a third of a sample, non-randomly</td><td>Tolerance scales with the bar interval</td></tr>
+  <tr><td>Wallet pool selected by scan recency, then by raw trade count</td><td>First a dormant sample (33x fewer fills), then a market-maker sample (8,500 trades per wallet)</td><td>Pool banded to the scan's own activity range</td></tr>
+</table></div>
+
+<p>The shared statistics now live in one tested module (<span class="mono filecode">lib/study-stats.ts</span>, 29 tests including production-shaped cases), and the codebase carries written measurement rules: same sample on every row of a table, collapse correlated observations, subtract a benchmark, split-half anything promising, and never rank by a score computed from the window being measured. One loose end: <span class="mono filecode">scripts/positioning-factor.ts</span> still carries a private copy of two of those functions with a hardcoded tolerance (Section 14, R6).</p>
+
+<div class="callout">
+  <span class="tag"><span class="pill na">ELI5</span></span>
+  <div class="body"><p>The lab kept discovering that its own thermometers were broken, each one in a way that made results look exciting. Five times, a "discovery" evaporated once the thermometer was fixed. So the lab adopted a permanent rule: treat every exciting result as a broken thermometer until proven otherwise. This sounds pessimistic; it is actually the only reason the two surviving leads in Section 7 deserve any trust.</p></div>
+</div>
+
+<hr>
+
+<h2 id="s10">10. Security review</h2>
+
+<p>A focused security review was performed as part of this audit (code-level, whole attack surface, high-confidence findings only). <strong>Result: zero findings met the exploitability bar.</strong> Posture, as verified in code:</p>
+
+<ul>
+  <li><strong>Every endpoint that can trigger work or write data is authenticated</strong> with a constant-time secret comparison: the two cron endpoints and the watchdog check a bearer secret; production refuses to boot if that secret is unset, so the check can never run against an empty value.</li>
+  <li><strong>The Telegram webhook fails closed and is double-gated:</strong> a secret header check (rejects everything if the secret is unconfigured), then a single-chat allowlist, with strangers receiving deliberate silence. Its five commands are read-only, dispatched from a fixed list; message text never reaches a query, a shell, or a URL.</li>
+  <li><strong>The database is default-deny.</strong> Row-level security is enabled on all application tables with zero policies, so the public API key sees no rows; the privileged service key exists only server-side, with no client component touching the database. The one browser-exposed variable is a cosmetic poll interval.</li>
+  <li><strong>No injection surface was found:</strong> all queries go through a parameterized builder, there is no shell execution or dynamic code evaluation anywhere in the application, and no unsafe HTML rendering in any component. User-supplied wallet addresses are format-validated before use.</li>
+  <li><strong>The 15 public read-only data routes are a deliberate design choice, not an oversight.</strong> They serve analytics computed from public on-chain data; that is the product. Documented as such in the repository.</li>
+  <li><strong>CI carries no untrusted-input triggers</strong> (schedule and manual dispatch only). Blast-radius note: repository write access equals data-plane access, since CI holds the service keys; inherent to the design and worth remembering when granting collaborators.</li>
+</ul>
+
+<p>Items examined and rejected as non-findings, listed for completeness: a dev-mode auth bypass unreachable in deployed environments; error messages that relay upstream text without secret material; the open data routes acting as a proxy for public data; a header length pre-check that leaks only secret length; and a cache-control inconsistency on one route that is a correctness quirk, not a vulnerability.</p>
+
+<div class="callout">
+  <span class="tag"><span class="pill na">ELI5</span></span>
+  <div class="body"><p>Could a stranger break in, change data, or steal secrets? The review says no: every door that can change anything needs a key, the keys are checked in a tamper-resistant way, the database refuses to talk to strangers entirely, and the windows everyone can look through show only information that is already public on the blockchain. The one caution: anyone allowed to edit the project's code inherits its keys, so collaborator access is the real perimeter.</p></div>
+</div>
+
+<hr>
+
+<h2 id="s11">11. Operations, cost, reliability</h2>
+
+<h3>11.1 The moving parts</h3>
+<div class="tablewrap"><table>
+  <tr><th>Job</th><th>Schedule</th><th>What it does</th></tr>
+  <tr><td>daily-wallet-scan (GitHub Actions)</td><td>00:00 UTC, 50 min budget</td><td>Discovery, gates, wash/Sybil checks, profiling, backtests, scoring; asserts its own score-history write and fails red if zero</td></tr>
+  <tr><td>signal-learning (GitHub Actions)</td><td>01:00 UTC</td><td>Outcome statistics and calibration; also runs the once-orphaned wallet-signal-stats step</td></tr>
+  <tr><td>rank-ic (GitHub Actions)</td><td>02:00 UTC</td><td>Computes rank IC from score history against 30-day forward PnL</td></tr>
+  <tr><td>freshness-check (GitHub Actions)</td><td>every 15 min</td><td>Calls the watchdog; a failed call produces a failure email, which is the meta-alert</td></tr>
+  <tr><td>keepalive (GitHub Actions)</td><td>monthly</td><td>Commits a heartbeat file so GitHub's 60-day inactivity rule can never silently disable the schedules again</td></tr>
+  <tr><td>refresh-cohort + measure-outcomes (Vercel crons)</td><td>daily</td><td>Cohort refresh seed and outcome grading; both cron slots on the current plan are used</td></tr>
+  <tr><td>UptimeRobot ping</td><td>every 5 min, 24/7</td><td>Drives sub-daily refresh cadence through the public state endpoint; emails on failure</td></tr>
+</table></div>
+
+<h3>11.2 Cost</h3>
+<p>Direct infrastructure cost is approximately <strong>$0 per month</strong>: Supabase free tier, Vercel Hobby, GitHub Actions within free quota, UptimeRobot free, Telegram free, and both external data APIs free and keyless. Two notes for accuracy: an older internal document claims Vercel functions are limited to 10 seconds on this plan, which conflicts with the configured 30-second budgets; current platform limits (300-second default across plans) make the configuration valid and the document outdated. The real spend is owner time plus AI-assistant usage, neither of which the repository prices.</p>
+
+<h3>11.3 Reliability posture</h3>
+<p>The three silent-death mechanisms from Section 4 each have a specific countermeasure now: the keepalive commit (against schedule auto-disable), a monitored heartbeat that emails on failure (against dead pingers), and red-on-zero assertions inside the nightly scan (against swallowed write errors). Data retention was extended from 30 to 180 days, removing the structural deadlock between retention and learning gates. The watchdog owns five health checks and messages only on state transitions.</p>
+
+<h3>11.4 Gaps</h3>
+<ul>
+  <li><strong>No CI quality gate.</strong> 523 tests exist and pass locally; no workflow runs tests, type checks, or linting on push. A regression would reach production unexamined.</li>
+  <li><strong>The environment template is incomplete.</strong> Four variables required in production (the cron secret and three Telegram values) are missing from the example file; a deploy following the template fails closed at boot. Fail-closed is the right direction, but the template should be complete.</li>
+  <li><strong>Research outputs are under-recorded</strong> (see Section 14, R2): two headline results existed only in commit messages, and one critical correction had no recorded output anywhere until this audit ran it.</li>
+</ul>
+
+<div class="callout">
+  <span class="tag"><span class="pill na">ELI5</span></span>
+  <div class="body"><p>Running this whole operation costs about as much as a free lunch: $0 in server bills, by design. The machinery that died silently in June now has three separate alarm bells wired to it. Two housekeeping gaps remain: the automated test suite never runs automatically (like owning a smoke detector but never plugging it in), and the setup instructions for a fresh install are missing four required values.</p></div>
+</div>
+
+<hr>
+
+<h2 id="s12">12. Governance: gates and kill criteria</h2>
+
+<p>Unusually for a solo project, the rules for continuing or stopping are written down, dated, and pre-committed, with the explicit clause that changing one's mind after seeing results is not grounds for amendment.</p>
+
+<h3>12.1 The standing thresholds</h3>
+<ul>
+  <li><strong>Wallet scoring:</strong> rolling rank IC must exceed 0.08 (the computed minimum detectable IC for this cohort size) once 30 daily live measurements exist. Below that, with p above 0.05, the premise is revisited: no scoring rewrites, no paper trader.</li>
+  <li><strong>Recipes:</strong> at 30 graded outcomes each, positive net expectancy survives; anything else is deleted, not tuned. The suspended funding recipe needs non-negative expectancy at 30 to return to the feed.</li>
+  <li><strong>Scoring V2 canary:</strong> a shadow scoring formula runs beside V1; at 30 shadow measurements the better one wins, decided around 2026-09-10. (Counting starts 2026-08-11: the canary silently wrote nothing for months due to a rejected upsert, another swallowed error found and fixed on 2026-08-10.)</li>
+  <li><strong>Paper trading (future Phase 3):</strong> kill at a 30% drawdown at any point, or 90-day underperformance against a random risk-matched cohort or simply holding BTC. The benchmarks are named in advance.</li>
+  <li><strong>Latency:</strong> if measured signal-to-write latency exceeds what a recipe's premise tolerates, that recipe's verdict is "not at this latency," which counts as a kill.</li>
+</ul>
+
+<h3>12.2 Where the clocks stand</h3>
+<div class="tablewrap"><table>
+  <tr><th>Gate</th><th>Needs</th><th>Has (2026-08-12)</th><th>Earliest verdict</th></tr>
+  <tr><td>Live rank IC vs 0.08</td><td class="num">30 daily measurements</td><td class="num">0 (first row needs 30 days of forward PnL; history began 08-08)</td><td>first row ~09-07, verdict early October</td></tr>
+  <tr><td>Per-recipe expectancy</td><td class="num">30 graded each</td><td class="num">18 / 10 / 0 / 0 / 0 / 0 (+1 legacy row from a deleted recipe = 29 total)</td><td>weeks, if the recovered cohort lifts the true episode rate</td></tr>
+  <tr><td>V2 scoring canary</td><td class="num">30 shadow measurements</td><td class="num">counting since 08-11</td><td>~2026-09-10</td></tr>
+</table></div>
+<p>The empty live rank IC table is expected arithmetic, not a failure; and the project already answered the underlying question early by building the retrospective skill test (the 0.0939 of Section 7.1) rather than waiting for the calendar.</p>
+
+<h3>12.3 Governance debt</h3>
+<p>Three documentation gaps weaken external auditability. The status document cites "Edge Readiness gates, six of seventeen verified," but no such gate list exists anywhere in the repository, so the tally cannot be checked. The kill-criteria document requires decisions to be made from checked-in results files that do not exist yet. And the full 2026-08-08 audit lives only as an external artifact link, with a 33-line summary in the repo. None of these change the numbers; all three should be fixed cheaply (Section 14).</p>
+
+<div class="callout">
+  <span class="tag"><span class="pill na">ELI5</span></span>
+  <div class="body"><p>Before the experiments started, the project wrote itself a contract: "here is the exact score each idea must beat, here is when we check, and if it loses, we delete it rather than excuse it. Quitting entirely is an acceptable ending." That contract is the difference between research and gambling. The audit found the contract intact and being followed, with one caveat: a few of the referee's record books are mentioned but missing, and they should be created so an outsider can check the score too.</p></div>
+</div>
+
+<hr>
+
+<h2 id="s13">13. The path to money</h2>
+
+<p>The owner's stated goal is to make money or build a system that helps do so. Four honest paths exist. They are not mutually exclusive, but they compete for the same scarce resource: owner attention.</p>
+
+<h3>Path A: Prove one of the two leads, then trade it small</h3>
+<p>The shortest credible path. The positioning factor (Section 7.3) is the strongest candidate: its diagnostic reads t near 3.1, measured two ways from the same cache (one finding computed twice, not two confirmations), its traded version reaches t 1.92 gross and improves with book width, and confirming or killing it needs a longer window and an out-of-sample split, which are days of work, not months. The long-hold lead is second: it passed the overlap correction and needs the same longer window, plus a funding-charged cost model and a survivorship-frozen pool (Section 7.3's list). The research session that closed on 2026-08-12 left exactly this plan in its handoff notes: fetch 200 days, split into four sub-periods instead of two, test the funding sign out of sample, and only if the factor holds, re-cut the live exit structure from 1 ATR hour-scale exits to multi-day holds. This dossier endorses that sequence and adds two requirements to it: charge funding over the hold, and freeze pool membership at window start. If a lead survives, the committed order applies: server-side paper trading with real costs, then a written execution decision. No capital sizing is offered here: the traded expressions are below significance, quoted gross of funding and turnover, and capacity has not been modeled. Sizing talk belongs after the out-of-sample result, and this path's expected value is genuinely uncertain: that is what unproven means.</p>
+
+<h3>Path B: Change the premise</h3>
+<p>The research already names the alternatives if wallet-following dies entirely: mechanical flows (funding and basis capture, liquidation maps), or market making. These compete on execution quality rather than information, which means competing with professionals on infrastructure. Larger build, better-understood economics, no dependence on the cohort premise. The funding feature's wrong-signed IC (Section 7.3) is a small breadcrumb in this direction.</p>
+
+<h3>Path C: Sell the intelligence instead of trading it</h3>
+<p>The repository contains a costed product model from April: a $49/month subscription tier with unit economics that work at midpoint assumptions (customer lifetime value at 2.6x acquisition cost) and fail at downside ones (0.89x), requiring roughly $150K of working capital to ramp seriously and, by the project's own launch preconditions, 90+ days of published live performance data that does not yet exist. This path is real but is a different business (marketing and retention, not research) and is explicitly gated behind proving the signals are worth paying for. A signal-less variant, selling the wallet-intelligence data itself, was listed in the kill-criteria fallbacks and remains unexplored.</p>
+
+<h3>Path D: Stop</h3>
+<p>Listed because the project's own kill criteria list it, and because the criteria call stopping on evidence a successful outcome. The infrastructure now runs at $0/month with alarms, so "pause and let the gates accumulate data" is a legitimate low-cost variant of this path: the weekly review is 10 minutes, and the verdict clocks in Section 12.2 run themselves.</p>
+
+<div class="verdictbox">
+  <div class="vh">This review's recommendation</div>
+  <p style="margin:0">Run Path A to its verdict before considering anything else, because it is cheap, fast, and already half-done: confirm or kill the positioning factor out of sample, extend the long-hold test to 200 days with funding charged and the pool frozen, and let the recipe gates finish their counts. Stop tuning entry-copy recipes now; the measurement does not support them, and every hour spent there is taken from the leads that might pay. Hold Path C until there is something proven to sell. The decision the owner cannot delegate: if both leads die, choose between Path B's bigger build and Path D's clean stop, using the criteria already written.</p>
+</div>
+
+<div class="callout">
+  <span class="tag"><span class="pill na">ELI5</span></span>
+  <div class="body"><p>Four doors. Door A: finish testing the two promising ideas; if one works, practice with fake money, then real money, small. Door B: abandon the "follow smart traders" idea and build a different, more industrial trading machine. Door C: stop trying to trade and sell the research as a subscription, which needs real marketing money and proof the research is good. Door D: stop, having learned a lot for nearly free. The report says: finish door A first, it is nearly open; stop polishing the parts already proven not to work; and keep the promise to let the written rules, not hope, pick the door after that.</p></div>
+</div>
+
+<hr>
+
+<h2 id="s14">14. Findings and recommendations</h2>
+
+<p>Ranked by expected impact on the goal. "P0" means this week.</p>
+
+<div class="tablewrap"><table>
+  <tr><th>#</th><th>Priority</th><th>Finding</th><th>Recommendation</th></tr>
+  <tr><td>R1</td><td><span class="pill bad">P0</span></td><td>Six live recipes rest on the entry-copy premise the research has disproven; owner decision recorded as pending.</td><td>Decide now: freeze recipe threshold tuning, keep the pipeline recording for gate completion, and redirect research hours to the positioning factor and long-hold tests.</td></tr>
+  <tr><td>R2</td><td><span class="pill bad">P0</span></td><td>Headline research results live only in commit messages, and for several hours on 2026-08-12 the overlap correction, the check the whole long-hold lead depends on, had no recorded output anywhere. The status document also lags the code by a working day.</td><td>Create a results register (dated files under docs/research/) where every study run lands with its command, cache fingerprint, and output. Record the twice-run overlap correction as its first entry.</td></tr>
+  <tr><td>R3</td><td><span class="pill warn">P1</span></td><td>523 passing tests, but no CI runs tests, typecheck, or lint; a regression ships silently.</td><td>Add a quality-gate workflow on push and pull request. Half a day.</td></tr>
+  <tr><td>R4</td><td><span class="pill warn">P1</span></td><td>The kill criteria are enforced by discipline, not code; an earlier audit noted the rank IC criterion is "logged only."</td><td>Make the rank-ic job write a verdict row and fail red when a gate is breached, as the roadmap already specifies.</td></tr>
+  <tr><td>R5</td><td><span class="pill warn">P1</span></td><td>The environment template omits four production-required secrets; a fresh deploy from it fails at boot.</td><td>Complete the template with placeholders and one comment per variable.</td></tr>
+  <tr><td>R6</td><td><span class="pill na">P2</span></td><td>A third private copy of the shared statistics functions survives in the positioning-factor script with a hardcoded staleness tolerance.</td><td>Migrate it to the tested shared module before its numbers are trusted further.</td></tr>
+  <tr><td>R7</td><td><span class="pill na">P2</span></td><td>Documentation drift: test counts (312 vs 523), an outdated platform-limit claim, a stale skill-test summary file, a status section describing shipped code as not existing, and the missing Edge Readiness gate list and results files (Section 12.3).</td><td>One documentation pass; author the gate list so the "six of seventeen" tally becomes checkable.</td></tr>
+  <tr><td>R8</td><td><span class="pill na">P2</span></td><td>Browser-storage paper trading could be mistaken for validation.</td><td>Keep it labeled as a toy; build the server-side version only when a lead earns it (roadmap Phase 3, unchanged).</td></tr>
+  <tr><td>R9</td><td><span class="pill na">P3</span></td><td>The live rank IC table will stay empty until about 2026-09-07 by arithmetic.</td><td>No action; noted so the empty table is not misread as failure. Watch the V2 canary decision ~2026-09-10.</td></tr>
+  <tr><td>R10</td><td><span class="pill na">P3</span></td><td>A completed feature branch from April was never merged and survives only on its branch.</td><td>Merge or explicitly retire it.</td></tr>
+</table></div>
+
+<div class="callout">
+  <span class="tag"><span class="pill na">ELI5</span></span>
+  <div class="body"><p>The to-do list, in plain words: stop polishing the proven-dead idea and finish testing the two live ones; start writing experiment results in a lab notebook instead of sticky notes; plug in the smoke detector (automatic tests); make the referee's whistle automatic instead of honor-system; and fix the setup instructions. Everything else is tidying.</p></div>
+</div>
+
+<hr>
+
+<h2 id="s15">15. Appendices</h2>
+
+<details>
+  <summary>A. Glossary for external readers</summary>
+  <div class="inner">
+    <ul>
+      <li><strong>Basis point (bps):</strong> one hundredth of a percent. 100 bps = 1%. A 50 bps edge on $10,000 is $50.</li>
+      <li><strong>Rank IC (information coefficient):</strong> correlation between predicted ranking and actual outcome ranking. 0 means the prediction is useless; 1 would be perfect foresight. In quantitative finance, sustained values of 0.05 to 0.10 are considered usable.</li>
+      <li><strong>t-statistic:</strong> how many standard errors a result sits from zero. Above roughly 2, chance becomes an unlikely explanation; below 2, the result is unproven. Many simultaneous tests weaken any single t-value, which is why this project split-halves everything.</li>
+      <li><strong>Beta / benchmark:</strong> the portion of a return explained by the market moving. A long position in a rising market profits with zero skill; subtracting the beta-scaled market return isolates skill (alpha).</li>
+      <li><strong>Coin-day clustering:</strong> fifty wallets buying one coin on one afternoon is one market observation, not fifty. Counting it fifty times manufactures false confidence.</li>
+      <li><strong>Split-half test:</strong> divide the data period in two; a real effect appears in both halves, a regime artifact flips or vanishes.</li>
+      <li><strong>ATR (average true range):</strong> a volatility yardstick used to size stops and targets proportionally to how much a coin normally moves.</li>
+      <li><strong>Lookahead / point-in-time:</strong> a valid prediction test may only use information available before the moment of prediction. Scores rebuilt "point-in-time" honor this; the project disabled its own convenient-but-leaky variant.</li>
+      <li><strong>Paper trading:</strong> simulated trading with no real money, used to validate a strategy under live conditions.</li>
+      <li><strong>KV cache / cron / CI:</strong> respectively, a fast temporary data store; scheduled automated jobs; and the automation that runs on every code change.</li>
+    </ul>
+  </div>
+</details>
+
+<details>
+  <summary>B. Sources and verification queries</summary>
+  <div class="inner">
+    <p>Documents: <span class="mono filecode">docs/audit/2026-08-08-full-audit.md</span>, <span class="mono filecode">docs/audit/2026-07-22-full-project-audit.md</span>, <span class="mono filecode">docs/audit/2026-08-11-liq-gate-restoration.md</span>, <span class="mono filecode">docs/superpowers/specs/2026-08-08-rebuild-roadmap.md</span>, <span class="mono filecode">docs/preflight/kill-criteria.md</span>, <span class="mono filecode">docs/preflight/unit-economics.md</span>, <span class="mono filecode">docs/preflight/rank-ic-power.md</span>, <span class="mono filecode">docs/sprints/status.md</span>, <span class="mono filecode">CLAUDE.md</span>.</p>
+    <p>Research scripts (all read-only): <span class="mono filecode">scripts/fill-study.ts</span>, <span class="mono filecode">scripts/cohort-skill-test.ts</span>, <span class="mono filecode">scripts/activity-gate-tradeoff.ts</span>, <span class="mono filecode">scripts/positioning-factor.ts</span>, <span class="mono filecode">scripts/signal-stack.ts</span>, <span class="mono filecode">scripts/compact-fill-cache.ts</span>, shared statistics in <span class="mono filecode">lib/study-stats.ts</span>.</p>
+    <p>Live numbers in Sections 6 and 8 come from production SQL run 2026-08-12 (counts by activation state, latest-snapshot equity aggregation, per-recipe outcome aggregates, score-history and rank-IC row counts, 48-hour deactivation reasons, signals per day).</p>
+    <p>The Section 7.3 overlap-correction table is this audit's own run: <span class="mono filecode">npx tsx --env-file=.env.local scripts/fill-study.ts</span> against the committed cache of 2026-08-12 13:32 UTC (120 days, 1-hour bars, 58,307 hourly fill rows, 30 coins, 112 wallets). The script writes nothing. The research session's own run of the same table (recorded in commits e5ef704 and d6cd5aa) matches this audit's output row for row, a cross-check between two independent executions.</p>
+    <p>Repository state at review: <span class="mono filecode">main @ d6cd5aa</span>, clean tree, no stashes, all parallel-session work committed. Security review scope: all API routes, auth helpers, environment handling, database policies, CI workflows, dependency list.</p>
+  </div>
+</details>
+
+<details>
+  <summary>C. Known limitations of this dossier</summary>
+  <div class="inner">
+    <ul>
+      <li>Prepared by the project's own AI assistant; independence is by evidence citation, not by organizational separation.</li>
+      <li>The research conclusions rest on one 120-day historical window in one market regime. Every "open" verdict in Section 7.3 is explicitly conditional on out-of-sample confirmation.</li>
+      <li>The research cost model charges taker fees only. No slippage and no funding are charged in the fill-study or positioning tables; funding on multi-day alt-perpetual holds is a real cost that could materially shrink the long-hold means. The live grading system does charge these; the research layer does not yet.</li>
+      <li>The research wallet pool is drawn from the discovery table as it exists today, and discovery is performance-conditioned, so replayed windows contain survivorship the next run must remove by freezing pool membership at window start.</li>
+      <li>The research program tested many hypotheses on the same cache; no formal multiple-comparisons correction is applied to the surviving t-statistics. The pre-registered out-of-sample run is the intended correction.</li>
+      <li>The post-correction split-half of the non-overlapping table has not been run; the split-half evidence cited for the long-hold lead comes from the overlapping version.</li>
+      <li>Live-outcome samples (29 graded) are below every decision threshold; Section 8's averages describe what exists and prove nothing either way.</li>
+      <li>Dollar capacity of the measured effects was not modeled at all; Section 13 deliberately offers no sizing.</li>
+      <li>The security review was code-level and read-only; no penetration testing was performed against the live deployment.</li>
+    </ul>
+  </div>
+</details>
+
+<details>
+  <summary>D. Revision history</summary>
+  <div class="inner">
+    <p><strong>v1.0 (2026-08-12):</strong> initial dossier: evidence sweep across documents, code, and live production queries; independent re-run of the overlap-correction study; security review.</p>
+    <p><strong>v1.1 (2026-08-12, same day):</strong> hardened after a deliberately adversarial internal review commissioned before any external distribution. Changes, all wording and disclosure, no measurement changed: the wallet-skill verdict downgraded from "proven" to "supported" with the pre-registered live gate (0 of 30 measurements) stated beside it; the entry-copy "disproven" verdict narrowed to short holds and coordination, with full-pool long holds relabeled inconclusive; the twice-run reproduction reframed as a determinism check rather than independent confirmation; survivorship in the research pool, the fees-only cost model (no funding, no slippage), the multiple-comparisons burden, and the un-run post-correction split-half added as named limitations; the recent signal-volume jump de-attributed from the cohort recovery after a data check showed the timing does not support the causal claim and 14 of the rows sit on one coin; the capital-sizing sentence removed; minor number drift reconciled with sources. The adversarial reviewer's conclusion: defensible in front of a professional reviewer after these fixes.</p>
+  </div>
+</details>
+
+<hr>
+<p style="font-size:13px;color:var(--faint)">HyperliquidFLOW audit dossier, version 1.1, prepared 2026-08-12. Private document; distribution controlled by the owner. Corrections to this dossier should be recorded the same way the project records everything else: dated, in writing, next to the number they correct.</p>
+
+</div>
