@@ -79,6 +79,29 @@ The five dossier verdicts, the kill-criteria governance, the security posture,
 the defect ledger as the project's most valuable asset, Path A as the only path
 currently worth owner attention, and stopping as a legitimate successful outcome.
 
+## Latency instrumentation: measured, and found unmeasurable (2026-08-13)
+
+The reviews asked for confirmation that the live poller achieves the 10-minute
+latency the research assumes. It cannot be confirmed, because the field that
+would answer it was never populated: `signal_timing` holds 37 rows and
+`whale_fill_ts` is null on every one. The insert in
+`app/api/refresh-cohort/route.ts` hardcodes it to null.
+
+What is measured looks healthy. Snapshot detection to KV write is 2.0s median
+and 2.5s at p95; KV write to the first browser poll is 4.9 minutes median.
+
+What is missing is the leg that matters. Signals are detected by comparing two
+snapshots, so the fill occurred somewhere inside that interval and its exact
+time is not known without a per-wallet fills query, which does not fit the 30s
+cron budget. The cheap honest fix is to record the **previous snapshot
+timestamp**, which bounds staleness at detection rather than guessing it, and to
+rename the column accordingly.
+
+Deliberately not built yet. It only matters for a trade-following expression,
+which is the lead the 3-day momentum tie weakened, and the positioning factor
+rebalances daily and is indifferent to fill latency. Build it if and only if a
+trade-following lead survives the forward record.
+
 ## Revised order of work (supersedes the dossier's Section 14 ordering)
 
 This week, in order:
