@@ -633,6 +633,50 @@ function main(cache: Cache) {
     console.log(`${label}  |` + cells.join(" |"));
   }
 
+  // ── Non-overlapping windows ──────────────────────────────────────────────
+  // clusterByCoinDay collapses same coin, same day. It does nothing about a 72
+  // hour forward window overlapping the next two days of entries on that coin,
+  // and those share most of their price path, so they are close to one
+  // observation rather than three. Long holds are exactly where that bites, and
+  // long holds are where the positive result lives, so the t-statistics above
+  // are overstated by an unmeasured amount.
+  //
+  // This re-scores each hold using entries spaced at least one full hold apart
+  // per coin, greedily from the earliest. Sample drops hard, which is the
+  // honest cost of independence: if the effect survives here it is real, and if
+  // it evaporates the earlier t-statistics were counting the same move twice.
+  console.log(`\n=== Non-overlapping windows, enter +10m, per-coin beta ===`);
+  console.log(`  hold |      n |  mean bps |    t | win%`);
+  console.log(`  -----+--------+-----------+------+------`);
+  for (const H of HOLDS) {
+    const pool = fullyCovered(onCoveredCoins, candles, 10 + H).slice().sort((a, b) => a.t - b.t);
+    const lastByCoin = new Map<string, number>();
+    const picked: Fill[] = [];
+    for (const f of pool) {
+      const last = lastByCoin.get(f.c) ?? -Infinity;
+      if (f.t - last < H * MIN) continue;
+      picked.push(f);
+      lastByCoin.set(f.c, f.t);
+    }
+    const rs: number[] = [];
+    for (const f of picked) {
+      const entry = priceAt(candles[f.c], f.t + 10 * MIN);
+      const exit  = priceAt(candles[f.c], f.t + (10 + H) * MIN);
+      const bEntry = priceAt(btc, f.t + 10 * MIN);
+      const bExit  = priceAt(btc, f.t + (10 + H) * MIN);
+      if (entry === null || exit === null || bEntry === null || bExit === null) continue;
+      if (entry <= 0 || bEntry <= 0) continue;
+      const beta = betaBefore(candles[f.c], btc, f.t, `${f.c}|${f.t}`);
+      rs.push(((exit - entry) / entry) * f.d - ((bExit - bEntry) / bEntry) * f.d * beta - ROUND_TRIP_BPS / 10_000);
+    }
+    const st = stats(rs);
+    if (!st) { console.log(`  ${String(H).padStart(4)}m |  too few`); continue; }
+    console.log(
+      `  ${String(H).padStart(4)}m | ${String(st.n).padStart(6)} | ${bps(st.mean).toFixed(1).padStart(9)} | ` +
+      `${st.t.toFixed(1).padStart(4)} | ${(st.winRate * 100).toFixed(0)}%`
+    );
+  }
+
   // ── Coordination: the only version of the follow premise still standing ──
   // Every recipe assumes several wallets entering the same coin and direction
   // together differs from one wallet doing it alone. The tables above measured
