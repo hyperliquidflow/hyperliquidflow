@@ -49,6 +49,7 @@ const NAV: NavEntry[] = [
     children: [
       { href: "/wallets/following",   label: "Following"    },
       { href: "/wallets/paper",       label: "Paper Trading"},
+      { href: "/portfolio/journal",   label: "Paper Journal"},
     ],
   },
 ];
