@@ -154,17 +154,42 @@ async function fetchAll(): Promise<Cache> {
   // public fill history, and whether they are active today has no bearing on
   // what their past trades did next. --pool=all widens to every wallet the scan
   // has ever scored.
-  const POOL = process.argv.find((a) => a.startsWith("--pool="))?.split("=")[1] ?? "active";
-  let query = supabase.from("wallets").select("id, address");
-  if (POOL === "active") query = query.eq("is_active", true);
-  else query = query.not("last_scanned_at", "is", null);
-  const { data: wallets, error } = await query
-    .order("last_scanned_at", { ascending: false })
-    .limit(MAX_WALLETS);
-  if (error) throw new Error(`wallet query: ${error.message}`);
-  console.log(`[fill-study] pool=${POOL}, ${wallets?.length ?? 0} wallets, interval=${INTERVAL}`);
+  // Pool selection is not cosmetic. --pool=all once ordered by last_scanned_at,
+  // which has nothing to do with whether a wallet trades: after a nightly scan
+  // re-scored a different set, the identical command drew a mostly dormant
+  // sample and fills fell 33x, with whole stretches of 50 wallets contributing
+  // nothing. "traders" orders by trade count from the backtest table so the pool
+  // is wallets that actually trade, which is the population the live system
+  // draws its cohort from. That selects on activity, not on outcome.
+  const POOL = process.argv.find((a) => a.startsWith("--pool="))?.split("=")[1] ?? "traders";
+  let wallets: Array<{ id: string; address: string }> = [];
 
-  const ids = (wallets ?? []).map((w) => w.id as string);
+  if (POOL === "active") {
+    const { data, error } = await supabase
+      .from("wallets").select("id, address").eq("is_active", true).limit(MAX_WALLETS);
+    if (error) throw new Error(`wallet query: ${error.message}`);
+    wallets = (data ?? []) as typeof wallets;
+  } else {
+    const { data: bt, error: btErr } = await supabase
+      .from("user_pnl_backtest")
+      .select("wallet_id, total_trades")
+      .order("total_trades", { ascending: false })
+      .limit(MAX_WALLETS);
+    if (btErr) throw new Error(`backtest query: ${btErr.message}`);
+    const ids = (bt ?? []).map((r) => r.wallet_id as string);
+    const CHUNK = 200;
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const { data, error } = await supabase
+        .from("wallets").select("id, address").in("id", ids.slice(i, i + CHUNK));
+      if (error) throw new Error(`wallet query: ${error.message}`);
+      wallets.push(...((data ?? []) as typeof wallets));
+    }
+    const rank = new Map(ids.map((id, i) => [id, i]));
+    wallets.sort((a, b) => (rank.get(a.id) ?? 1e9) - (rank.get(b.id) ?? 1e9));
+  }
+  console.log(`[fill-study] pool=${POOL}, ${wallets.length} wallets, interval=${INTERVAL}`);
+
+  const ids = wallets.map((w) => w.id);
   const { data: snaps } = await supabase
     .from("cohort_snapshots")
     .select("wallet_id, overall_score, snapshot_time")
@@ -176,14 +201,14 @@ async function fetchAll(): Promise<Cache> {
     if (!scoreByWallet.has(s.wallet_id)) scoreByWallet.set(s.wallet_id, Number(s.overall_score ?? 0));
   }
 
-  console.log(`[fill-study] fetching ${DAYS}d of fills for ${wallets?.length ?? 0} wallets...`);
+  console.log(`[fill-study] fetching ${DAYS}d of fills for ${wallets.length} wallets...`);
   const fills: Fill[] = [];
   let done = 0;
 
   let truncatedWallets = 0;
   let failedWallets = 0;
 
-  for (const w of wallets ?? []) {
+  for (const w of wallets) {
     try {
       // Walk startTime forward until a page comes back short of the cap.
       // Dedup by tid because a page boundary can land inside a group of fills
@@ -241,7 +266,7 @@ async function fetchAll(): Promise<Cache> {
       console.warn(`[fill-study] fills failed for ${w.address.slice(0, 10)}: ${(e as Error).message}`);
     }
     done++;
-    if (done % 50 === 0) console.log(`[fill-study]   ${done}/${wallets?.length} wallets, ${fills.length} opening fills`);
+    if (done % 50 === 0) console.log(`[fill-study]   ${done}/${wallets.length} wallets, ${fills.length} fills`);
     await new Promise((r) => setTimeout(r, REQUEST_GAP));
   }
 
@@ -250,7 +275,7 @@ async function fetchAll(): Promise<Cache> {
   for (const f of fills) byCoin.set(f.c, (byCoin.get(f.c) ?? 0) + 1);
   const coins = [...byCoin.entries()].sort((a, b) => b[1] - a[1]).slice(0, TOP_COINS).map(([c]) => c);
   const dropped = fills.length - fills.filter((f) => coins.includes(f.c)).length;
-  console.log(`[fill-study] ${fills.length} opening fills across ${byCoin.size} coins`);
+  console.log(`[fill-study] ${fills.length} fills across ${byCoin.size} coins`);
   console.log(`[fill-study] keeping top ${coins.length} coins, dropping ${dropped} fills on thinner coins`);
 
   if (truncatedWallets > 0) {

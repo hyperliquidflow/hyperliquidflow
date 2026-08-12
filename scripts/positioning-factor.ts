@@ -110,7 +110,7 @@ async function main() {
     netByDay.push(snap);
   }
 
-  console.log(`[factor] reconstructed ${netByDay.length} daily position snapshots across ${new Set(fills.map(f=>f.c)).size} coins\n`);
+  console.log(`[factor] reconstructed ${netByDay.length} daily snapshots across ${new Set(fills.map(f=>f.c)).size} coins, first 14 days discarded as burn-in\n`);
 
   // ── Cross-sectional test ──────────────────────────────────────────────────
   // Signal on day d: cohort net notional per coin, normalised by that coin's
@@ -120,7 +120,13 @@ async function main() {
   const spreads: number[] = [];
   const TOP_N = 3;
 
-  for (let day = 0; day + 2 < netByDay.length; day++) {
+  // Reconstruction starts every wallet flat, so a position opened before the
+  // window and closed inside it registers as a phantom short. That error decays
+  // as real opens accumulate, but it is worst at the start, so the opening
+  // stretch is discarded rather than trusted.
+  const BURN_IN_DAYS = 14;
+
+  for (let day = BURN_IN_DAYS; day + 2 < netByDay.length; day++) {
     const snap = netByDay[day];
     const entryT = t0 + (day + 1) * DAY_MS;
     const exitT  = t0 + (day + 2) * DAY_MS;
