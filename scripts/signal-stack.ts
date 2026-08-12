@@ -72,6 +72,30 @@ const FEATURES = [
 ] as const;
 type FeatureName = typeof FEATURES[number];
 
+// Which features enter the combination, and with what sign.
+//
+// Signs are the hypothesis, not the measurement. funding came out at IC -0.038,
+// the opposite of the mean-reversion hypothesis it was signed for, meaning
+// crowded positioning continued rather than reversed. Flipping it because the
+// data said so would be fitting the sign on the same data that measured it, so
+// the default keeps the hypothesised sign and --flip-funding exposes the fitted
+// version explicitly, for out-of-sample checking rather than for use.
+const ACTIVE: FeatureName[] = (() => {
+  const arg = process.argv.find((a) => a.startsWith("--use="))?.split("=")[1];
+  if (!arg) return [...FEATURES];
+  const picked = arg.split(",").map((x) => x.trim()) as FeatureName[];
+  const bad = picked.filter((p) => !FEATURES.includes(p));
+  if (bad.length) {
+    console.error(`[stack] unknown feature(s): ${bad.join(", ")}. Known: ${FEATURES.join(", ")}`);
+    process.exit(1);
+  }
+  return picked;
+})();
+
+const SIGN: Record<FeatureName, number> = Object.fromEntries(
+  FEATURES.map((f) => [f, f === "fundingFade" && process.argv.includes("--flip-funding") ? -1 : 1])
+) as Record<FeatureName, number>;
+
 /**
  * Funding rate per coin per day, sign flipped so a positive feature means
  * "crowded the other way".
@@ -261,6 +285,7 @@ async function main() {
   // ── Per-day cross section: standardise features, measure IC ───────────────
   const icByFeature: Record<string, number[]> = Object.fromEntries(FEATURES.map((f) => [f, []]));
   const icCombined: number[] = [];
+  console.log(`[stack] combining: ${ACTIVE.map((f) => (SIGN[f] < 0 ? "-" : "") + f).join(" + ")}\n`);
   const spreadCombined: number[] = [];
   const featureSamples: Record<string, number[]> = Object.fromEntries(FEATURES.map((f) => [f, []]));
   const TOP_N = 3;
@@ -302,7 +327,11 @@ async function main() {
 
     // Equal weight is the honest default. Weighting by measured IC fits the
     // weights on the same data the IC came from, which inflates the result.
-    const combined = coins.map((_, i) => FEATURES.reduce((s, name) => s + z[name][i], 0) / FEATURES.length);
+    // Equal weighting across all seven combined to IC 0.0006, worse than its
+    // best component, because six noise features diluted one real one. --use
+    // selects a subset so the stack can be built from the features that carry
+    // something rather than from everything measured.
+    const combined = coins.map((_, i) => ACTIVE.reduce((s, name) => s + SIGN[name] * z[name][i], 0) / ACTIVE.length);
     const rhoC = sampleRankCorrelation(combined, rel);
     if (Number.isFinite(rhoC)) icCombined.push(rhoC);
 
