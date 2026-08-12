@@ -5,6 +5,7 @@ import {
   toEpisodes,
   clusterByCoinDay,
   clusterByDay,
+  clusterByDayMap,
   describe as summarise,
   zscore,
   trimmedMean,
@@ -306,5 +307,33 @@ suite("fundingOverHold", () => {
     expect(sum).toBe(0);
     expect(points).toBe(0);
     expect(expectedPoints).toBe(5);
+  });
+});
+
+suite("clusterByDayMap", () => {
+  const DAY = 86_400_000;
+
+  it("keys each day so two series can be compared on the days they share", () => {
+    const m = clusterByDayMap([
+      { t: DAY * 5 + 1, r: 0.02 },
+      { t: DAY * 5 + 2, r: 0.04 },
+      { t: DAY * 6, r: -0.01 },
+    ]);
+    expect(m.get(5)).toBeCloseTo(0.03, 12);
+    expect(m.get(6)).toBeCloseTo(-0.01, 12);
+  });
+
+  // Averaging two series separately and subtracting the totals compares days
+  // that never overlapped, which is how a spread invents a result.
+  it("lets a caller pair only the overlapping days", () => {
+    const top = clusterByDayMap([{ t: DAY * 1, r: 0.05 }, { t: DAY * 2, r: 0.05 }]);
+    const bot = clusterByDayMap([{ t: DAY * 2, r: 0.01 }]);
+    const paired = [...top].filter(([d]) => bot.has(d)).map(([d, v]) => v - bot.get(d)!);
+    expect(paired).toEqual([0.04]);
+  });
+
+  it("agrees with clusterByDay on the values it produces", () => {
+    const rows = [{ t: 0, r: 1 }, { t: 10, r: 3 }, { t: DAY, r: 5 }];
+    expect([...clusterByDayMap(rows).values()].sort()).toEqual(clusterByDay(rows).sort());
   });
 });

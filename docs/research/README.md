@@ -36,6 +36,10 @@ audit re-ran it (dossier finding R2, confirmed by both external reviews).
   cohort sells winners that keep winning, which with the entry and holding
   results makes one coherent story. The sign-flipped variant is quarantined as
   a hypothesis, not claimed.
+- [2026-08-13-skill-selection.md](2026-08-13-skill-selection.md): wallet skill
+  does not sort the entries a follower can copy (pre-registered contrast
+  -13.0 bps/day, t -0.47, FAIL). Decile 9 alone looked excellent, which is
+  exactly what the single pre-registered contrast existed to prevent.
 - [2026-08-12-capacity.md](2026-08-12-capacity.md): what a surviving edge would
   be worth. Honest capacity is about $100k of book, roughly $364/day if the
   edge is real, bounded by the thin coins the factor prefers.

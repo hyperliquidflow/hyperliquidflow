@@ -207,6 +207,40 @@ Net mean above 0 with day-clustered t at least 2.5, sign agreement at 24h and
 this window. Combined with the entry result, that would close the follow
 premise in both directions and leave positioning as the only survivor.
 
+## Hypothesis 4: skill selection at the long holds (registered 2026-08-13, BEFORE the run)
+
+The point-in-time score decile slice has only ever been run at a 4-hour hold,
+where nothing works for any signal, and it came back flat. The return, if it
+exists, lives at 24 to 72 hours. Whether wallet skill *selects* better entries
+has therefore never actually been tested at the horizon that matters.
+
+**Hypothesis.** Entries made by wallets with a higher point-in-time score
+outperform entries by lower-scoring wallets, at the 48-hour hold.
+
+**Why it matters more than another decile table.** Wallet ranking is the one
+result this project has that is genuinely supported (rank IC 0.0939 clean of
+lookahead). If that skill also sorts entries at 48 hours, the long-hold lead
+gets a filter that could raise it materially. If it does not, then skill
+predicts a wallet's own returns without transferring to a follower, which is
+worth knowing plainly.
+
+**Specification.** Point-in-time scores only, rebuilt from each wallet's own
+realised PnL strictly before each entry, minimum 5 non-zero PnL days in the
+trailing 60. Full cost model, per-coin beta, day-clustered errors, frozen pool,
+non-overlapping windows, entry at +10 minutes, primary hold 48 hours.
+
+**The test is one contrast, not ten.** Ten decile means invite ten chances to
+find a winner. The pre-registered statistic is the **top three deciles minus
+the bottom three**, day-clustered, with the ten-row table reported only as
+supporting shape.
+
+**Gate.** Spread above 0 with day-clustered t at least 2.5, and the decile
+table broadly monotone rather than one spiking cell.
+
+**Fail consequence.** Skill selection does not transfer to a follower at
+tradeable horizons. The long-hold lead stays unfiltered, and no further decile
+cuts are tried on this window.
+
 ## Verdict states, and the expiry on "failed but alive"
 
 The reviews correctly noted that a lead which fails its bar while surviving

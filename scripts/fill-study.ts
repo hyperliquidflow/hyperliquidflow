@@ -39,6 +39,7 @@ import {
   toEpisodes as toEpisodesShared,
   clusterByCoinDay as clusterShared,
   clusterByDay,
+  clusterByDayMap,
   trimmedMean,
   bootstrapMeanCI,
   fundingOverHold,
@@ -1117,6 +1118,88 @@ function main(cache: Cache) {
     }
     console.log(`  A monotone rise means selection works and the top is the trade.`);
     console.log(`  A monotone fall in the bottom deciles means fading weak flow is the trade.`);
+  } else {
+    console.log(`  too few scorable episodes to decile`);
+  }
+
+  // ── Skill selection at the hold that matters ─────────────────────────────
+  // docs/research/2026-08-12-preregistration-leads.md, Hypothesis 4. The table
+  // above runs at four hours, where nothing works for any signal, so it has
+  // never actually tested whether skill selects entries at the horizon where
+  // the return lives. This runs the same scores at the pre-registered 48-hour
+  // hold, under the full cost model and day clustering.
+  //
+  // The pre-registered statistic is one contrast, the top three deciles minus
+  // the bottom three, because ten decile means are ten chances to find a
+  // winner. The rows are printed as supporting shape only.
+  const SKILL_HOLD_MIN = 2880;
+  console.log(`\n=== SKILL SELECTION (pre-registered): point-in-time score, hold 48h, full costs ===`);
+  const skillPool = fullyCovered(onCoveredCoins, candles, 10 + SKILL_HOLD_MIN);
+  const skillScored = skillPool
+    .map((f) => ({ f, s: scoreAsOf(f.w, f.t) }))
+    .filter((x): x is { f: Fill; s: number } => x.s !== null)
+    .sort((a, b) => a.s - b.s);
+  console.log(`  ${skillScored.length} of ${skillPool.length} episodes carry enough history to score`);
+
+  const sdz = Math.floor(skillScored.length / 10);
+  if (sdz >= 30) {
+    const returnsFor = (bucket: Array<{ f: Fill; s: number }>) => {
+      const rows: Array<{ t: number; r: number }> = [];
+      for (const { f } of bucket) {
+        const tIn = f.t + 10 * MIN, tOut = f.t + (10 + SKILL_HOLD_MIN) * MIN;
+        const entry = priceAt(candles[f.c], tIn);
+        const exit  = priceAt(candles[f.c], tOut);
+        const bEntry = priceAt(btc, tIn);
+        const bExit  = priceAt(btc, tOut);
+        if (entry === null || exit === null || bEntry === null || bExit === null) continue;
+        if (entry <= 0 || bEntry <= 0) continue;
+        const beta = betaBefore(candles[f.c], btc, f.t, `${f.c}|${f.t}`);
+        const fund = fundingOverHold(funding[f.c] ?? [], tIn, tOut);
+        rows.push({
+          t: f.t,
+          r: ((exit - entry) / entry) * f.d
+             - ((bExit - bEntry) / bEntry) * f.d * beta
+             - f.d * fund.sum
+             - FULL_RT,
+        });
+      }
+      return rows;
+    };
+
+    console.log(`  decile | score range   |  mean bps |    t | days`);
+    console.log(`  -------+---------------+-----------+------+------`);
+    for (let d = 0; d < 10; d++) {
+      const bucket = skillScored.slice(d * sdz, (d + 1) * sdz);
+      const st = stats(clusterByDay(returnsFor(bucket)));
+      if (!st) continue;
+      const lo = bucket[0].s.toFixed(3), hi = bucket[bucket.length - 1].s.toFixed(3);
+      console.log(
+        `  ${String(d + 1).padStart(6)} | ${`${lo}-${hi}`.padStart(13)} | ` +
+        `${bps(st.mean).toFixed(1).padStart(9)} | ${st.t.toFixed(1).padStart(4)} | ${String(st.n).padStart(5)}`
+      );
+    }
+
+    // The pre-registered contrast. Paired by day so the spread is measured on
+    // days where both ends actually traded, which is what a long-short of the
+    // two ends would have earned.
+    const topRows = clusterByDayMap(returnsFor(skillScored.slice(7 * sdz)));
+    const botRows = clusterByDayMap(returnsFor(skillScored.slice(0, 3 * sdz)));
+    const paired: number[] = [];
+    for (const [day, top] of topRows) {
+      const bot = botRows.get(day);
+      if (bot !== undefined) paired.push(top - bot);
+    }
+    const spread = stats(paired);
+    console.log(`\n  PRE-REGISTERED CONTRAST: top 3 deciles minus bottom 3, paired by day`);
+    if (!spread || spread.n < 2) {
+      console.log(`    too few paired days to judge`);
+    } else {
+      const tm = trimmedMean(paired, 0.1);
+      const ci = bootstrapMeanCI(paired, { iters: 2000, seed: 42 });
+      console.log(`    spread ${bps(spread.mean).toFixed(1)} bps/day over ${spread.n} paired days, t ${spread.t.toFixed(2)}`);
+      console.log(`    trimmed10 ${tm === null ? "n/a" : bps(tm).toFixed(1)} bps, boot95 [${ci ? `${bps(ci.lo).toFixed(0)}, ${bps(ci.hi).toFixed(0)}` : "n/a"}]`);
+      console.log(`    bar is t 2.5: ${spread.t >= 2.5 ? "PASS" : "FAIL"}`);
+    }
   } else {
     console.log(`  too few scorable episodes to decile`);
   }

@@ -180,13 +180,27 @@ export function clusterByDay(
   rows: ReadonlyArray<{ t: number; r: number }>,
   dayMs = 86_400_000,
 ): number[] {
+  return [...clusterByDayMap(rows, dayMs).values()];
+}
+
+/**
+ * The same clustering, keyed by day index, for when two series have to be
+ * compared on the days they share. Averaging each side separately and
+ * subtracting the totals would compare different days to each other.
+ */
+export function clusterByDayMap(
+  rows: ReadonlyArray<{ t: number; r: number }>,
+  dayMs = 86_400_000,
+): Map<number, number> {
   const groups = new Map<number, number[]>();
   for (const row of rows) {
     const k = Math.floor(row.t / dayMs);
     if (!groups.has(k)) groups.set(k, []);
     groups.get(k)!.push(row.r);
   }
-  return [...groups.values()].map((rs) => rs.reduce((a, b) => a + b, 0) / rs.length);
+  const out = new Map<number, number>();
+  for (const [k, rs] of groups) out.set(k, rs.reduce((a, b) => a + b, 0) / rs.length);
+  return out;
 }
 
 /**
