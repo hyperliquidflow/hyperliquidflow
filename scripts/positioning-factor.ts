@@ -29,10 +29,26 @@
 
 import * as fs from "fs/promises";
 import { sampleRankCorrelation } from "simple-statistics";
+import {
+  priceAt,
+  staleTolerance,
+  describe as stats,
+  trimmedMean,
+  bootstrapMeanCI,
+  fundingOverHold,
+} from "../lib/study-stats";
 
 const CACHE_FILE = "fill-study-cache.json";
+const FUNDING_CACHE_FILE = "funding-cache.json";
 const DAY_MS = 86_400_000;
 const ROUND_TRIP_BPS = 7;
+
+// Pre-registered full cost model (docs/research/2026-08-12-preregistration-leads.md).
+// The 7 bps legacy constant stays on the original sections so their numbers
+// remain comparable with the register history.
+const FEE_BPS_SIDE  = 4.5;  // verified base-tier taker, 2026-08-12
+const SLIP_BPS_SIDE = 5;    // haircut until a depth model exists
+const RT = (2 * (FEE_BPS_SIDE + SLIP_BPS_SIDE)) / 10_000; // 19 bps per replaced name
 
 interface Fill {
   w: string; c: string; p: number; s: number; t: number;
@@ -43,26 +59,7 @@ interface Cache {
   fills: Fill[];
   candles: Record<string, [number, number][]>;
 }
-
-function priceAt(series: [number, number][], t: number, tolMs: number): number | null {
-  if (!series?.length) return null;
-  let lo = 0, hi = series.length - 1, best = -1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    if (series[mid][0] >= t) { best = mid; hi = mid - 1; } else lo = mid + 1;
-  }
-  if (best === -1 || series[best][0] - t > tolMs) return null;
-  return series[best][1];
-}
-
-function stats(xs: number[]) {
-  if (xs.length < 2) return null;
-  const n = xs.length;
-  const mean = xs.reduce((a, b) => a + b, 0) / n;
-  const sd = Math.sqrt(xs.reduce((s, v) => s + (v - mean) ** 2, 0) / (n - 1));
-  const se = sd / Math.sqrt(n);
-  return { n, mean, sd, se, t: se === 0 ? 0 : mean / se, winRate: xs.filter((v) => v > 0).length / n };
-}
+const BAR_MINUTES: Record<string, number> = { "1m": 1, "5m": 5, "15m": 15, "1h": 60 };
 
 async function main() {
   const cache = JSON.parse(await fs.readFile(CACHE_FILE, "utf8")) as Cache;
@@ -75,7 +72,16 @@ async function main() {
     process.exit(1);
   }
 
-  const tolMs = 90 * 60_000;
+  let funding: Record<string, [number, number][]> = {};
+  try {
+    funding = JSON.parse(await fs.readFile(FUNDING_CACHE_FILE, "utf8"));
+  } catch {
+    console.log(`[factor] no ${FUNDING_CACHE_FILE}; the full-cost book will report 0% funding coverage`);
+  }
+
+  // One and a half bars, same rule as fill-study. On the 1h cache this is 90
+  // minutes, identical to the tolerance every recorded run used.
+  const tolMs = staleTolerance(BAR_MINUTES[cache.interval ?? "1m"] ?? 1);
 
   // ── Reconstruct signed size held per wallet per coin, walked forward ───────
   // An open adds to the position on its side, a close removes from it. The sum
@@ -118,6 +124,14 @@ async function main() {
   // return from day d+1 boundary to day d+2 boundary. Rank correlate the two.
   const ics: number[] = [];
   const spreads: number[] = [];
+  // Pre-registered full-cost book plus the dumb baseline, accumulated alongside.
+  const fullSpreads: number[] = [];
+  const momSpreads: number[] = [];
+  const momIcs: number[] = [];
+  const leanMomCorr: number[] = [];
+  let prevLong = new Set<string>();
+  let prevShort = new Set<string>();
+  let fundCovPts = 0, fundCovExp = 0;
   // A solid IC with a marginal traded spread means the ranking knows something
   // the book is too concentrated to collect. Three names a side on a 20 to 30
   // coin cross section is a handful of positions carrying all the variance, so
@@ -135,14 +149,17 @@ async function main() {
     const entryT = t0 + (day + 1) * DAY_MS;
     const exitT  = t0 + (day + 2) * DAY_MS;
 
-    const rows: Array<{ coin: string; lean: number; fwd: number }> = [];
+    const rows: Array<{ coin: string; lean: number; fwd: number; mom: number | null }> = [];
     for (const [coin, net] of snap) {
       const gross = Math.abs(net);
       if (gross < 10_000) continue;                    // ignore dust leans
       const pIn  = priceAt(candles[coin] ?? [], entryT, tolMs);
       const pOut = priceAt(candles[coin] ?? [], exitT,  tolMs);
       if (pIn === null || pOut === null || pIn <= 0) continue;
-      rows.push({ coin, lean: net, fwd: (pOut - pIn) / pIn });
+      // Trailing one-day return: the dumb signal the lean has to beat.
+      const pPrev = priceAt(candles[coin] ?? [], entryT - DAY_MS, tolMs);
+      const mom = pPrev !== null && pPrev > 0 ? (pIn - pPrev) / pPrev : null;
+      rows.push({ coin, lean: net, fwd: (pOut - pIn) / pIn, mom });
     }
     if (rows.length < 6) continue;
 
@@ -161,6 +178,48 @@ async function main() {
       const shortLeg = byLean.slice(0, k).reduce((s, r) => s + r.fwd, 0) / k;
       // Both legs turn over daily, so charge the round trip on each.
       spreads.push(longLeg - shortLeg - 2 * ROUND_TRIP_BPS / 10_000);
+
+      // FULL-COST book (pre-registered): same legs, but funding charged on
+      // every held name (longs pay a positive rate, shorts receive it) and a
+      // full round trip charged only on names that actually changed since
+      // yesterday, so the fee reflects real turnover rather than assuming the
+      // whole book is rebuilt daily.
+      const longNames  = byLean.slice(-k).map((r) => r.coin);
+      const shortNames = byLean.slice(0, k).map((r) => r.coin);
+      let fundLong = 0, fundShort = 0;
+      for (const c of longNames) {
+        const f = fundingOverHold(funding[c] ?? [], entryT, exitT);
+        fundLong += f.sum / k; fundCovPts += f.points; fundCovExp += f.expectedPoints;
+      }
+      for (const c of shortNames) {
+        const f = fundingOverHold(funding[c] ?? [], entryT, exitT);
+        fundShort += f.sum / k; fundCovPts += f.points; fundCovExp += f.expectedPoints;
+      }
+      const replaced =
+        longNames.filter((c) => !prevLong.has(c)).length +
+        shortNames.filter((c) => !prevShort.has(c)).length;
+      const turnoverCost = prevLong.size === 0 ? 2 * RT : (replaced * RT) / k;
+      fullSpreads.push((longLeg - shortLeg) - fundLong + fundShort - turnoverCost);
+      prevLong = new Set(longNames);
+      prevShort = new Set(shortNames);
+
+      // Momentum baseline book: identical machinery, ranked by the trailing
+      // one-day return instead of the cohort lean. Full daily turnover is
+      // assumed for it, which flatters nobody.
+      const momRows = rows.filter((r) => r.mom !== null) as Array<{ coin: string; lean: number; fwd: number; mom: number }>;
+      if (momRows.length >= 6) {
+        const byMom = [...momRows].sort((a, b) => a.mom - b.mom);
+        const km = Math.min(TOP_N, Math.floor(byMom.length / 2));
+        if (km >= 1) {
+          const ml = byMom.slice(-km).reduce((s, r) => s + r.fwd, 0) / km;
+          const ms = byMom.slice(0, km).reduce((s, r) => s + r.fwd, 0) / km;
+          momSpreads.push(ml - ms - 2 * RT);
+        }
+        const rhoMom = sampleRankCorrelation(momRows.map((r) => r.mom), momRows.map((r) => r.fwd));
+        if (Number.isFinite(rhoMom)) momIcs.push(rhoMom);
+        const rhoLeanMom = sampleRankCorrelation(momRows.map((r) => r.lean), momRows.map((r) => r.mom));
+        if (Number.isFinite(rhoLeanMom)) leanMomCorr.push(rhoLeanMom);
+      }
     }
   }
 
@@ -186,6 +245,29 @@ async function main() {
       console.log(`  split-half    early ${(early.mean * 10_000).toFixed(1)} bps (t ${early.t.toFixed(2)}) / late ${(late.mean * 10_000).toFixed(1)} bps (t ${late.t.toFixed(2)})`);
     }
   } else console.log(`  not enough days`);
+
+  const fullStat = stats(fullSpreads);
+  console.log(`\n=== FULL-COST book (pre-registered): funding + ${(RT * 10_000).toFixed(0)} bps per replaced name ===`);
+  if (fullStat) {
+    const tm = trimmedMean(fullSpreads, 0.1);
+    const ci = bootstrapMeanCI(fullSpreads, { iters: 2000, seed: 42 });
+    console.log(`  days ${fullStat.n}  mean ${(fullStat.mean * 10_000).toFixed(1)} bps/day  t ${fullStat.t.toFixed(2)}  win ${(fullStat.winRate * 100).toFixed(0)}%`);
+    console.log(`  trimmed10 ${tm === null ? "n/a" : (tm * 10_000).toFixed(1)} bps  boot95 [${ci ? `${(ci.lo * 10_000).toFixed(1)}, ${(ci.hi * 10_000).toFixed(1)}` : "n/a"}] bps`);
+    console.log(`  funding coverage ${fundCovExp > 0 ? ((fundCovPts / fundCovExp) * 100).toFixed(0) : 0}% of expected settlements`);
+    const half = Math.floor(fullSpreads.length / 2);
+    const e = stats(fullSpreads.slice(0, half)), l = stats(fullSpreads.slice(half));
+    if (e && l) {
+      console.log(`  split-half    early ${(e.mean * 10_000).toFixed(1)} bps (t ${e.t.toFixed(2)}) / late ${(l.mean * 10_000).toFixed(1)} bps (t ${l.t.toFixed(2)})`);
+    }
+  } else console.log(`  not enough days`);
+
+  const momIcStat = stats(momIcs);
+  const momSpStat = stats(momSpreads);
+  const lmStat = stats(leanMomCorr);
+  console.log(`\n=== Momentum baseline: the dumb alternative the lean has to beat ===`);
+  if (momIcStat) console.log(`  momentum IC   ${momIcStat.mean.toFixed(4)}   (se ${momIcStat.se.toFixed(4)}, t ${momIcStat.t.toFixed(2)})`);
+  if (momSpStat) console.log(`  momentum book ${(momSpStat.mean * 10_000).toFixed(1)} bps/day  (t ${momSpStat.t.toFixed(2)}, full turnover charged)`);
+  if (lmStat) console.log(`  daily rank corr(lean, momentum) ${lmStat.mean.toFixed(3)}: how much of the lean is chasing yesterday`);
 
   console.log(`\nNothing was written.`);
 }
