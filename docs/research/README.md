@@ -40,6 +40,10 @@ audit re-ran it (dossier finding R2, confirmed by both external reviews).
   does not sort the entries a follower can copy (pre-registered contrast
   -13.0 bps/day, t -0.47, FAIL). Decile 9 alone looked excellent, which is
   exactly what the single pre-registered contrast existed to prevent.
+- [2026-08-13-momentum-family-and-splithalf.md](2026-08-13-momentum-family-and-splithalf.md):
+  a 3-day momentum rule ties the long-hold lead at 72h (+61.9 vs +64.2), which
+  downgrades yesterday's "momentum rejected" claim to "rejected at 1 day only".
+  The corrected table does pass its split-half, with heavy front-loading.
 - [2026-08-13-cache-audit.md](2026-08-13-cache-audit.md): the cache matches the
   exchange exactly, 8,405 bars, zero differences. Determinism was already known;
   this is fidelity, which is the claim that matters.

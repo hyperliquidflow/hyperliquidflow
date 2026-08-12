@@ -788,7 +788,16 @@ function main(cache: Cache) {
       picked.push(f);
       lastByCoin.set(f.c, f.t);
     }
-    for (const which of ["wallet", "momentum"] as const) {
+    // One momentum lookback is one point in a family, so the baseline is run at
+    // three. If any of them replicates the wallet row, the wallet direction is
+    // not adding information at that hold.
+    const SIGNALS: Array<{ name: string; lookbackMin: number | null }> = [
+      { name: "wallet",   lookbackMin: null },
+      { name: "mom 1d",   lookbackMin: 1440 },
+      { name: "mom 3d",   lookbackMin: 4320 },
+      { name: "mom 7d",   lookbackMin: 10080 },
+    ];
+    for (const sig of SIGNALS) {
       const rows: Array<{ t: number; r: number }> = [];
       let fundPoints = 0, fundExpected = 0;
       for (const f of picked) {
@@ -800,8 +809,8 @@ function main(cache: Cache) {
         if (entry === null || exit === null || bEntry === null || bExit === null) continue;
         if (entry <= 0 || bEntry <= 0) continue;
         let d: 1 | -1 = f.d;
-        if (which === "momentum") {
-          const pPrev = priceAt(candles[f.c], f.t - 1440 * MIN);
+        if (sig.lookbackMin !== null) {
+          const pPrev = priceAt(candles[f.c], f.t - sig.lookbackMin * MIN);
           if (pPrev === null || pPrev <= 0) continue;
           d = entry >= pPrev ? 1 : -1;
         }
@@ -815,18 +824,38 @@ function main(cache: Cache) {
           FULL_RT;
         rows.push({ t: f.t, r });
       }
-      const byDay = clusterByDay(rows);
+      const byDayMap = clusterByDayMap(rows);
+      const byDay = [...byDayMap.values()];
       const st = stats(byDay);
-      if (!st || st.n < 2) { console.log(`  ${String(H).padStart(4)}m | ${which.padEnd(8)} | too few`); continue; }
+      if (!st || st.n < 2) { console.log(`  ${String(H).padStart(4)}m | ${sig.name.padEnd(8)} | too few`); continue; }
       const tm = trimmedMean(byDay, 0.1);
       const ci = bootstrapMeanCI(byDay, { iters: 2000, seed: 42 });
       const cov = fundExpected > 0 ? ((fundPoints / fundExpected) * 100).toFixed(0) : "0";
       const ciStr = ci ? `[${bps(ci.lo).toFixed(0)}, ${bps(ci.hi).toFixed(0)}]` : "n/a";
       console.log(
-        `  ${String(H).padStart(4)}m | ${which.padEnd(8)} | ${String(rows.length).padStart(4)} | ${String(st.n).padStart(4)} | ` +
+        `  ${String(H).padStart(4)}m | ${sig.name.padEnd(8)} | ${String(rows.length).padStart(4)} | ${String(st.n).padStart(4)} | ` +
         `${bps(st.mean).toFixed(1).padStart(8)} | ${tm === null ? "   n/a" : bps(tm).toFixed(1).padStart(6)} | ` +
         `${st.t.toFixed(1).padStart(4)} | ${ciStr.padEnd(14)} | ${cov}%`
       );
+
+      // Split-half on the corrected table. The split-half cited for this lead
+      // came from the overlapping version, so the correction has never had the
+      // project's own signature robustness test applied to it. Split by day so
+      // the halves are calendar halves rather than unequal counts of entries.
+      if (sig.lookbackMin === null) {
+        const days = [...byDayMap.keys()].sort((a, b) => a - b);
+        const mid = Math.floor(days.length / 2);
+        const early = stats(days.slice(0, mid).map((d) => byDayMap.get(d)!));
+        const late  = stats(days.slice(mid).map((d) => byDayMap.get(d)!));
+        if (early && late) {
+          const agree = Math.sign(early.mean) === Math.sign(late.mean);
+          console.log(
+            `       | split    | early ${bps(early.mean).toFixed(1).padStart(7)} (t ${early.t.toFixed(1)}, n${early.n})` +
+            `  late ${bps(late.mean).toFixed(1).padStart(7)} (t ${late.t.toFixed(1)}, n${late.n})` +
+            `  ${agree ? "signs agree" : "SIGNS DISAGREE"}`
+          );
+        }
+      }
     }
   }
 
