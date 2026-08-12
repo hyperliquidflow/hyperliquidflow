@@ -31,3 +31,7 @@ audit re-ran it (dossier finding R2, confirmed by both external reviews).
   under the full cost model, day clustering, trimmed means, bootstrap, and
   momentum baselines. Both FAIL their 2.5 confirmation bars at 120 days and
   survive every falsification test; both proceed to the 200-day extension.
+- [2026-08-12-frozen-pool.md](2026-08-12-frozen-pool.md): the survivorship
+  control. Both leads stay positive and below the bar. Establishes the hard
+  bound that no clean window can predate 2026-04-11, which is why the forward
+  record is the only instrument that can settle either lead.

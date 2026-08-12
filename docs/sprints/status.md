@@ -32,6 +32,25 @@ for out-of-sample confirmation; the forward shadow record of the positioning
 factor should start as soon as a daily snapshot job exists, because its clock
 is free and Path C needs the track record anyway.
 
+**The forward out-of-sample clock started 2026-08-12** (migration 026,
+`scripts/factor-shadow.ts`, `.github/workflows/factor-shadow.yml` daily at
+03:00 UTC). Day 1 of 60 is recorded: 157 rankable coins across 50 wallets,
+legs 5 a side. It resolves yesterday before recording today, never backfills,
+and withholds any verdict below 60 days. This is the only instrument that can
+settle either lead, because of the bound below.
+
+**The hard bound on every backtest: discovery began 2026-04-11, so no clean
+window can predate it.** Of the 4,791 band wallets, 4,335 were discovered in
+April 2026 and zero existed 200 days ago. A window reaching further back
+cannot be frozen; more history buys regime coverage for the contaminated
+version of a study and nothing for the clean one. The clean window is capped
+near 123 days today and grows a day per day. Frozen results
+(`docs/research/2026-08-12-frozen-pool.md`, 92% of fills kept): Lead 2 at 48h
++48.7 bps (t 1.6, was 2.0) and at 72h +64.2 (t 1.8, was 2.1); Lead 1's IC is
+unchanged at 0.0653 (t 3.17) with a full-cost book at 5 legs of +39.0 bps/day
+(t 1.42) whose trimmed mean equals its mean. Survivorship was real, modest,
+and did not carry either lead.
+
 **The executioners ran the same evening
 (`docs/research/2026-08-12-executioner-run.md`). Both leads FAIL their
 pre-registered 2.5 confirmation bars at 120 days and survive every
