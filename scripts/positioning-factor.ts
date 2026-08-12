@@ -31,6 +31,7 @@ import * as fs from "fs/promises";
 import { createClient } from "@supabase/supabase-js";
 import { sampleRankCorrelation } from "simple-statistics";
 import { fetchDiscoveryDates, freezeToDiscovery, describeFreeze, type DiscoveryQuery } from "../lib/discovery";
+import { fetchMetaAndAssetCtxs, buildAssetCtxMap } from "../lib/hyperliquid-api-client";
 import {
   priceAt,
   staleTolerance,
@@ -44,6 +45,18 @@ const CACHE_FILE = process.argv.find((a) => a.startsWith("--cache="))?.split("="
   ?? "fill-study-cache.json";
 const FUNDING_CACHE_FILE = "funding-cache.json";
 const FREEZE_POOL = process.argv.includes("--freeze-pool");
+// Capacity, not edge, is what bounds this strategy: the factor leans into thin
+// coins, and the 2026-08-12 capacity study put the ceiling near $100k of book
+// because names like STBL and RENDER exhaust their order books at $25k. This
+// filter asks the trade-off question directly: does the edge survive if the
+// universe is restricted to names that can absorb size?
+//
+// It uses today's daily notional volume for a historical window, which is a
+// mild lookahead. Liquidity rank is highly persistent, and a live system would
+// filter on current liquidity anyway, so the approximation matches what a real
+// implementation would do. It is recorded rather than hidden.
+const MIN_VOLUME = Number(process.argv.find((a) => a.startsWith("--min-volume="))?.split("=")[1] ?? 0);
+const VOLUME_CACHE_FILE = "volume-cache.json";
 const DAY_MS = 86_400_000;
 const ROUND_TRIP_BPS = 7;
 
@@ -104,6 +117,27 @@ async function main() {
   // One and a half bars, same rule as fill-study. On the 1h cache this is 90
   // minutes, identical to the tolerance every recorded run used.
   const tolMs = staleTolerance(BAR_MINUTES[cache.interval ?? "1m"] ?? 1);
+
+  // Liquidity filter. Cached so a sweep of thresholds costs one API call.
+  let liquid: Set<string> | null = null;
+  if (MIN_VOLUME > 0) {
+    let volumes: Record<string, number>;
+    try {
+      volumes = JSON.parse(await fs.readFile(VOLUME_CACHE_FILE, "utf8"));
+    } catch {
+      const map = buildAssetCtxMap(await fetchMetaAndAssetCtxs());
+      volumes = Object.fromEntries([...map].map(([coin, ctx]) => [coin, Number(ctx.dayNtlVlm)]));
+      await fs.writeFile(VOLUME_CACHE_FILE, JSON.stringify(volumes));
+      console.log(`[factor] cached daily volume for ${Object.keys(volumes).length} coins to ${VOLUME_CACHE_FILE}`);
+    }
+    liquid = new Set(Object.entries(volumes).filter(([, v]) => v >= MIN_VOLUME).map(([c]) => c));
+    const inCache = new Set(fills.map((f) => f.c));
+    const kept = [...inCache].filter((c) => liquid!.has(c));
+    console.log(
+      `[factor] --min-volume=$${(MIN_VOLUME / 1e6).toFixed(0)}M: ${kept.length} of ${inCache.size} traded coins qualify ` +
+      `(today's volume applied to a historical window; liquidity rank is persistent, but this is recorded as an approximation)`
+    );
+  }
 
   // ── Reconstruct signed size held per wallet per coin, walked forward ───────
   // An open adds to the position on its side, a close removes from it. The sum
@@ -175,6 +209,7 @@ async function main() {
     for (const [coin, net] of snap) {
       const gross = Math.abs(net);
       if (gross < 10_000) continue;                    // ignore dust leans
+      if (liquid && !liquid.has(coin)) continue;       // names that cannot absorb size
       const pIn  = priceAt(candles[coin] ?? [], entryT, tolMs);
       const pOut = priceAt(candles[coin] ?? [], exitT,  tolMs);
       if (pIn === null || pOut === null || pIn <= 0) continue;

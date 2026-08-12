@@ -63,3 +63,4 @@ fill-study-cache.json
 
 # funding history cache (regenerable)
 funding-cache.json
+volume-cache.json

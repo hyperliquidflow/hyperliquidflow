@@ -114,6 +114,16 @@ governs, per the amendment rule above.
    all falsification tests including 100%-coverage funding and momentum
    baselines. Bars unchanged. See
    [2026-08-12-executioner-run.md](2026-08-12-executioner-run.md).
+4. **Liquidity filter fixed ex ante at $2M daily notional volume** for the
+   200-day run, and for any live implementation. The capacity study put the
+   unfiltered ceiling near $100k of book because the factor's thin names
+   exhaust at $25k; the liquidity sweep
+   ([2026-08-12-liquidity-tradeoff.md](2026-08-12-liquidity-tradeoff.md))
+   showed the diagnostic survives filtering while the traded book gives up
+   about a quarter of its return. Five thresholds were examined, so the choice
+   is fixed now, before the 200-day data exists, rather than picked afterwards.
+   Both the filtered and unfiltered books will be reported; the filtered one is
+   the pre-registered candidate.
 
 ## If both leads fail
 
