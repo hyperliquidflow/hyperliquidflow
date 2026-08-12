@@ -177,6 +177,36 @@ Both horizons are fixed now. If the effect is larger than the point estimate
 the bars clear sooner, and that is allowed; if it is smaller, no bar written
 today would have found it, and that is the honest cost of a t 1.4 effect.
 
+## Hypothesis 3: exit copying (registered 2026-08-13, BEFORE the first run)
+
+Every study in this project has measured entries. Whether this cohort knows
+when to *get out* is a separate claim that has never been tested, and the cache
+already holds 28,163 closing fills, so it costs a re-slice rather than a fetch.
+
+**Hypothesis.** When cohort wallets close a position, the coin subsequently
+moves against the position they closed. A follower trades in the direction of
+the close: a closed long is a sell, so the follower sells or shorts.
+
+**Why it could differ from entry copying, which is dead.** An entry competes
+with everyone else who wants in, and the information is in the price by the
+time the fill prints. An exit is a decision about a position the trader already
+holds, and the crowd is not racing them out of it. Exits also cluster around
+information the holder has and the market has not priced yet.
+
+**Specification.** Identical to the shared spec above: full cost model with
+path-wise funding, day-clustered errors, trimmed mean and bootstrap, frozen
+pool, non-overlapping windows for multi-day holds, and the same momentum
+baseline. Closing episodes are formed the same way opening ones are, merging
+fills of one wallet, coin and side within 30 minutes.
+
+**Gate.** Primary hold 48h, chosen to match Lead 2 so the two are comparable.
+Net mean above 0 with day-clustered t at least 2.5, sign agreement at 24h and
+72h, survives the momentum baseline, positive trimmed mean.
+
+**Fail consequence.** Exit copying is dead and is not retried at other holds on
+this window. Combined with the entry result, that would close the follow
+premise in both directions and leave positioning as the only survivor.
+
 ## Verdict states, and the expiry on "failed but alive"
 
 The reviews correctly noted that a lead which fails its bar while surviving

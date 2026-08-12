@@ -31,6 +31,11 @@ audit re-ran it (dossier finding R2, confirmed by both external reviews).
   under the full cost model, day clustering, trimmed means, bootstrap, and
   momentum baselines. Both FAIL their 2.5 confirmation bars at 120 days and
   survive every falsification test; both proceed to the 200-day extension.
+- [2026-08-13-exit-copying.md](2026-08-13-exit-copying.md): exit copying is
+  dead (negative at every hold, t -3.7 at 24h). The failure is informative: the
+  cohort sells winners that keep winning, which with the entry and holding
+  results makes one coherent story. The sign-flipped variant is quarantined as
+  a hypothesis, not claimed.
 - [2026-08-12-capacity.md](2026-08-12-capacity.md): what a surviving edge would
   be worth. Honest capacity is about $100k of book, roughly $364/day if the
   edge is real, bounded by the thin coins the factor prefers.

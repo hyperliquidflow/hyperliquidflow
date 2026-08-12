@@ -829,6 +829,76 @@ function main(cache: Cache) {
     }
   }
 
+  // ── Exit copying: the half of the follow premise never measured ──────────
+  // docs/research/2026-08-12-preregistration-leads.md, Hypothesis 3. Every
+  // table above measures entries. Whether this cohort knows when to get out is
+  // a separate claim, and the cache already carries the closing fills.
+  //
+  // A close of a long is a sell, so the follower's direction is the opposite of
+  // the position being closed. Same machinery as the executioner: episodes,
+  // non-overlapping windows, per-coin beta, full costs with path-wise funding,
+  // day clustering, trimmed mean, bootstrap. The momentum row substitutes the
+  // trailing 24h sign for the cohort's, and if it matches, the exits carry
+  // nothing the price did not already say.
+  const closingEpisodes = toEpisodes(fills.filter((f) => candles[f.c]?.length && f.o === 0));
+  console.log(`\n=== EXIT COPYING (pre-registered): follow the close, full costs, day-clustered ===`);
+  console.log(`  ${closingEpisodes.length} closing episodes; follower direction is opposite the position closed`);
+  console.log(`  hold | signal   |    n | days | mean bps | trim10 |    t | boot95 bps     | fund cov`);
+  console.log(`  -----+----------+------+------+----------+--------+------+----------------+---------`);
+  for (const H of HOLDS) {
+    const pool = fullyCovered(closingEpisodes, candles, 10 + H).slice().sort((a, b) => a.t - b.t);
+    const lastByCoin = new Map<string, number>();
+    const picked: Fill[] = [];
+    for (const f of pool) {
+      const last = lastByCoin.get(f.c) ?? -Infinity;
+      if (f.t - last < H * MIN) continue;
+      picked.push(f);
+      lastByCoin.set(f.c, f.t);
+    }
+    for (const which of ["exit", "momentum"] as const) {
+      const rows: Array<{ t: number; r: number }> = [];
+      let fundPoints = 0, fundExpected = 0;
+      for (const f of picked) {
+        const tIn = f.t + 10 * MIN, tOut = f.t + (10 + H) * MIN;
+        const entry = priceAt(candles[f.c], tIn);
+        const exit  = priceAt(candles[f.c], tOut);
+        const bEntry = priceAt(btc, tIn);
+        const bExit  = priceAt(btc, tOut);
+        if (entry === null || exit === null || bEntry === null || bExit === null) continue;
+        if (entry <= 0 || bEntry <= 0) continue;
+        // Opposite the position that was closed: a closed long is a sell.
+        let d: 1 | -1 = (f.d === 1 ? -1 : 1);
+        if (which === "momentum") {
+          const pPrev = priceAt(candles[f.c], f.t - 1440 * MIN);
+          if (pPrev === null || pPrev <= 0) continue;
+          d = entry >= pPrev ? 1 : -1;
+        }
+        const beta = betaBefore(candles[f.c], btc, f.t, `${f.c}|${f.t}`);
+        const fund = fundingOverHold(funding[f.c] ?? [], tIn, tOut);
+        fundPoints += fund.points; fundExpected += fund.expectedPoints;
+        rows.push({
+          t: f.t,
+          r: ((exit - entry) / entry) * d
+             - ((bExit - bEntry) / bEntry) * d * beta
+             - d * fund.sum
+             - FULL_RT,
+        });
+      }
+      const byDay = clusterByDay(rows);
+      const st = stats(byDay);
+      if (!st || st.n < 2) { console.log(`  ${String(H).padStart(4)}m | ${which.padEnd(8)} | too few`); continue; }
+      const tm = trimmedMean(byDay, 0.1);
+      const ci = bootstrapMeanCI(byDay, { iters: 2000, seed: 42 });
+      const cov = fundExpected > 0 ? ((fundPoints / fundExpected) * 100).toFixed(0) : "0";
+      const ciStr = ci ? `[${bps(ci.lo).toFixed(0)}, ${bps(ci.hi).toFixed(0)}]` : "n/a";
+      console.log(
+        `  ${String(H).padStart(4)}m | ${which.padEnd(8)} | ${String(rows.length).padStart(4)} | ${String(st.n).padStart(4)} | ` +
+        `${bps(st.mean).toFixed(1).padStart(8)} | ${tm === null ? "   n/a" : bps(tm).toFixed(1).padStart(6)} | ` +
+        `${st.t.toFixed(1).padStart(4)} | ${ciStr.padEnd(14)} | ${cov}%`
+      );
+    }
+  }
+
   // ── Coordination: the only version of the follow premise still standing ──
   // Every recipe assumes several wallets entering the same coin and direction
   // together differs from one wallet doing it alone. The tables above measured
