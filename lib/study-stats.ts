@@ -167,3 +167,96 @@ export function zscore(xs: readonly number[]): number[] {
   if (!Number.isFinite(sd) || sd === 0) return xs.map(() => 0);
   return xs.map((v) => (v - mean) / sd);
 }
+
+/**
+ * Average all observations on one UTC calendar day into one value, regardless
+ * of coin. clusterByCoinDay absorbs many wallets on one coin; it does nothing
+ * about many coins moving together on the same day, and alts are heavily
+ * correlated cross-sectionally, so thirty coins on one falling afternoon are
+ * closer to one observation than thirty. Day-level clustering is the
+ * conservative unit for any multi-coin table (external review, 2026-08-12).
+ */
+export function clusterByDay(
+  rows: ReadonlyArray<{ t: number; r: number }>,
+  dayMs = 86_400_000,
+): number[] {
+  const groups = new Map<number, number[]>();
+  for (const row of rows) {
+    const k = Math.floor(row.t / dayMs);
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k)!.push(row.r);
+  }
+  return [...groups.values()].map((rs) => rs.reduce((a, b) => a + b, 0) / rs.length);
+}
+
+/**
+ * Mean after dropping `frac` of the sample from each end. A mean that does not
+ * survive trimming is carried by a handful of tail observations, which is a
+ * lottery ticket rather than an edge. Null when trimming leaves nothing.
+ */
+export function trimmedMean(xs: readonly number[], frac = 0.1): number | null {
+  const n = xs.length;
+  if (n === 0 || frac <= 0) return n === 0 ? null : xs.reduce((a, b) => a + b, 0) / n;
+  // ceil, not floor: always remove at least the requested fraction, so a
+  // sample too small to trim honestly returns null instead of an untrimmed mean.
+  const cut = Math.ceil(n * frac);
+  const kept = [...xs].sort((a, b) => a - b).slice(cut, n - cut);
+  if (kept.length === 0) return null;
+  return kept.reduce((a, b) => a + b, 0) / kept.length;
+}
+
+/** Deterministic PRNG so bootstrap results reproduce run to run. */
+export function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * Percentile bootstrap CI for the mean. Feed it day-clustered values so the
+ * resampling unit is the day, not the (correlated) raw observation.
+ */
+export function bootstrapMeanCI(
+  xs: readonly number[],
+  opts: { iters?: number; alpha?: number; seed?: number } = {},
+): { lo: number; hi: number } | null {
+  const { iters = 2000, alpha = 0.05, seed = 42 } = opts;
+  const n = xs.length;
+  if (n < 2) return null;
+  const rng = mulberry32(seed);
+  const means: number[] = new Array(iters);
+  for (let i = 0; i < iters; i++) {
+    let s = 0;
+    for (let j = 0; j < n; j++) s += xs[Math.floor(rng() * n)];
+    means[i] = s / n;
+  }
+  means.sort((a, b) => a - b);
+  const loIdx = Math.floor((alpha / 2) * iters);
+  const hiIdx = Math.min(iters - 1, Math.ceil((1 - alpha / 2) * iters) - 1);
+  return { lo: means[loIdx], hi: means[hiIdx] };
+}
+
+/**
+ * Sum of hourly funding rates settling inside (t0, t1], plus coverage so a
+ * sparse funding series cannot silently understate the charge. Convention:
+ * a positive rate means longs pay, so a position with direction d is charged
+ * d * sum as a return deduction.
+ */
+export function fundingOverHold(
+  series: ReadonlyArray<readonly [number, number]>,
+  t0: number,
+  t1: number,
+): { sum: number; points: number; expectedPoints: number } {
+  const expectedPoints = Math.max(0, Math.round((t1 - t0) / 3_600_000));
+  let sum = 0, points = 0;
+  for (const [ts, rate] of series) {
+    if (ts > t1) break;
+    if (ts > t0) { sum += rate; points++; }
+  }
+  return { sum, points, expectedPoints };
+}

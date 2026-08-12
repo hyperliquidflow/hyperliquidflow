@@ -4,8 +4,13 @@ import {
   staleTolerance,
   toEpisodes,
   clusterByCoinDay,
+  clusterByDay,
   describe as summarise,
   zscore,
+  trimmedMean,
+  mulberry32,
+  bootstrapMeanCI,
+  fundingOverHold,
   type StudyFill,
 } from "@/lib/study-stats";
 
@@ -215,5 +220,91 @@ suite("zscore", () => {
     const base = zscore([1, 2, 3]);
     const shifted = zscore([501, 502, 503]);
     base.forEach((v, i) => expect(v).toBeCloseTo(shifted[i], 12));
+  });
+});
+
+suite("clusterByDay", () => {
+  it("averages all observations on one UTC day into one value across coins", () => {
+    const day = 86_400_000;
+    const rows = [
+      { t: day * 100 + 1, r: 0.01 },
+      { t: day * 100 + 2, r: 0.03 },
+      { t: day * 101 + 5, r: -0.02 },
+    ];
+    const out = clusterByDay(rows).sort((a, b) => a - b);
+    expect(out).toHaveLength(2);
+    expect(out[0]).toBeCloseTo(-0.02, 10);
+    expect(out[1]).toBeCloseTo(0.02, 10);
+  });
+
+  it("thirty coins on one falling afternoon are one observation", () => {
+    const rows = Array.from({ length: 30 }, (_, i) => ({ t: 86_400_000 * 7 + i, r: -0.05 }));
+    expect(clusterByDay(rows)).toHaveLength(1);
+  });
+});
+
+suite("trimmedMean", () => {
+  it("is insensitive to a single extreme tail value at 10% trim", () => {
+    const xs = [1, 2, 3, 4, 5, 6, 7, 8, 9, 1000];
+    const tm = trimmedMean(xs, 0.1)!;
+    expect(tm).toBeCloseTo((2 + 3 + 4 + 5 + 6 + 7 + 8 + 9) / 8, 10);
+  });
+
+  it("returns null when trimming would leave nothing", () => {
+    expect(trimmedMean([1], 0.5)).toBeNull();
+  });
+});
+
+suite("bootstrapMeanCI", () => {
+  it("is deterministic for a fixed seed", () => {
+    const xs = Array.from({ length: 50 }, (_, i) => (i % 2 === 0 ? 1 : -0.5));
+    const a = bootstrapMeanCI(xs, { iters: 500, seed: 42 })!;
+    const b = bootstrapMeanCI(xs, { iters: 500, seed: 42 })!;
+    expect(a.lo).toBe(b.lo);
+    expect(a.hi).toBe(b.hi);
+  });
+
+  it("brackets the sample mean of a well-behaved sample", () => {
+    const xs = Array.from({ length: 200 }, (_, i) => 0.5 + Math.sin(i) * 0.1);
+    const ci = bootstrapMeanCI(xs, { iters: 1000, seed: 7 })!;
+    const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
+    expect(ci.lo).toBeLessThan(mean);
+    expect(ci.hi).toBeGreaterThan(mean);
+  });
+
+  it("returns null below two observations", () => {
+    expect(bootstrapMeanCI([1])).toBeNull();
+  });
+
+  it("mulberry32 streams are reproducible", () => {
+    const a = mulberry32(7), b = mulberry32(7);
+    for (let i = 0; i < 5; i++) expect(a()).toBe(b());
+  });
+});
+
+suite("fundingOverHold", () => {
+  const hour = 3_600_000;
+  const series: Array<[number, number]> = [
+    [hour * 1, 0.0001], [hour * 2, 0.0002], [hour * 3, -0.0001], [hour * 4, 0.0003],
+  ];
+
+  it("sums rates settling inside the window, exclusive start, inclusive end", () => {
+    const { sum, points, expectedPoints } = fundingOverHold(series, hour * 1, hour * 3);
+    expect(sum).toBeCloseTo(0.0001, 12);
+    expect(points).toBe(2);
+    expect(expectedPoints).toBe(2);
+  });
+
+  it("reports missing settlements through expectedPoints", () => {
+    const { points, expectedPoints } = fundingOverHold(series, 0, hour * 10);
+    expect(points).toBe(4);
+    expect(expectedPoints).toBe(10);
+  });
+
+  it("an empty series contributes zero with the full expected count", () => {
+    const { sum, points, expectedPoints } = fundingOverHold([], 0, hour * 5);
+    expect(sum).toBe(0);
+    expect(points).toBe(0);
+    expect(expectedPoints).toBe(5);
   });
 });
