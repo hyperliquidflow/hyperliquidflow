@@ -422,7 +422,27 @@ function toEpisodes(fills: Fill[]): Fill[] {
  */
 const BETA_LOOKBACK_BARS = 200;
 
+const betaCache = new Map<string, number>();
+
 function betaBefore(
+  coinSeries: [number, number][],
+  btcSeries: [number, number][],
+  t: number,
+  key?: string,
+): number {
+  // Beta depends only on the coin and the entry time, but the tables call it
+  // once per latency and hold cell, which turns 35k episodes into over a
+  // million regressions. Memoise on coin and timestamp.
+  if (key !== undefined) {
+    const hit = betaCache.get(key);
+    if (hit !== undefined) return hit;
+  }
+  const value = computeBetaUncached(coinSeries, btcSeries, t);
+  if (key !== undefined) betaCache.set(key, value);
+  return value;
+}
+
+function computeBetaUncached(
   coinSeries: [number, number][],
   btcSeries: [number, number][],
   t: number,
@@ -531,7 +551,7 @@ function main(cache: Cache) {
         const bEntry = priceAt(btc, f.t + L * MIN);
         const bExit  = priceAt(btc, f.t + (L + H) * MIN);
         if (bEntry === null || bExit === null || bEntry <= 0) continue;
-        const beta = betaBefore(candles[f.c], btc, f.t);
+        const beta = betaBefore(candles[f.c], btc, f.t, `${f.c}|${f.t}`);
         const raw   = ((exit - entry) / entry) * f.d;
         const bench = ((bExit - bEntry) / bEntry) * f.d * beta;
         rows.push({ coin: f.c, t: f.t, r: raw - bench - ROUND_TRIP_BPS / 10_000 });
@@ -563,7 +583,7 @@ function main(cache: Cache) {
         const bExit  = priceAt(btc, f.t + (10 + H) * MIN);
         if (entry === null || exit === null || bEntry === null || bExit === null) continue;
         if (entry <= 0 || bEntry <= 0) continue;
-        const beta = betaBefore(candles[f.c], btc, f.t);
+        const beta = betaBefore(candles[f.c], btc, f.t, `${f.c}|${f.t}`);
         rows.push({ coin: f.c, t: f.t,
           r: ((exit - entry) / entry) * f.d - ((bExit - bEntry) / bEntry) * f.d * beta - ROUND_TRIP_BPS / 10_000 });
       }

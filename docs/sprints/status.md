@@ -316,6 +316,57 @@ where the curve tops out.
 The 10-minute polling architecture is not disqualified. The edge, such as it is,
 does not live in the first minutes.
 
+**The 24h result did not survive a bigger sample (2026-08-12). Following the
+average cohort entry has no tradeable edge.** Rerun at 1h bars over 120 days
+across 350 wallets: 1,271,768 opening fills, 34,818 episodes, **2,403
+independent coin-days** against 435 before.
+
+| Hold | 45-day window | 120-day window | t |
+|---|---|---|---|
+| 1 hour | -5.1 | **-6.4** | **-7.5** |
+| 4 hours | +2.0 | **-4.8** | **-2.7** |
+| 12 hours | +23.0 | +1.2 | 0.4 |
+| 24 hours | **+45.7** | **+5.6** | 1.0 |
+| 48 hours | n/a | +13.9 | 1.5 |
+| 72 hours | n/a | +6.3 | 0.6 |
+
+The 24h figure fell from +45.7 to +5.6 and lost significance. Split-half shows
+why, and it is worse than noise: the two halves carry **opposite signs with
+significance in both directions**. Early half is -22.2 bps at 48h (t=-2.0) and
+-41.6 at 72h (t=-2.8); late half is +61.2 (t=4.2) and +71.0 (t=4.2). That is
+regime dependence, not edge. The 45-day window happened to be the favourable
+half: 62% long into a +6.0% BTC move, where the 120-day window is 48% long into
+a -14.2% move.
+
+What is robust is the gross number and it does not help. Drift from the cohort's
+own fill price is +14 bps at t=12.6 on 34,742 episodes, flat across every
+horizon, 53% win rate. It is real. It is also market exposure: strip a per-coin
+beta benchmark and charge 7 bps of round trip, and it is **negative at short
+holds and zero everywhere else**.
+
+The exit grid fitted to the cohort's own excursions loses at every setting, from
+-5 to -58 bps, t between -3 and -53. MFE median 166 bps against MAE median -156
+bps, near symmetric, so no stop and target pair extracts anything after costs.
+No notional effect either: all five quintiles negative, none significant.
+
+**Retraction.** The 45-day result was reported here as "the first lead that
+survived being attacked". It did not survive the fifth attack. The suspicion
+that the flat-across-latency 24h number was regime rather than alpha was correct
+the first time, and talking myself out of it on arithmetic grounds was the
+error: the arithmetic point about latency was right and irrelevant to whether
+the effect was beta.
+
+**What this does not test.** Every recipe rests on *coordination*, several
+wallets entering the same coin and direction together, being different from the
+average entry. This measured average entries. That hypothesis is still open and
+is now the only version of the follow premise left standing. Testing it needs
+the same harness restricted to episodes where N wallets cluster on a coin within
+a window, which the cache already supports. Selection by score is also untested,
+still blocked on point-in-time scores.
+
+If coordinated entries look like average entries, the premise is dead and the
+honest move is to stop tuning recipes and change the strategy.
+
 **The activity gate was measured and deliberately not shipped (2026-08-12).**
 The skill test's monotonic IC-by-activity curve makes gating activation on
 trading days look obvious. `scripts/activity-gate-tradeoff.ts` prices both sides
