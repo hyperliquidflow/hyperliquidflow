@@ -20,7 +20,42 @@ npx tsx scripts/daily-wallet-scan.ts          # Full cohort scan: discovery, Str
 npx tsx scripts/validate-scoring-weights.ts   # Correlate wallet scores vs EV scores over 30 days
 npx tsx scripts/signal-learning.ts            # Update signal_outcomes stats (GitHub Actions runs this daily)
 npx tsx scripts/bootstrap-hypurrscan-index.ts # Seed Hypurrscan address-name index
+
+# Research scripts (read-only, write nothing to Supabase or KV)
+# Use --env-file=.env.local locally. Fetch once to a cache, then re-slice.
+npx tsx --env-file=.env.local scripts/fill-study.ts --fetch --days=120 --interval=1h --pool=traders --wallets=120
+npx tsx scripts/compact-fill-cache.ts          # collapse fills to hourly, run before analysing a large cache
+npx tsx --env-file=.env.local scripts/fill-study.ts        # re-slice the cache, no refetch
+npx tsx --env-file=.env.local scripts/signal-stack.ts      # features + correlation matrix + combined IC
+npx tsx --env-file=.env.local scripts/positioning-factor.ts
+npx tsx --env-file=.env.local scripts/cohort-skill-test.ts --min-active=5
+npx tsx --env-file=.env.local scripts/activity-gate-tradeoff.ts
 ```
+
+## Measurement discipline
+
+**Assume any result from this codebase is wrong until its sample is checked
+against a previous run.** On 2026-08-12 six defects were found in the research
+code and five had already produced a confident, publishable-looking answer:
+truncated candles making table rows use different trades, clustered fills
+inflating a decile to t=51, unbenchmarked direction reporting market beta as
+edge, a stale-price guard tuned for the wrong bar size dropping a third of a
+sample, a wallet pool ordered by scan recency drawing dormant wallets, and a
+pool banded on trade count admitting market makers.
+
+Before reading any research output:
+- Compare row counts against the previous run. A 33x drop with no error is a bug, not a finding.
+- Every row of a table must use the same sample. Non-monotonic `n` across horizons means data is missing.
+- Collapse correlated observations before computing `t`. Fills cluster within a wallet, and wallets cluster within a coin-day.
+- Subtract a benchmark. A long-biased cohort in a drifting market shows beta as alpha.
+- Split-half anything promising. Two results died here after looking significant.
+- Never rank by a score computed from the window being measured.
+
+## Hyperliquid API limits (measured, not documented)
+
+- `candleSnapshot` caps near 5,000 bars and **truncates silently** to the most recent. Reach per interval: 1m 3.5d, 5m 17.4d, 15m 52d, 1h 208d.
+- `userFillsByTime` caps at 2,000 fills, oldest first from `startTime`, with no truncation signal. Paginate by advancing past the newest fill seen.
+- `total_trades` counts trades; the fills endpoint returns partial fills. One trade can be many fills, so banding on trade count does not bound fetch size.
 
 ## Sprint Workflow
 
@@ -62,9 +97,10 @@ Browser (React)
 |------|---------|
 | `cohort-engine.ts` | Four-factor wallet scoring: Sharpe proxy, PnL consistency, drawdown, regime fit |
 | `signal-lab.ts` | 6 pluggable signal recipes — each takes `SnapshotPair → SignalEvent[]` |
-| `risk-engine.ts` | EV calculation, liquidation price, margin ratio, Hyperliquid fee schedule |
+| `risk-engine.ts` | EV, margin ratio, fee schedule. `liquidationDistance` = mark to nearest `liquidationPx`; `liquidationBuffer` = free margin, a leverage stat |
+| `skill-test.ts` | Retrospective rank IC. `normalizedForwardPerformance` puts forward PnL in the wallet's own risk units |
 | `hyperliquid-api-client.ts` | Raw Hyperliquid API: clearinghouse states, market data, fill history |
-| `cohort-hygiene.ts` | Stream B hygiene gates; deactivates wallets that go quiet, blow up, or stop trading |
+| `cohort-hygiene.ts` | Stream B hygiene gates. The liq gate uses `liquidationDistance`, not `liq_buffer_pct`; see below |
 | `wash-sybil.ts` | Stream C, wash-trading and Sybil cluster detection |
 | `wallet-profile.ts` | Stream D, per-wallet behavior profiling (style, conviction, regime tendency) |
 | `signal-learning-utils.ts` | Outcome tracking helpers for the daily learning loop |
@@ -145,6 +181,24 @@ The `after()` Next.js API is used for fire-and-forget background work (e.g., tri
 | 018 | Shadow scoring columns (`overall_score_shadow`) for V2 canary rollout |
 | 019 | Enable Row Level Security on all tables |
 | 020 | Drop signal_events + rate_limit_tokens; outcome retention 30d to 180d |
+
+### Two gates that look wrong but are not
+
+- **`liq_buffer_pct` is free margin, not liquidation risk.** It is
+  `(accountValue - totalMarginUsed) / accountValue`, a leverage statistic. A
+  wallet deploying its whole balance scores 0 while sitting 25% from
+  liquidation. Hygiene used it until 2026-08-12 and removed 30 of 36 solvent
+  wallets in 48 hours. The gate now uses `liquidationDistance` from
+  `risk-engine.ts`, computed from `liquidationPx` in `cohort_snapshots.positions`,
+  so no migration was needed and the fix applies to existing rows. Recipes may
+  still read `liq_buffer_pct` deliberately, as a conviction proxy.
+- **`scoreWallet` skips the equity gate when the leaderboard has no entry.**
+  `liveEquity` comes only from the leaderboard snapshot, so off-leaderboard
+  candidates activate unchecked. That left 49 of 76 active wallets holding
+  exactly $0. Phase 9b (`verifyLiveEquity`) closes it by querying
+  clearinghouseState for the activated set only, which is orders of magnitude
+  smaller than the candidate pool that blew the API budget when this was tried
+  at gate time. It cut 147 unfunded wallets on its first run.
 
 ### Key Data Separation
 
