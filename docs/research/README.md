@@ -44,6 +44,10 @@ audit re-ran it (dossier finding R2, confirmed by both external reviews).
   a 3-day momentum rule ties the long-hold lead at 72h (+61.9 vs +64.2), which
   downgrades yesterday's "momentum rejected" claim to "rejected at 1 day only".
   The corrected table does pass its split-half, with heavy front-loading.
+- [2026-08-13-path-c-note.md](2026-08-13-path-c-note.md): strategy note. The
+  diagnostic (t 3.13) is far stronger than the traded book (t 1.42), and a
+  ranking has no capacity ceiling while a book does. Decide personal income
+  versus business before the day-60 number exists.
 - [2026-08-13-factor-rivals.md](2026-08-13-factor-rivals.md): the lean is not
   activity in disguise. Volume, volume change and funding are all near-orthogonal
   to it and none predicts. Includes a lookahead caught before publication that
