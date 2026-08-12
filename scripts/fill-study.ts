@@ -93,8 +93,10 @@ interface Fill {
   p: number;      // fill price
   s: number;      // size
   t: number;      // ms timestamp
-  d: 1 | -1;      // 1 = opening long, -1 = opening short
-  sc: number;     // wallet overall_score at scan time
+  d: 1 | -1;      // 1 = long side, -1 = short side
+  o: 0 | 1;       // 1 = opening the position, 0 = closing it
+  pnl: number;    // realized PnL on this fill, non-zero only on closes
+  sc: number;     // wallet overall_score at scan time (leaks; see score slice)
 }
 
 interface Cache {
@@ -217,9 +219,11 @@ async function fetchAll(): Promise<Cache> {
 
       for (const f of raw ?? []) {
         const dir = String(f.dir ?? "");
-        // Opening fills only. A close is the cohort leaving a trade, which is a
-        // different hypothesis and gets its own slice later.
-        if (!dir.startsWith("Open")) continue;
+        // Opening and closing fills both kept. Closes are needed to reconstruct
+        // what each wallet actually held over time, which is the input to the
+        // positioning factor, and a close is its own untested hypothesis.
+        const isOpen = dir.startsWith("Open");
+        if (!isOpen && !dir.startsWith("Close")) continue;
         const p = parseFloat(String(f.px));
         const s = parseFloat(String(f.sz));
         const t = Number(f.time);
@@ -227,6 +231,8 @@ async function fetchAll(): Promise<Cache> {
         fills.push({
           w: w.id, c: String(f.coin), p, s, t,
           d: dir.includes("Long") ? 1 : -1,
+          o: isOpen ? 1 : 0,
+          pnl: parseFloat(String(f.closedPnl ?? "0")) || 0,
           sc: scoreByWallet.get(w.id) ?? 0,
         });
       }
@@ -492,7 +498,7 @@ function main(cache: Cache) {
   // tight enough that a genuine data hole still fails.
   const barMin = BAR_MINUTES[cache.interval ?? "1m"] ?? 1;
   staleToleranceMs = Math.max(10 * 60_000, barMin * 1.5 * 60_000);
-  const onCoveredCoins = toEpisodes(fills.filter((f) => candles[f.c]?.length));
+  const onCoveredCoins = toEpisodes(fills.filter((f) => candles[f.c]?.length && f.o === 1));
   console.log(`\n[fill-study] window ${cache.days}d, fetched ${cache.fetched_at}`);
   console.log(`[fill-study] ${fills.length} opening fills, ${onCoveredCoins.length} on coins with candles`);
 
