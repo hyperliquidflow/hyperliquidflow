@@ -28,6 +28,12 @@
 import * as fs from "fs/promises";
 import { sampleRankCorrelation } from "simple-statistics";
 import { scoreFromDailyPnls } from "../lib/skill-test";
+import {
+  priceAt as priceAtBar,
+  staleTolerance,
+  describe as summarise,
+  zscore,
+} from "../lib/study-stats";
 
 const CACHE_FILE = "fill-study-cache.json";
 const DAY_MS = 86_400_000;
@@ -49,35 +55,10 @@ interface Cache {
   candles: Record<string, [number, number][]>;
 }
 
-function priceAt(series: [number, number][], t: number, tolMs = 90 * 60_000): number | null {
-  if (!series?.length) return null;
-  let lo = 0, hi = series.length - 1, best = -1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    if (series[mid][0] >= t) { best = mid; hi = mid - 1; } else lo = mid + 1;
-  }
-  if (best === -1 || series[best][0] - t > tolMs) return null;
-  return series[best][1];
-}
-
-function stats(xs: number[]) {
-  if (xs.length < 2) return null;
-  const n = xs.length;
-  const mean = xs.reduce((a, b) => a + b, 0) / n;
-  const sd = Math.sqrt(xs.reduce((s, v) => s + (v - mean) ** 2, 0) / (n - 1));
-  const se = sd / Math.sqrt(n);
-  return { n, mean, sd, se, t: se === 0 ? 0 : mean / se, winRate: xs.filter((v) => v > 0).length / n };
-}
-
-/** Cross-sectional z-score. Flat input returns zeros rather than NaN. */
-function zscore(xs: number[]): number[] {
-  const n = xs.length;
-  if (n < 2) return xs.map(() => 0);
-  const mean = xs.reduce((a, b) => a + b, 0) / n;
-  const sd = Math.sqrt(xs.reduce((s, v) => s + (v - mean) ** 2, 0) / n);
-  if (!Number.isFinite(sd) || sd === 0) return xs.map(() => 0);
-  return xs.map((v) => (v - mean) / sd);
-}
+// Bars are hourly on the long runs, so the staleness tolerance scales to that
+// rather than sitting at a fixed ten minutes, which silently drops samples.
+const TOL_MS = staleTolerance(60);
+const priceAt = (series: [number, number][], t: number) => priceAtBar(series, t, TOL_MS);
 
 // Feature names in a fixed order so the correlation matrix reads consistently.
 const FEATURES = [
@@ -338,14 +319,14 @@ async function main() {
   console.log(`feature    |   mean IC |     se |    t | days`);
   console.log(`-----------+-----------+--------+------+------`);
   for (const name of FEATURES) {
-    const st = stats(icByFeature[name]);
+    const st = summarise(icByFeature[name]);
     if (!st) { console.log(`${name.padEnd(10)} |       n/a`); continue; }
     console.log(
       `${name.padEnd(10)} | ${st.mean.toFixed(4).padStart(9)} | ${st.se.toFixed(4).padStart(6)} | ` +
       `${st.t.toFixed(1).padStart(4)} | ${String(st.n).padStart(4)}`
     );
   }
-  const stC = stats(icCombined);
+  const stC = summarise(icCombined);
   if (stC) {
     console.log(`-----------+-----------+--------+------+------`);
     console.log(
@@ -368,14 +349,14 @@ async function main() {
     console.log(`${a.padEnd(10)} |` + cells.join(""));
   }
 
-  const sp = stats(spreadCombined);
+  const sp = summarise(spreadCombined);
   console.log(`\n=== Combined stack traded long-short, top ${TOP_N} vs bottom ${TOP_N}, daily ===`);
   if (sp) {
     console.log(`  days          ${sp.n}`);
     console.log(`  mean per day  ${(sp.mean * 10_000).toFixed(1)} bps  (t ${sp.t.toFixed(2)}, net of ${2 * ROUND_TRIP_BPS} bps)`);
     console.log(`  win rate      ${(sp.winRate * 100).toFixed(0)}%`);
     const half = Math.floor(spreadCombined.length / 2);
-    const e = stats(spreadCombined.slice(0, half)), l = stats(spreadCombined.slice(half));
+    const e = summarise(spreadCombined.slice(0, half)), l = summarise(spreadCombined.slice(half));
     if (e && l) {
       console.log(`  split-half    early ${(e.mean * 10_000).toFixed(1)} bps (t ${e.t.toFixed(2)}) / late ${(l.mean * 10_000).toFixed(1)} bps (t ${l.t.toFixed(2)})`);
     }
