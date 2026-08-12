@@ -30,6 +30,12 @@ import { createClient } from "@supabase/supabase-js";
 import * as fs from "fs/promises";
 import { toReturns, alignReturns, computeBeta, BETA_MIN_SAMPLE } from "../lib/beta";
 import { scoreFromDailyPnls } from "../lib/skill-test";
+import {
+  priceAt as priceAtBar,
+  staleTolerance,
+  toEpisodes as toEpisodesShared,
+  clusterByCoinDay as clusterShared,
+} from "../lib/study-stats";
 
 const SUPABASE_URL              = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -345,25 +351,13 @@ async function fetchAll(): Promise<Cache> {
 // ── Analysis ─────────────────────────────────────────────────────────────────
 
 /** Close of the first candle at or after `t`, or null past the end of the series. */
-let staleToleranceMs = 10 * 60_000;   // set from the cache's bar interval at analysis time
-
-function priceAt(series: [number, number][], t: number): number | null {
-  if (!series.length) return null;
-  let lo = 0, hi = series.length - 1, best = -1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    if (series[mid][0] >= t) { best = mid; hi = mid - 1; } else { lo = mid + 1; }
-  }
-  if (best === -1) return null;
-  // Refuse a match too far past the request: a gap that wide means the market
-  // data is missing, not that the price simply did not change. The tolerance
-  // has to scale with the bar interval. Fixed at 10 minutes it silently dropped
-  // a third of a 15m-bar run, because bars are 15 minutes apart and most
-  // lookups legitimately land more than 10 minutes before the next one, and the
-  // rows that survived were not a random subset.
-  if (series[best][0] - t > staleToleranceMs) return null;
-  return series[best][1];
-}
+// priceAt, toEpisodes and clusterByCoinDay live in lib/study-stats.ts where
+// they are covered by tests. They decide whether a research number is real,
+// and each exists because its naive version produced a confident wrong answer
+// first, so a silent regression here would not look like a failure, it would
+// look like a discovery.
+let staleToleranceMs = staleTolerance(1);
+const priceAt = (series: [number, number][], t: number) => priceAtBar(series, t, staleToleranceMs);
 
 const MIN = 60_000;
 const LATENCIES = [0, 1, 5, 10, 15, 30, 60];      // minutes behind the whale
@@ -406,53 +400,6 @@ function fullyCovered(
   });
 }
 
-/**
- * Collapse fills into entry episodes.
- *
- * A wallet opening one position emits many fills seconds apart on the same coin
- * and side. Treated as separate observations they are near-duplicates of each
- * other, so n counts them all while the independent information is one trade.
- * That inflates every t-statistic by roughly the square root of the cluster
- * size, which is how a first pass produced t-stats above 50 on a market edge.
- *
- * Fills of the same wallet, coin and direction within EPISODE_GAP_MIN of the
- * previous fill merge into one episode, priced at the size-weighted average and
- * stamped at the first fill, which is when a follower could first have acted.
- */
-const EPISODE_GAP_MIN = 30;
-
-function toEpisodes(fills: Fill[]): Fill[] {
-  const keyed = new Map<string, Fill[]>();
-  for (const f of fills) {
-    const k = `${f.w}|${f.c}|${f.d}`;
-    if (!keyed.has(k)) keyed.set(k, []);
-    keyed.get(k)!.push(f);
-  }
-
-  const episodes: Fill[] = [];
-  for (const group of keyed.values()) {
-    group.sort((a, b) => a.t - b.t);
-    let bucket: Fill[] = [];
-    const flush = () => {
-      if (!bucket.length) return;
-      const size = bucket.reduce((s, f) => s + f.s, 0);
-      const notional = bucket.reduce((s, f) => s + f.p * f.s, 0);
-      episodes.push({
-        ...bucket[0],
-        p: size > 0 ? notional / size : bucket[0].p,
-        s: size,
-        t: bucket[0].t,
-      });
-      bucket = [];
-    };
-    for (const f of group) {
-      if (bucket.length && f.t - bucket[bucket.length - 1].t > EPISODE_GAP_MIN * MIN) flush();
-      bucket.push(f);
-    }
-    flush();
-  }
-  return episodes.sort((a, b) => a.t - b.t);
-}
 
 /**
  * Beta of a coin against BTC estimated from the bars immediately before an
@@ -505,33 +452,17 @@ function computeBetaUncached(
   return b === null || !Number.isFinite(b) ? 1 : b;
 }
 
-/**
- * Collapse episodes that share a coin and a calendar day into one observation.
- *
- * toEpisodes removed correlation inside a wallet. It did nothing about fifty
- * different wallets buying the same coin on the same afternoon, which resolve
- * against one market move and carry one unit of information between them. Left
- * uncollapsed those inflate t in the cross section exactly as duplicate fills
- * did within a wallet, and the 24h column depends on it most because a 24h
- * forward window overlaps nearly every other entry that day.
- */
-function clusterByCoinDay(rows: Array<{ coin: string; t: number; r: number }>): number[] {
-  const groups = new Map<string, number[]>();
-  for (const row of rows) {
-    const day = Math.floor(row.t / 86_400_000);
-    const k = `${row.coin}|${day}`;
-    if (!groups.has(k)) groups.set(k, []);
-    groups.get(k)!.push(row.r);
-  }
-  return [...groups.values()].map((rs) => rs.reduce((a, b) => a + b, 0) / rs.length);
-}
+const EPISODE_GAP_MIN = 30;
+const toEpisodes = (fills: Fill[]): Fill[] => toEpisodesShared(fills, EPISODE_GAP_MIN);
+const clusterByCoinDay = (rows: Array<{ coin: string; t: number; r: number }>): number[] =>
+  clusterShared(rows);
 
 function main(cache: Cache) {
   const { fills, candles } = cache;
   // One and a half bars: wide enough that a legitimate next bar always matches,
   // tight enough that a genuine data hole still fails.
   const barMin = BAR_MINUTES[cache.interval ?? "1m"] ?? 1;
-  staleToleranceMs = Math.max(10 * 60_000, barMin * 1.5 * 60_000);
+  staleToleranceMs = staleTolerance(barMin);
   const onCoveredCoins = toEpisodes(fills.filter((f) => candles[f.c]?.length && f.o === 1));
   console.log(`\n[fill-study] window ${cache.days}d, fetched ${cache.fetched_at}`);
   console.log(`[fill-study] ${fills.length} opening fills, ${onCoveredCoins.length} on coins with candles`);
