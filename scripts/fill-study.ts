@@ -32,6 +32,7 @@ import { readFileSync } from "fs";
 import { toReturns, alignReturns, computeBeta, BETA_MIN_SAMPLE } from "../lib/beta";
 import { scoreFromDailyPnls } from "../lib/skill-test";
 import { fetchDiscoveryDates, freezeToDiscovery, describeFreeze, type DiscoveryQuery } from "../lib/discovery";
+import { compactFills, checkConservation } from "../lib/fill-compaction";
 import {
   priceAt as priceAtBar,
   staleTolerance,
@@ -90,6 +91,12 @@ const FORWARD_BUFFER_MIN = MAX_LATENCY_MIN + MAX_HOLD_MIN + 60;
 const BAR_MINUTES: Record<string, number> = { "1m": 1, "5m": 5, "15m": 15, "1h": 60 };
 const INTERVAL = process.argv.find((a) => a.startsWith("--interval="))?.split("=")[1] ?? "1m";
 
+// Compact while fetching on hourly runs, where the bucket matches the finest
+// resolution anything downstream can see anyway. Short-bar runs ask sub-hour
+// questions that compaction would destroy, and they are small enough not to
+// need it. --raw forces the old behaviour.
+const COMPACT_ON_FETCH = INTERVAL === "1h" && !process.argv.includes("--raw");
+
 /**
  * userFillsByTime returns at most 2,000 fills per call, oldest first from
  * startTime, and gives no indication that it truncated. A busy wallet can spend
@@ -130,6 +137,8 @@ interface Cache {
   fetched_at: string;
   days: number;
   interval?: string;
+  /** true when fills were collapsed to hourly rows, on fetch or afterwards */
+  compacted?: boolean;
   fills: Fill[];
   candles: Record<string, [number, number][]>; // coin -> [ms, close][] ascending
 }
@@ -239,6 +248,7 @@ async function fetchAll(): Promise<Cache> {
   console.log(`[fill-study] fetching ${DAYS}d of fills for ${wallets.length} wallets...`);
   const fills: Fill[] = [];
   let done = 0;
+  let rawFillCount = 0;
 
   let truncatedWallets = 0;
   let failedWallets = 0;
@@ -277,6 +287,7 @@ async function fetchAll(): Promise<Cache> {
       }
       if (pages >= MAX_FILL_PAGES) truncatedWallets++;
 
+      const walletFills: Fill[] = [];
       for (const f of raw ?? []) {
         const dir = String(f.dir ?? "");
         // Opening and closing fills both kept. Closes are needed to reconstruct
@@ -288,7 +299,7 @@ async function fetchAll(): Promise<Cache> {
         const s = parseFloat(String(f.sz));
         const t = Number(f.time);
         if (!Number.isFinite(p) || !Number.isFinite(s) || !Number.isFinite(t)) continue;
-        fills.push({
+        walletFills.push({
           w: w.id, c: String(f.coin), p, s, t,
           d: dir.includes("Long") ? 1 : -1,
           o: isOpen ? 1 : 0,
@@ -296,12 +307,42 @@ async function fetchAll(): Promise<Cache> {
           sc: scoreByWallet.get(w.id) ?? 0,
         });
       }
+
+      // Compact per wallet, as the fills arrive, rather than holding the raw
+      // firehose to the end of the run. A 400-wallet 200-day fetch produces
+      // over six million raw fills, roughly a gigabyte of JSON, which is at the
+      // limit of a single string and past what is comfortable to parse. The
+      // 2026-08-12 attempt was killed halfway for exactly that reason.
+      //
+      // Only on hourly runs. Compaction is lossy below its bucket, and the
+      // short-bar runs that ask sub-hour questions are small enough not to
+      // need it. Conservation is checked per wallet so a bad aggregation
+      // surfaces at the wallet that caused it rather than as a total at the end.
+      if (COMPACT_ON_FETCH) {
+        const compacted = compactFills(walletFills);
+        const check = checkConservation(walletFills, compacted);
+        if (!check.ok) {
+          throw new Error(
+            `compaction did not conserve wallet ${w.id}: size drift ${check.sizeDrift}, pnl drift ${check.pnlDrift}`
+          );
+        }
+        rawFillCount += walletFills.length;
+        fills.push(...compacted);
+      } else {
+        rawFillCount += walletFills.length;
+        fills.push(...walletFills);
+      }
     } catch (e) {
       failedWallets++;
       console.warn(`[fill-study] fills failed for ${w.address.slice(0, 10)}: ${(e as Error).message}`);
     }
     done++;
-    if (done % 50 === 0) console.log(`[fill-study]   ${done}/${wallets.length} wallets, ${fills.length} fills`);
+    if (done % 50 === 0) {
+      const shape = COMPACT_ON_FETCH
+        ? `${rawFillCount} fills to ${fills.length} hourly rows`
+        : `${fills.length} fills`;
+      console.log(`[fill-study]   ${done}/${wallets.length} wallets, ${shape}`);
+    }
     await new Promise((r) => setTimeout(r, REQUEST_GAP));
   }
 
@@ -365,7 +406,20 @@ async function fetchAll(): Promise<Cache> {
     await new Promise((r) => setTimeout(r, REQUEST_GAP));
   }
 
-  return { fetched_at: new Date().toISOString(), days: DAYS, interval: INTERVAL, fills, candles };
+  if (COMPACT_ON_FETCH) {
+    console.log(
+      `[fill-study] compacted on fetch: ${rawFillCount} raw fills to ${fills.length} hourly rows ` +
+      `(${rawFillCount > 0 ? ((fills.length / rawFillCount) * 100).toFixed(1) : "0"}%)`
+    );
+  }
+  return {
+    fetched_at: new Date().toISOString(),
+    days: DAYS,
+    interval: INTERVAL,
+    compacted: COMPACT_ON_FETCH,
+    fills,
+    candles,
+  };
 }
 
 // ── Analysis ─────────────────────────────────────────────────────────────────

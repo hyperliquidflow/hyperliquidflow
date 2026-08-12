@@ -25,11 +25,15 @@
 //
 // Writes only the cache file, never Supabase or KV.
 
+// The bucketing and the conservation check live in lib/fill-compaction.ts,
+// where they are tested and shared with the fetch path, which now compacts as
+// fills arrive. This script remains for caches fetched raw.
 import * as fs from "fs/promises";
+import { compactFills, checkConservation } from "../lib/fill-compaction";
 
-const CACHE_FILE = "fill-study-cache.json";
+const CACHE_FILE = process.argv.find((a) => a.startsWith("--cache="))?.split("=")[1]
+  ?? "fill-study-cache.json";
 const DRY = process.argv.includes("--dry");
-const BUCKET_MS = 3_600_000;
 
 interface Fill {
   w: string; c: string; p: number; s: number; t: number;
@@ -51,43 +55,19 @@ async function main() {
   }
 
   const before = cache.fills.length;
-  const groups = new Map<string, Fill>();
-
-  for (const f of cache.fills) {
-    const bucket = Math.floor(f.t / BUCKET_MS);
-    const key = `${f.w}|${f.c}|${f.d}|${f.o}|${bucket}`;
-    const prev = groups.get(key);
-    if (!prev) {
-      groups.set(key, { ...f });
-      continue;
-    }
-    // Size-weighted price, earliest timestamp so a follower's earliest possible
-    // action time is preserved rather than smeared to the bucket edge.
-    const totalSize = prev.s + f.s;
-    prev.p = totalSize > 0 ? (prev.p * prev.s + f.p * f.s) / totalSize : prev.p;
-    prev.s = totalSize;
-    prev.pnl += f.pnl;
-    if (f.t < prev.t) prev.t = f.t;
-  }
-
-  const compacted = [...groups.values()].sort((a, b) => a.t - b.t);
+  const compacted = compactFills(cache.fills);
   const after = compacted.length;
   const ratio = before > 0 ? after / before : 1;
 
-  // Sanity: aggregation must conserve the quantities every downstream slice
-  // sums. If it does not, the compaction is wrong and the cache stays untouched.
-  const sumSize = (xs: Fill[]) => xs.reduce((s, f) => s + f.s * f.d * (f.o === 1 ? 1 : -1), 0);
-  const sumPnl  = (xs: Fill[]) => xs.reduce((s, f) => s + f.pnl, 0);
-  const sizeBefore = sumSize(cache.fills), sizeAfter = sumSize(compacted);
-  const pnlBefore  = sumPnl(cache.fills),  pnlAfter  = sumPnl(compacted);
-  const sizeDrift = Math.abs(sizeBefore - sizeAfter) / Math.max(Math.abs(sizeBefore), 1e-9);
-  const pnlDrift  = Math.abs(pnlBefore - pnlAfter) / Math.max(Math.abs(pnlBefore), 1e-9);
+  // Aggregation must conserve the quantities every downstream slice sums. If it
+  // does not, the compaction is wrong and the cache stays untouched.
+  const { sizeDrift, pnlDrift, ok } = checkConservation(cache.fills, compacted);
 
   console.log(`[compact] fills ${before.toLocaleString()} -> ${after.toLocaleString()} (${(ratio * 100).toFixed(1)}%)`);
   console.log(`[compact] net signed size drift ${(sizeDrift * 100).toExponential(2)}%`);
   console.log(`[compact] realized PnL drift    ${(pnlDrift * 100).toExponential(2)}%`);
 
-  if (sizeDrift > 1e-6 || pnlDrift > 1e-6) {
+  if (!ok) {
     console.error(`[compact] ABORT: aggregation did not conserve position or PnL. Cache left untouched.`);
     process.exit(1);
   }
