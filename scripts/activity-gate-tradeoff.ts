@@ -59,7 +59,7 @@ async function main() {
   // Per wallet: score from the train half, forward performance from the test
   // half, and the train-half activity the gate would actually see.
   const records: Array<{ id: string; score: number; fwd: number; trainActive: number; live: boolean }> = [];
-  let activeDaysFullWindow = new Map<string, number>();
+  const activeDaysFullWindow = new Map<string, number>();
 
   for (const row of rows) {
     const series = Array.isArray(row.daily_pnls) ? row.daily_pnls.map(Number) : null;
