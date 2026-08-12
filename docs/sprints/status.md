@@ -367,6 +367,59 @@ still blocked on point-in-time scores.
 If coordinated entries look like average entries, the premise is dead and the
 honest move is to stop tuning recipes and change the strategy.
 
+**Coordination was tested. It carries no information (2026-08-12).** A signal
+fires when the Nth distinct wallet enters the same coin and direction inside a
+2-hour window, which is the earliest a follower could act:
+
+| N | signals | 60m net | 240m net | 24h net | 24h early half | 24h late half |
+|---|---|---|---|---|---|---|
+| 1 | 15,320 | -7.7 (t-8.1) | -5.7 (t-3.4) | +3.2 (t0.7) | -9 (t-1.3) | +18 (t2.6) |
+| 2 | 6,173 | -2.3 (t-1.2) | +1.9 (t0.6) | +19.5 (t2.5) | +1 (t0.1) | +41 (t3.7) |
+| 3 | 2,893 | -9.9 (t-3.5) | -7.9 (t-1.6) | +2.1 (t0.2) | -19 (t-1.3) | +25 (t1.3) |
+| 4 | 1,491 | -10.7 (t-2.7) | -16.6 (t-2.1) | +10.5 (t0.6) | -1 (t-0.0) | +21 (t0.8) |
+| 5 | 840 | -5.5 (t-1.0) | -13.9 (t-1.3) | +20.1 (t0.9) | -3 (t-0.1) | +39 (t1.0) |
+
+No dose-response. If coordination carried information the effect would
+strengthen with N; instead N=3 and N=4 are the worst rows at short holds, which
+is what crowding looks like rather than conviction. The single live-looking cell,
+N=2 at 24h, splits into +1 early and +41 late, and **the identical split appears
+at N=1 where there is no coordination at all**. It is the regime, not the signal.
+
+**Verdict on the follow premise.** Tested three ways over 120 days and 34,818
+episodes: average entries are negative after benchmark and costs at every hold
+inside four hours and zero beyond; coordinated entries are no better and show no
+dose-response; the long-horizon positives are a late-window regime artifact that
+appears with or without coordination. Latency is not the obstacle either, since
+entering at the whale's own fill price still nets -6.4 bps at an hour. Following
+this cohort's positions does not produce a tradeable edge.
+
+What survives is narrower than the system assumes. Wallet scoring does rank
+wallets by forward risk-adjusted PnL (rank IC 0.0939, clean of lookahead), so
+the wallets genuinely differ in skill. Their entries still carry no exploitable
+follow-through, because whatever they know is in the price by the time the fill
+prints, and the residual is beta.
+
+This is a decision point for the owner, not a tuning problem. Options are to
+change the premise (mechanical flow such as liquidation maps, funding and basis,
+market making), to test a different expression of wallet skill than entry
+copying, or to stop. Continuing to tune six recipes built on entry copying is
+not supported by the measurement.
+
+**Cohort recovery worked, separately and for real.** The 2026-08-12 01:00 UTC
+scan ran Phase 9b for the first time and cut **147 unfunded wallets**, alongside
+42 low_regime_coverage, 17 score_unstable and 8 high_leverage. Intraday removals
+collapsed to 3 liq_imminent in 24 hours, against 36 in the 48 hours before the
+gate was corrected.
+
+| | 2026-08-11 | 2026-08-12 |
+|---|---|---|
+| Active (headline) | 76 | 60 |
+| Funded and holding | 26 | **56** |
+| Zero equity | 49 | **0** |
+
+The headline count fell and the cohort that can actually emit a signal more than
+doubled. 93% of active wallets are real, against 34% before.
+
 **The activity gate was measured and deliberately not shipped (2026-08-12).**
 The skill test's monotonic IC-by-activity curve makes gating activation on
 trading days look obvious. `scripts/activity-gate-tradeoff.ts` prices both sides

@@ -593,6 +593,90 @@ function main(cache: Cache) {
     console.log(`${label}  |` + cells.join(" |"));
   }
 
+  // ── Coordination: the only version of the follow premise still standing ──
+  // Every recipe assumes several wallets entering the same coin and direction
+  // together differs from one wallet doing it alone. The tables above measured
+  // average entries and found nothing tradeable, which leaves this untested and
+  // load-bearing. A coordinated signal fires at the moment the Nth distinct
+  // wallet joins, which is the earliest a follower could have acted on it.
+  console.log(`\n=== Coordination: does an N-wallet cluster beat an average entry? ===`);
+  const COORD_WINDOW_MIN = 120;
+  const coordSet = fullyCovered(onCoveredCoins, candles, 60 + 1440);
+
+  console.log(`  N | signals |   60m net |  240m net | 1440m net | (bps, beta-adj, less ${ROUND_TRIP_BPS}, coin-day clustered)`);
+  console.log(`----+---------+-----------+-----------+-----------+`);
+
+  for (const N of [1, 2, 3, 4, 5]) {
+    // Group by coin and direction, then slide a window and fire when the count
+    // of DISTINCT wallets inside it first reaches N.
+    const byKey = new Map<string, Fill[]>();
+    for (const f of coordSet) {
+      const k = `${f.c}|${f.d}`;
+      if (!byKey.has(k)) byKey.set(k, []);
+      byKey.get(k)!.push(f);
+    }
+
+    const signals: Fill[] = [];
+    for (const group of byKey.values()) {
+      group.sort((a, b) => a.t - b.t);
+      let lastFire = -Infinity;
+      for (let i = 0; i < group.length; i++) {
+        if (group[i].t - lastFire < COORD_WINDOW_MIN * MIN) continue;  // one signal per window
+        const wallets = new Set<string>();
+        for (let j = i; j < group.length && group[j].t - group[i].t <= COORD_WINDOW_MIN * MIN; j++) {
+          wallets.add(group[j].w);
+          if (wallets.size >= N) {
+            signals.push({ ...group[j] });   // fires when the Nth distinct wallet joins
+            lastFire = group[j].t;
+            break;
+          }
+        }
+      }
+    }
+
+    const cells: string[] = [];
+    for (const H of [60, 240, 1440]) {
+      const rows: Array<{ coin: string; t: number; r: number }> = [];
+      for (const f of signals) {
+        const entry = priceAt(candles[f.c], f.t + 10 * MIN);
+        const exit  = priceAt(candles[f.c], f.t + (10 + H) * MIN);
+        const bEntry = priceAt(btc, f.t + 10 * MIN);
+        const bExit  = priceAt(btc, f.t + (10 + H) * MIN);
+        if (entry === null || exit === null || bEntry === null || bExit === null) continue;
+        if (entry <= 0 || bEntry <= 0) continue;
+        const beta = betaBefore(candles[f.c], btc, f.t, `${f.c}|${f.t}`);
+        rows.push({ coin: f.c, t: f.t,
+          r: ((exit - entry) / entry) * f.d - ((bExit - bEntry) / bEntry) * f.d * beta - ROUND_TRIP_BPS / 10_000 });
+      }
+      const st = stats(clusterByCoinDay(rows));
+      cells.push(st ? `${bps(st.mean).toFixed(1)}(t${st.t.toFixed(1)})`.padStart(9) : "n/a".padStart(9));
+    }
+    // The one cell that looks alive gets the same split-half treatment that
+    // killed the 45-day result, rather than being dismissed on shape alone.
+    let halves = "";
+    if (signals.length > 200) {
+      const ts = signals.map((f) => f.t).sort((a, b) => a - b);
+      const midT = ts[Math.floor(ts.length / 2)];
+      const halfStat = (set: Fill[]) => {
+        const rows: Array<{ coin: string; t: number; r: number }> = [];
+        for (const f of set) {
+          const entry = priceAt(candles[f.c], f.t + 10 * MIN);
+          const exit  = priceAt(candles[f.c], f.t + (10 + 1440) * MIN);
+          const bEntry = priceAt(btc, f.t + 10 * MIN);
+          const bExit  = priceAt(btc, f.t + (10 + 1440) * MIN);
+          if (entry === null || exit === null || bEntry === null || bExit === null || entry <= 0 || bEntry <= 0) continue;
+          const beta = betaBefore(candles[f.c], btc, f.t, `${f.c}|${f.t}`);
+          rows.push({ coin: f.c, t: f.t,
+            r: ((exit - entry) / entry) * f.d - ((bExit - bEntry) / bEntry) * f.d * beta - ROUND_TRIP_BPS / 10_000 });
+        }
+        const st = stats(clusterByCoinDay(rows));
+        return st ? `${bps(st.mean).toFixed(0)}(t${st.t.toFixed(1)})` : "n/a";
+      };
+      halves = `  24h halves: early ${halfStat(signals.filter((f) => f.t < midT))} / late ${halfStat(signals.filter((f) => f.t >= midT))}`;
+    }
+    console.log(`  ${String(N).padStart(1)} | ${String(signals.length).padStart(7)} | ${cells.join(" | ")} |${halves}`);
+  }
+
   // ── Exit structure implied by the cohort's own entries ───────────────────
   // exit-structure-analysis.ts answers what the market can reach from random
   // entries. This asks the narrower question that actually sets the exits: from
