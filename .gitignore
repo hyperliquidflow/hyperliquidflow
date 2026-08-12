@@ -60,3 +60,6 @@ restore-liq-false-positives.json
 
 # fill study local cache (large, regenerable)
 fill-study-cache.json
+
+# funding history cache (regenerable)
+funding-cache.json

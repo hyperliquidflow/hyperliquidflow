@@ -36,6 +36,8 @@ const BURN_IN_DAYS = 14;
 const SCORE_LOOKBACK_DAYS = 60;
 const SCORE_MIN_ACTIVE_DAYS = 5;
 const MIN_COINS_PER_DAY = 8;
+const FUNDING_CACHE = "funding-cache.json";
+const HL_URL = process.env.HYPERLIQUID_API_URL ?? "https://api.hyperliquid.xyz/info";
 
 interface Fill {
   w: string; c: string; p: number; s: number; t: number;
@@ -85,8 +87,73 @@ const FEATURES = [
   "strongFlow",  // net opening notional from top-scored wallets only
   "weakFade",    // net opening notional from bottom-scored wallets, sign flipped
   "breadth",     // distinct wallets involved, the coordination signal as a feature
+  "fundingFade", // funding rate, sign flipped: pay to hold means crowded
 ] as const;
 type FeatureName = typeof FEATURES[number];
+
+/**
+ * Funding rate per coin per day, sign flipped so a positive feature means
+ * "crowded the other way".
+ *
+ * Every other feature here is derived from the cohort, so they risk all saying
+ * one thing: what these 60 wallets are doing. Funding is market wide and
+ * mechanical. Longs paying shorts means positioning is crowded long, which is a
+ * read on the whole book rather than on our sample, and it needs nobody to be
+ * skilled. That independence is the point: features that agree do not stack.
+ */
+async function loadFunding(coins: string[], startMs: number, endMs: number): Promise<Map<string, Map<number, number>>> {
+  let cached: Record<string, Array<[number, number]>> = {};
+  try {
+    cached = JSON.parse(await fs.readFile(FUNDING_CACHE, "utf8"));
+  } catch { /* first run */ }
+
+  const missing = coins.filter((c) => !cached[c]);
+  if (missing.length) {
+    console.log(`[stack] fetching funding history for ${missing.length} coins...`);
+    for (const coin of missing) {
+      const series: Array<[number, number]> = [];
+      let cursor = startMs;
+      for (let page = 0; page < 30; page++) {
+        try {
+          const res = await fetch(HL_URL, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ type: "fundingHistory", coin, startTime: cursor, endTime: endMs }),
+          });
+          if (!res.ok) break;
+          const rows = (await res.json()) as Array<{ time: number; fundingRate: string }>;
+          if (!rows?.length) break;
+          let newest = cursor;
+          for (const r of rows) {
+            const t = Number(r.time), v = parseFloat(r.fundingRate);
+            if (Number.isFinite(t) && Number.isFinite(v)) { series.push([t, v]); if (t > newest) newest = t; }
+          }
+          if (newest <= cursor) break;
+          cursor = newest + 1;
+          if (cursor >= endMs) break;
+        } catch { break; }
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      cached[coin] = series;
+    }
+    await fs.writeFile(FUNDING_CACHE, JSON.stringify(cached));
+  }
+
+  // Collapse to a mean rate per coin per absolute day.
+  const out = new Map<string, Map<number, number>>();
+  for (const [coin, series] of Object.entries(cached)) {
+    const byDay = new Map<number, number[]>();
+    for (const [t, v] of series) {
+      const d = Math.floor(t / DAY_MS);
+      if (!byDay.has(d)) byDay.set(d, []);
+      byDay.get(d)!.push(v);
+    }
+    const m = new Map<number, number>();
+    for (const [d, vs] of byDay) m.set(d, vs.reduce((a, b) => a + b, 0) / vs.length);
+    out.set(coin, m);
+  }
+  return out;
+}
 
 async function main() {
   const cache = JSON.parse(await fs.readFile(CACHE_FILE, "utf8")) as Cache;
@@ -188,13 +255,27 @@ async function main() {
         strongFlow: strongNotional.get(coin) ?? 0,
         weakFade:   -(weakNotional.get(coin) ?? 0),          // fade: take the other side
         breadth:    (walletsPerCoin.get(coin)?.size ?? 0) * Math.sign(entryNotional.get(coin) ?? 0),
+        fundingFade: 0,   // filled in after the walk
       });
     }
     byDay.push(feats);
     prevLean = lean;
   }
 
-  console.log(`[stack] ${byDay.length} days built, first ${BURN_IN_DAYS} discarded as burn-in\n`);
+  const coinList = [...new Set(fills.map((f) => f.c))].filter((c) => candles[c]?.length);
+  const funding = await loadFunding(coinList, t0, t0 + (totalDays + 2) * DAY_MS);
+
+  // Attach funding after the walk, since it is fetched per coin rather than
+  // accumulated from fills.
+  for (let day = 0; day < byDay.length; day++) {
+    const absDay = Math.floor((t0 + day * DAY_MS) / DAY_MS);
+    for (const [coin, f] of byDay[day]) {
+      f.fundingFade = -(funding.get(coin)?.get(absDay) ?? 0);
+    }
+  }
+
+  console.log(`[stack] ${byDay.length} days built, first ${BURN_IN_DAYS} discarded as burn-in`);
+  console.log(`[stack] funding loaded for ${[...funding.keys()].length} coins\n`);
 
   // ── Per-day cross section: standardise features, measure IC ───────────────
   const icByFeature: Record<string, number[]> = Object.fromEntries(FEATURES.map((f) => [f, []]));
