@@ -46,7 +46,7 @@ const DO_FETCH     = process.argv.includes("--fetch");
 const DAYS         = Number(process.argv.find((a) => a.startsWith("--days="))?.split("=")[1] ?? 7);
 const MAX_WALLETS  = Number(process.argv.find((a) => a.startsWith("--wallets="))?.split("=")[1] ?? 400);
 const TOP_COINS    = Number(process.argv.find((a) => a.startsWith("--coins="))?.split("=")[1] ?? 25);
-const REQUEST_GAP  = 120;                     // ms between Hyperliquid calls
+const REQUEST_GAP  = Number(process.argv.find((a) => a.startsWith("--gap="))?.split("=")[1] ?? 250);
 
 // candleSnapshot returns at most ~5,000 candles and silently truncates to the
 // most recent ones rather than erroring. A 7-day 1m request therefore came back
@@ -105,17 +105,39 @@ interface Cache {
   candles: Record<string, [number, number][]>; // coin -> [ms, close][] ascending
 }
 
+/**
+ * Rate-limit handling has to be patient rather than merely slow. A wallet that
+ * needs many pages issues many calls, so it is likelier to exhaust retries and
+ * be dropped, which biases the sample against exactly the busiest traders the
+ * study is about. Retries are generous and every give-up is counted so the bias
+ * is visible in the output instead of silent.
+ */
+let droppedCalls = 0;
+
 async function hl<T>(body: unknown, attempt = 0): Promise<T> {
-  const res = await fetch(HL_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (res.status === 429 && attempt < 4) {
-    await new Promise((r) => setTimeout(r, 1000 * 2 ** attempt));
+  let res: Response;
+  try {
+    res = await fetch(HL_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    if (attempt < 7) {
+      await new Promise((r) => setTimeout(r, Math.min(30_000, 500 * 2 ** attempt)));
+      return hl<T>(body, attempt + 1);
+    }
+    droppedCalls++;
+    throw e;
+  }
+  if ((res.status === 429 || res.status >= 500) && attempt < 7) {
+    await new Promise((r) => setTimeout(r, Math.min(30_000, 500 * 2 ** attempt)));
     return hl<T>(body, attempt + 1);
   }
-  if (!res.ok) throw new Error(`Hyperliquid ${res.status}`);
+  if (!res.ok) {
+    droppedCalls++;
+    throw new Error(`Hyperliquid ${res.status}`);
+  }
   return res.json() as Promise<T>;
 }
 
@@ -157,6 +179,7 @@ async function fetchAll(): Promise<Cache> {
   let done = 0;
 
   let truncatedWallets = 0;
+  let failedWallets = 0;
 
   for (const w of wallets ?? []) {
     try {
@@ -208,6 +231,7 @@ async function fetchAll(): Promise<Cache> {
         });
       }
     } catch (e) {
+      failedWallets++;
       console.warn(`[fill-study] fills failed for ${w.address.slice(0, 10)}: ${(e as Error).message}`);
     }
     done++;
@@ -225,6 +249,12 @@ async function fetchAll(): Promise<Cache> {
 
   if (truncatedWallets > 0) {
     console.warn(`[fill-study] ${truncatedWallets} wallets hit the ${MAX_FILL_PAGES}-page ceiling and are incomplete`);
+  }
+  if (failedWallets > 0 || droppedCalls > 0) {
+    console.warn(
+      `[fill-study] ${failedWallets} wallets failed outright, ${droppedCalls} calls gave up after retries. ` +
+      `Busy wallets need more calls, so drops skew the sample away from active traders.`
+    );
   }
 
   const barMin = BAR_MINUTES[INTERVAL];

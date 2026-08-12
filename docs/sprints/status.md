@@ -339,6 +339,19 @@ with about the square of cohort size. Buying 2.8x on a wallet-selection metric
 at that price is a bad trade, especially as the fill study points at holding
 horizon rather than wallet selection as where the return actually sits.
 
+**Point-in-time scores do not exist yet, and waiting is not the fix (2026-08-12).**
+The fill study's score decile slice needs each wallet's score as of the fill
+date. `wallet_score_history` holds 648 rows beginning 2026-08-08, four days,
+because Phase 11 only started writing it then. Covering a 120-day study by
+waiting means mid-December.
+
+The alternative is to reconstruct it. `overall_score` is a function of trailing
+daily PnL, and `scoreFromDailyPnls` in `lib/skill-test.ts` already computes it
+from a series. Scoring each wallet from its own realized PnL up to each fill
+date gives a point-in-time score with no lookahead and no waiting, over the full
+history. That is the route to re-enabling the slice; the cache currently keeps
+opening fills only, so it needs closing fills too for the PnL series.
+
 The real reading is not "gate harder" but "the cohort is thin on activity".
 Discovery should prefer wallets that trade on many distinct days, rather than
 the existing 60-trades-in-60-days count which a wallet can satisfy in an
