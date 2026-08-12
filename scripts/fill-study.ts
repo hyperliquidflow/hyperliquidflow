@@ -56,7 +56,12 @@ const REQUEST_GAP  = 120;                     // ms between Hyperliquid calls
 // now held under the cap in a single request per coin, so a coin either has
 // full coverage or none.
 const CANDLE_CAP    = 5_000;
-const FORWARD_BUFFER_MIN = 6 * 60;            // horizons reach past the last fill
+// Candles must run past the last fill by the longest thing measured on it,
+// otherwise fullyCovered quietly discards every recent entry and the sample
+// skews old. Derived rather than hardcoded so widening HOLDS cannot outgrow it.
+const MAX_LATENCY_MIN = 60;
+const MAX_HOLD_MIN    = 4320;
+const FORWARD_BUFFER_MIN = MAX_LATENCY_MIN + MAX_HOLD_MIN + 60;
 
 /**
  * Minutes per bar by interval, and the calendar window each can reach inside
@@ -292,7 +297,7 @@ function priceAt(series: [number, number][], t: number): number | null {
 
 const MIN = 60_000;
 const LATENCIES = [0, 1, 5, 10, 15, 30, 60];      // minutes behind the whale
-const HOLDS     = [15, 60, 240, 480, 720, 1440];  // minutes held
+const HOLDS     = [60, 240, 720, 1440, 2880, 4320];  // minutes held
 
 function stats(xs: number[]) {
   if (!xs.length) return null;

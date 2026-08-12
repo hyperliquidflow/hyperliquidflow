@@ -316,6 +316,34 @@ where the curve tops out.
 The 10-minute polling architecture is not disqualified. The edge, such as it is,
 does not live in the first minutes.
 
+**The activity gate was measured and deliberately not shipped (2026-08-12).**
+The skill test's monotonic IC-by-activity curve makes gating activation on
+trading days look obvious. `scripts/activity-gate-tradeoff.ts` prices both sides
+of it against the live cohort:
+
+| Min active days (scoring half) | Rank IC | Live cohort kept | Lost |
+|---|---|---|---|
+| 0 | 0.0433 | 209 | 0 |
+| 2 | 0.0670 | 163 | 46 |
+| 3 | 0.0784 | 133 | 76 |
+| 5 | 0.0940 | 87 | 122 |
+| 7 | 0.1179 | 49 | 160 |
+| 10 | 0.1208 | 27 | 182 |
+| 20 | 0.2573 | 1 | 208 |
+
+The live cohort's median wallet traded 8 days across the full backtest window
+(p25 is 4, p10 is 2). The thresholds that produce the attractive IC numbers cut
+the cohort to 27 wallets or fewer, which would undo the recovery this session
+just did and cost roughly 98% of pair-coordination events, since those scale
+with about the square of cohort size. Buying 2.8x on a wallet-selection metric
+at that price is a bad trade, especially as the fill study points at holding
+horizon rather than wallet selection as where the return actually sits.
+
+The real reading is not "gate harder" but "the cohort is thin on activity".
+Discovery should prefer wallets that trade on many distinct days, rather than
+the existing 60-trades-in-60-days count which a wallet can satisfy in an
+afternoon. Revisit the gate when cohort size is comfortable; at 209 it is not.
+
 ### Weekly review checklist (the whole job this phase)
 
 1. Rank IC: needs 30 daily measurements, then compare median against MDIC 0.08.
