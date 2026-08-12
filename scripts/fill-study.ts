@@ -28,6 +28,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import * as fs from "fs/promises";
+import { toReturns, alignReturns, computeBeta, BETA_MIN_SAMPLE } from "../lib/beta";
 
 const SUPABASE_URL              = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -291,7 +292,7 @@ function priceAt(series: [number, number][], t: number): number | null {
 
 const MIN = 60_000;
 const LATENCIES = [0, 1, 5, 10, 15, 30, 60];      // minutes behind the whale
-const HOLDS     = [15, 60, 240, 1440];            // minutes held
+const HOLDS     = [15, 60, 240, 480, 720, 1440];  // minutes held
 
 function stats(xs: number[]) {
   if (!xs.length) return null;
@@ -378,6 +379,58 @@ function toEpisodes(fills: Fill[]): Fill[] {
   return episodes.sort((a, b) => a.t - b.t);
 }
 
+/**
+ * Beta of a coin against BTC estimated from the bars immediately before an
+ * entry, so the correction never uses information the trade could not have had.
+ * Falls back to 1 when there is not enough history, which is the unscaled
+ * benchmark and the conservative direction for a positive result.
+ */
+const BETA_LOOKBACK_BARS = 200;
+
+function betaBefore(
+  coinSeries: [number, number][],
+  btcSeries: [number, number][],
+  t: number,
+): number {
+  const slice = (s: [number, number][]) => {
+    let hi = s.length - 1, lo = 0, idx = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (s[mid][0] < t) { idx = mid; lo = mid + 1; } else { hi = mid - 1; }
+    }
+    if (idx < 0) return [];
+    return s.slice(Math.max(0, idx - BETA_LOOKBACK_BARS), idx + 1);
+  };
+  const c = slice(coinSeries), m = slice(btcSeries);
+  if (c.length < BETA_MIN_SAMPLE || m.length < BETA_MIN_SAMPLE) return 1;
+  const toBars = (s: [number, number][]) => s.map(([bt, close]) => ({ t: bt, c: String(close) }));
+  const aligned = alignReturns(toReturns(toBars(c)), toReturns(toBars(m)));
+  if (aligned.coin.length < BETA_MIN_SAMPLE) return 1;
+  const b = computeBeta(aligned.coin, aligned.market);
+  return b === null || !Number.isFinite(b) ? 1 : b;
+}
+
+/**
+ * Collapse episodes that share a coin and a calendar day into one observation.
+ *
+ * toEpisodes removed correlation inside a wallet. It did nothing about fifty
+ * different wallets buying the same coin on the same afternoon, which resolve
+ * against one market move and carry one unit of information between them. Left
+ * uncollapsed those inflate t in the cross section exactly as duplicate fills
+ * did within a wallet, and the 24h column depends on it most because a 24h
+ * forward window overlaps nearly every other entry that day.
+ */
+function clusterByCoinDay(rows: Array<{ coin: string; t: number; r: number }>): number[] {
+  const groups = new Map<string, number[]>();
+  for (const row of rows) {
+    const day = Math.floor(row.t / 86_400_000);
+    const k = `${row.coin}|${day}`;
+    if (!groups.has(k)) groups.set(k, []);
+    groups.get(k)!.push(row.r);
+  }
+  return [...groups.values()].map((rs) => rs.reduce((a, b) => a + b, 0) / rs.length);
+}
+
 function main(cache: Cache) {
   const { fills, candles } = cache;
   // One and a half bars: wide enough that a legitimate next bar always matches,
@@ -416,39 +469,75 @@ function main(cache: Cache) {
   const followSet = fullyCovered(
     onCoveredCoins, candles, Math.max(...LATENCIES) + Math.max(...HOLDS),
   );
-  console.log(`\n=== Follower net PnL: enter L min late, hold H min, less ${ROUND_TRIP_BPS} bps ===`);
-  console.log(`same ${followSet.length} fills in every cell`);
-  const header = HOLDS.map((h) => `${h}m`.padStart(11)).join(" |");
+  const btc = candles["BTC"] ?? [];
+
+  // Diagnostic first: a long-biased book in a drifting market reproduces a flat
+  // positive long-horizon result with no alpha in it at all.
+  const longs = followSet.filter((f) => f.d === 1).length;
+  const drift = btc.length ? ((btc[btc.length - 1][1] - btc[0][1]) / btc[0][1]) * 100 : 0;
+  console.log(`\n=== Diagnostics ===`);
+  console.log(`  episodes ${followSet.length}, long ${longs} (${((longs / Math.max(followSet.length,1)) * 100).toFixed(0)}%), short ${followSet.length - longs}`);
+  console.log(`  BTC over the window: ${drift >= 0 ? "+" : ""}${drift.toFixed(1)}%`);
+  const coinDays = new Set(followSet.map((f) => `${f.c}|${Math.floor(f.t / 86400000)}`)).size;
+  console.log(`  distinct coin-days: ${coinDays}  <- the real independent count for long horizons`);
+
+  console.log(`\n=== Follower net PnL, per-coin beta, clustered by coin-day, less ${ROUND_TRIP_BPS} bps ===`);
+  const header = HOLDS.map((h) => `${h}m`.padStart(13)).join(" |");
   console.log(`latency |${header}`);
-  console.log(`--------+${HOLDS.map(() => "-".repeat(12)).join("+")}`);
+  console.log(`--------+${HOLDS.map(() => "-".repeat(14)).join("+")}`);
   for (const L of LATENCIES) {
     const cells: string[] = [];
     for (const H of HOLDS) {
-      const rs: number[] = [];
+      const rows: Array<{ coin: string; t: number; r: number }> = [];
       for (const f of followSet) {
         const entry = priceAt(candles[f.c], f.t + L * MIN);
         const exit  = priceAt(candles[f.c], f.t + (L + H) * MIN);
         if (entry === null || exit === null || entry <= 0) continue;
-        const raw = ((exit - entry) / entry) * f.d;
-        // The cohort is mostly long and the market drifts, so a signed raw
-        // return collects market beta and calls it edge. Subtract BTC over the
-        // same window, signed the same way. Beta is taken as 1, which
-        // understates the correction on high-beta alts and is the conservative
-        // direction for a positive result.
-        const bEntry = priceAt(candles["BTC"] ?? [], f.t + L * MIN);
-        const bExit  = priceAt(candles["BTC"] ?? [], f.t + (L + H) * MIN);
-        const bench  = bEntry && bExit && bEntry > 0 ? ((bExit - bEntry) / bEntry) * f.d : 0;
-        rs.push(raw - bench - ROUND_TRIP_BPS / 10_000);
+        const bEntry = priceAt(btc, f.t + L * MIN);
+        const bExit  = priceAt(btc, f.t + (L + H) * MIN);
+        if (bEntry === null || bExit === null || bEntry <= 0) continue;
+        const beta = betaBefore(candles[f.c], btc, f.t);
+        const raw   = ((exit - entry) / entry) * f.d;
+        const bench = ((bExit - bEntry) / bEntry) * f.d * beta;
+        rows.push({ coin: f.c, t: f.t, r: raw - bench - ROUND_TRIP_BPS / 10_000 });
       }
-      const s = stats(rs);
-      cells.push(s ? `${bps(s.mean).toFixed(1)}(t${s.t.toFixed(1)})`.padStart(11) : "n/a".padStart(11));
+      const s2 = stats(clusterByCoinDay(rows));
+      cells.push(s2 ? `${bps(s2.mean).toFixed(1)}(t${s2.t.toFixed(1)},n${s2.n})`.padStart(13) : "n/a".padStart(13));
     }
     console.log(`${String(L).padStart(6)}m |${cells.join(" |")}`);
   }
 
-  // ── Slice 3: does the wallet score separate the flow ──────────────────────
-  // If following works, the top score decile should lead the bottom. If the
-  // bottom leads, fading it is the trade and no skill hypothesis is needed.
+  // A single window in a single regime is one observation of a strategy, not
+  // evidence about it. Split the window and require the effect in both halves.
+  console.log(`\n=== Split-half robustness, enter at +10m, per-coin beta, coin-day clustered ===`);
+  const times = followSet.map((f) => f.t).sort((a, b) => a - b);
+  const mid = times[Math.floor(times.length / 2)];
+  console.log(`half   |` + HOLDS.map((h) => `${h}m`.padStart(13)).join(" |"));
+  console.log(`-------+` + HOLDS.map(() => "-".repeat(14)).join("+"));
+  for (const [label, set] of [
+    ["early", followSet.filter((f) => f.t < mid)],
+    ["late ", followSet.filter((f) => f.t >= mid)],
+  ] as Array<[string, Fill[]]>) {
+    const cells: string[] = [];
+    for (const H of HOLDS) {
+      const rows: Array<{ coin: string; t: number; r: number }> = [];
+      for (const f of set) {
+        const entry = priceAt(candles[f.c], f.t + 10 * MIN);
+        const exit  = priceAt(candles[f.c], f.t + (10 + H) * MIN);
+        const bEntry = priceAt(btc, f.t + 10 * MIN);
+        const bExit  = priceAt(btc, f.t + (10 + H) * MIN);
+        if (entry === null || exit === null || bEntry === null || bExit === null) continue;
+        if (entry <= 0 || bEntry <= 0) continue;
+        const beta = betaBefore(candles[f.c], btc, f.t);
+        rows.push({ coin: f.c, t: f.t,
+          r: ((exit - entry) / entry) * f.d - ((bExit - bEntry) / bEntry) * f.d * beta - ROUND_TRIP_BPS / 10_000 });
+      }
+      const st = stats(clusterByCoinDay(rows));
+      cells.push(st ? `${bps(st.mean).toFixed(1)}(t${st.t.toFixed(1)},n${st.n})`.padStart(13) : "n/a".padStart(13));
+    }
+    console.log(`${label}  |` + cells.join(" |"));
+  }
+
   // The score decile slice is disabled, not deleted. `sc` is read from the most
   // recent snapshot, but overall_score is computed from recent PnL, so for a
   // study window inside that lookback the score already knows how these very

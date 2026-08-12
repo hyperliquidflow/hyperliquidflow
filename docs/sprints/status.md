@@ -268,9 +268,53 @@ Path to power, in order of leverage:
    question, which is the one 5m candles cannot answer.
 3. **Point-in-time scores** before the score slice means anything.
 
-Only after that does the decay curve carry enough weight to decide whether the
-10-minute polling architecture can clear costs, which remains the open
-architectural question.
+**First result that survived its own audit (2026-08-11, later).** With the fill
+pagination, per-interval windows, per-coin beta from `lib/beta.ts` and coin-day
+clustering all in place: 63,108 fills over 45 days, 1,382 entry episodes, and
+**435 distinct coin-days, which is the real independent count**. Fifty wallets
+buying the same coin on one afternoon resolve against one market move, so
+coin-day is the unit, not the episode. Cohort is 62% long, BTC drifted +6.0%
+across the window, and with 24% net long exposure that drift accounts for
+roughly 3 bps, not the 45 below.
+
+Net of a per-coin beta benchmark and 7 bps of round-trip cost, entering 10
+minutes after a cohort entry:
+
+| Hold | Net bps | t |
+|---|---|---|
+| 15 min | -4.0 | -1.7 |
+| 1 hour | -5.1 | -1.2 |
+| 4 hours | +2.0 | 0.2 |
+| 8 hours | +14.6 | 1.3 |
+| 12 hours | +23.0 | 1.6 |
+| **24 hours** | **+45.7** | **2.3** |
+
+A smooth monotonic build rather than one lucky cell, and both halves of the
+window are positive at 24h (+29.6 early, +57.2 late) with the same shape. Gross
+drift from the cohort's own fill price is positive at every horizon, +8 to +17
+bps at t 2.2 to 3.2.
+
+An earlier reading of this table claimed the flatness across entry latency
+proved the 24h number was beta. That reasoning was wrong: shifting entry by an
+hour inside a 24-hour hold moves 4% of the window, so flatness there is
+arithmetic. Latency does bite where it should, on the short holds.
+
+**What this changes about the live system.** The shipped exit is 1 ATR stop and
+1 ATR target, tuned so 84% of trades resolve at the levels rather than timing
+out. Resolution efficiency was the right thing to optimise for sample size and
+the wrong thing for return: the measurement says the hours-long region is where
+net return is zero to negative after costs, and the return accrues at 24h and
+beyond. **The exits are timed to the wrong horizon.** Re-cutting them against
+this curve is now ahead of any recipe threshold work.
+
+What is not established. t=2.2 is marginal across a table with more than 28
+cells, neither half clears significance alone, and this is one 45-day window in
+one regime. It is a lead worth pursuing, not a proven edge. The next tests are a
+longer window at 1h bars, which reaches 208 days, and holds past 24h to find
+where the curve tops out.
+
+The 10-minute polling architecture is not disqualified. The edge, such as it is,
+does not live in the first minutes.
 
 ### Weekly review checklist (the whole job this phase)
 
