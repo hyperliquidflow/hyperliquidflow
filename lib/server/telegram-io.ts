@@ -52,13 +52,18 @@ export async function collectCheckInputs(): Promise<CheckInputs> {
   const since48h  = new Date(now - 48 * 60 * 60 * 1000).toISOString();
   const overdueBefore = new Date(now - THRESHOLDS.outcome_overdue_ms).toISOString();
 
-  const [cache, beat, hist, active, scoredToday, scoredYesterday, outcomes, overdue] = await Promise.all([
+  // Two hours of snapshots is enough to hold the latest row for every active
+  // wallet at the observed 5-minute cadence, and stays small enough for a check
+  // that runs every 15 minutes.
+  const fundedSince = new Date(now - 2 * 60 * 60 * 1000).toISOString();
+
+  const [cache, beat, hist, active, scoredToday, scoredYesterday, outcomes, overdue, recentSnaps] = await Promise.all([
     readCohortCache(),
     supabase.from("cohort_snapshots").select("snapshot_time")
       .order("snapshot_time", { ascending: false }).limit(1).maybeSingle(),
     supabase.from("wallet_score_history").select("date")
       .order("date", { ascending: false }).limit(1).maybeSingle(),
-    supabase.from("wallets").select("id", { count: "exact", head: true })
+    supabase.from("wallets").select("id")
       .eq("is_active", true),
     supabase.from("wallet_score_history").select("wallet_id", { count: "exact", head: true })
       .eq("date", today),
@@ -69,14 +74,35 @@ export async function collectCheckInputs(): Promise<CheckInputs> {
     supabase.from("signal_outcomes").select("id", { count: "exact", head: true })
       .is("resolved_at", null)
       .lt("created_at", overdueBefore),
+    supabase.from("cohort_snapshots").select("wallet_id, account_value, snapshot_time")
+      .gt("snapshot_time", fundedSince)
+      .order("snapshot_time", { ascending: false }),
   ]);
+
+  // Funded share: the latest snapshot per active wallet, counting those holding
+  // real equity. The headline active count says how many passed the gates; this
+  // says how many can actually take a position.
+  let activeFunded: number | null = null;
+  if (!active.error && !recentSnaps.error) {
+    const activeIds = new Set((active.data ?? []).map((w) => w.id as string));
+    const seen = new Set<string>();
+    let funded = 0;
+    for (const row of recentSnaps.data ?? []) {
+      const id = row.wallet_id as string;
+      if (!activeIds.has(id) || seen.has(id)) continue;   // rows are newest first
+      seen.add(id);
+      if (Number(row.account_value) > 0) funded++;
+    }
+    activeFunded = funded;
+  }
 
   return {
     now_ms:                  now,
     snapshot_updated_at:     cache?.updated_at ?? null,
     heartbeat_snapshot_time: beat.data?.snapshot_time ?? null,
     score_history_date:      hist.data?.date ?? null,
-    active_wallets:          active.error          ? null : active.count          ?? null,
+    active_wallets:          active.error          ? null : active.data?.length    ?? null,
+    active_funded:           activeFunded,
     scored_today:            scoredToday.error     ? null : scoredToday.count     ?? null,
     scored_yesterday:        scoredYesterday.error ? null : scoredYesterday.count ?? null,
     outcomes_overdue:        overdue.error         ? null : overdue.count         ?? null,

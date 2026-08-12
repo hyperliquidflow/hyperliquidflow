@@ -40,6 +40,7 @@ export const CHECK_LABELS: Record<CheckId, string> = {
   heartbeat_dead:   "heartbeat dead",
   scan_dead:        "nightly scan dead",
   cohort_floor:     "cohort collapsed",
+  cohort_unfunded:  "cohort mostly empty accounts",
   learning_stalled: "learning loop stalled",
 };
 

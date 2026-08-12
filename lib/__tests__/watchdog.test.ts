@@ -22,15 +22,16 @@ function healthyInputs(): CheckInputs {
     scored_yesterday:        82,
     outcomes_overdue:        0,
     outcomes_resolved_48h:   42,
+    active_funded:           77,
   };
 }
 
 const byId = (rs: CheckResult[], id: string) => rs.find((r) => r.id === id)!;
 
 describe("evaluateChecks", () => {
-  it("reports all five checks green on healthy inputs", () => {
+  it("reports all six checks green on healthy inputs", () => {
     const rs = evaluateChecks(healthyInputs());
-    expect(rs).toHaveLength(5);
+    expect(rs).toHaveLength(6);
     expect(rs.every((r) => r.ok)).toBe(true);
   });
 
@@ -138,6 +139,7 @@ describe("evaluateChecks", () => {
       scored_yesterday:        null,
       outcomes_overdue:        null,
       outcomes_resolved_48h:   null,
+      active_funded:           null,
     });
     expect(rs.every((r) => !r.ok)).toBe(true);
   });
@@ -207,5 +209,45 @@ describe("diffTransitions", () => {
       nowIso,
     );
     expect(transitions.map((t) => t.kind)).toEqual(["alert", "recovery"]);
+  });
+});
+
+/**
+ * The invariant this check exists for: on 2026-08-11 the cohort read 76 active
+ * while 49 of those wallets held exactly $0, because scoring skipped the equity
+ * gate for candidates absent from the leaderboard. Nothing alerted, and the
+ * headline count looked healthy for weeks. A wallet with no money cannot
+ * contribute to a signal, so the share that is actually funded is the number
+ * worth watching, not the count.
+ */
+describe("cohort_unfunded", () => {
+  it("is green when every active wallet is funded", () => {
+    const rs = evaluateChecks({ ...healthyInputs(), active_wallets: 59, active_funded: 59 });
+    expect(byId(rs, "cohort_unfunded").ok).toBe(true);
+  });
+
+  it("catches the 2026-08-11 state, where two thirds of the cohort was empty", () => {
+    const rs = evaluateChecks({ ...healthyInputs(), active_wallets: 76, active_funded: 26 });
+    const r = byId(rs, "cohort_unfunded");
+    expect(r.ok).toBe(false);
+    expect(r.detail).toContain("34%");
+  });
+
+  it("tolerates a few empty accounts between a scan and the next hygiene pass", () => {
+    const rs = evaluateChecks({ ...healthyInputs(), active_wallets: 100, active_funded: 85 });
+    expect(byId(rs, "cohort_unfunded").ok).toBe(true);
+  });
+
+  it("fails closed when the funded count is unavailable", () => {
+    const rs = evaluateChecks({ ...healthyInputs(), active_funded: null });
+    expect(byId(rs, "cohort_unfunded").ok).toBe(false);
+  });
+
+  // An empty cohort is the cohort_floor check's job. Reporting 0/0 as 0% here
+  // would fire two alerts for one incident.
+  it("stays quiet when there are no active wallets at all", () => {
+    const rs = evaluateChecks({ ...healthyInputs(), active_wallets: 0, active_funded: 0 });
+    expect(byId(rs, "cohort_unfunded").ok).toBe(true);
+    expect(byId(rs, "cohort_floor").ok).toBe(false);
   });
 });

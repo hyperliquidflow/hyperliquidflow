@@ -8,6 +8,7 @@ export type CheckId =
   | "heartbeat_dead"
   | "scan_dead"
   | "cohort_floor"
+  | "cohort_unfunded"
   | "learning_stalled";
 
 export const CHECK_IDS: CheckId[] = [
@@ -15,6 +16,7 @@ export const CHECK_IDS: CheckId[] = [
   "heartbeat_dead",
   "scan_dead",
   "cohort_floor",
+  "cohort_unfunded",
   "learning_stalled",
 ];
 
@@ -25,6 +27,15 @@ export const THRESHOLDS = {
   scan_max_age_ms:      48 * 60 * 60 * 1000,
   cohort_floor:         40,
   cohort_max_drop_pct:  0.30,
+  /**
+   * Share of active wallets that must hold actual equity. On 2026-08-11 the
+   * cohort read 76 active with 49 holding exactly $0, and nothing alerted
+   * because the headline count looked fine. A wallet with no money cannot
+   * contribute to a signal, so the funded share is the honest measure of
+   * cohort health. 0.80 leaves room for accounts emptied between a scan and
+   * the next hygiene pass without tolerating a structural failure.
+   */
+  min_funded_share:     0.80,
   /**
    * How long an outcome may sit ungraded before the grader is at fault.
    * measure-outcomes runs daily at 02:00 UTC (vercel.json) against a 24h
@@ -60,6 +71,12 @@ export interface CheckInputs {
   outcomes_overdue:        number | null;
   /** Informational only, used for the healthy-state message. */
   outcomes_resolved_48h:   number | null;
+  /**
+   * Active wallets whose latest snapshot shows equity above zero. The count of
+   * active wallets says how many passed the gates; this says how many can
+   * actually take a position, which is the only state that produces a signal.
+   */
+  active_funded:           number | null;
 }
 
 export interface CheckResult {
@@ -151,6 +168,27 @@ export function evaluateChecks(i: CheckInputs): CheckResult[] {
     });
   } else {
     results.push({ id: "cohort_floor", ok: true, detail: `${i.active_wallets} active` });
+  }
+
+  // Funded share. Deliberately silent when the cohort is empty: 0 of 0 is not
+  // an unfunded problem, it is the cohort_floor check's incident, and firing
+  // both would alert twice for one failure.
+  if (i.active_funded === null || i.active_wallets === null) {
+    results.push({ id: "cohort_unfunded", ok: false, detail: "funded count unavailable" });
+  } else if (i.active_wallets === 0) {
+    results.push({ id: "cohort_unfunded", ok: true, detail: "no active wallets to fund" });
+  } else {
+    const share = i.active_funded / i.active_wallets;
+    const pct = Math.round(share * 100);
+    results.push(
+      share < THRESHOLDS.min_funded_share
+        ? {
+            id: "cohort_unfunded",
+            ok: false,
+            detail: `only ${i.active_funded} of ${i.active_wallets} active wallets funded, ${pct}%, floor ${Math.round(THRESHOLDS.min_funded_share * 100)}%`,
+          }
+        : { id: "cohort_unfunded", ok: true, detail: `${pct}% of active wallets funded` },
+    );
   }
 
   results.push(
