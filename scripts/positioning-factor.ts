@@ -118,7 +118,11 @@ async function main() {
   // return from day d+1 boundary to day d+2 boundary. Rank correlate the two.
   const ics: number[] = [];
   const spreads: number[] = [];
-  const TOP_N = 3;
+  // A solid IC with a marginal traded spread means the ranking knows something
+  // the book is too concentrated to collect. Three names a side on a 20 to 30
+  // coin cross section is a handful of positions carrying all the variance, so
+  // the leg width is swept rather than assumed.
+  const TOP_N = Number(process.argv.find((a) => a.startsWith("--legs="))?.split("=")[1] ?? 3);
 
   // Reconstruction starts every wallet flat, so a position opened before the
   // window and closed inside it registers as a phantom short. That error decays
