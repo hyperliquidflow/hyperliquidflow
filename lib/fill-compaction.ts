@@ -66,9 +66,19 @@ export function netSignedSize(fills: readonly CompactableFill[]): number {
   return fills.reduce((s, f) => s + f.s * f.d * (f.o === 1 ? 1 : -1), 0);
 }
 
+/** Total size traded, ignoring direction. The scale a drift is judged against. */
+export function grossSize(fills: readonly CompactableFill[]): number {
+  return fills.reduce((s, f) => s + Math.abs(f.s), 0);
+}
+
 /** Total realised PnL. Compaction must preserve it. */
 export function totalPnl(fills: readonly CompactableFill[]): number {
   return fills.reduce((s, f) => s + f.pnl, 0);
+}
+
+/** Total realised PnL ignoring sign, the scale a PnL drift is judged against. */
+export function grossPnl(fills: readonly CompactableFill[]): number {
+  return fills.reduce((s, f) => s + Math.abs(f.pnl), 0);
 }
 
 export interface ConservationCheck {
@@ -80,15 +90,22 @@ export interface ConservationCheck {
 /**
  * Relative drift in the two quantities every downstream slice sums. Aggregation
  * that moves either one is wrong, and the caller should refuse to write.
+ *
+ * Drift is judged against the gross traded size, not the net position. A wallet
+ * that opened and closed everything ends flat, so its net is near zero, and
+ * dividing by that turns ordinary floating-point noise into a headline
+ * percentage. Measured that way a correct compaction reported 1.5% size drift
+ * on a wallet whose PnL matched to 3.6e-16, and the fetch dropped it: exactly
+ * the wallets that completed round trips, which is not a random subset.
  */
 export function checkConservation(
   before: readonly CompactableFill[],
   after: readonly CompactableFill[],
   tolerance = 1e-6,
 ): ConservationCheck {
-  const sizeBefore = netSignedSize(before), sizeAfter = netSignedSize(after);
-  const pnlBefore = totalPnl(before), pnlAfter = totalPnl(after);
-  const sizeDrift = Math.abs(sizeBefore - sizeAfter) / Math.max(Math.abs(sizeBefore), 1e-9);
-  const pnlDrift = Math.abs(pnlBefore - pnlAfter) / Math.max(Math.abs(pnlBefore), 1e-9);
+  const sizeScale = Math.max(grossSize(before), 1e-9);
+  const pnlScale = Math.max(grossPnl(before), 1e-9);
+  const sizeDrift = Math.abs(netSignedSize(before) - netSignedSize(after)) / sizeScale;
+  const pnlDrift = Math.abs(totalPnl(before) - totalPnl(after)) / pnlScale;
   return { sizeDrift, pnlDrift, ok: sizeDrift <= tolerance && pnlDrift <= tolerance };
 }

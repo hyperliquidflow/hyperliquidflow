@@ -98,3 +98,53 @@ suite("checkConservation", () => {
     expect(totalPnl([f({ t: 0, pnl: 1.5 }), f({ t: 0, pnl: -0.5 })])).toBeCloseTo(1, 9);
   });
 });
+
+suite("checkConservation scale", () => {
+  // The defect this guards, caught mid-fetch on 2026-08-12: judging drift
+  // against the NET position divides by ~0 for any wallet that ended flat, so
+  // ordinary float noise reads as a 1.5% error and the wallet is dropped.
+  // Wallets that complete round trips are not a random subset of the pool.
+  // Realistic shape: a meme coin trades in tens of millions of units, so a
+  // wallet that ends flat nets a rounding remnant out of enormous sums. That
+  // is catastrophic cancellation, and dividing the remnant by the net rather
+  // than by the gross turns it into a double-digit percentage.
+  // Reproduces the production shape exactly. Grouping changes the order in
+  // which enormous meme-coin sizes are added, so the net of a flat wallet
+  // lands a few times 1e-8 away from zero. Judged against that net the drift
+  // reads 4470%; judged against the gross it is 5e-19, which is the truth.
+  it("passes a flat wallet whose huge sizes cancel in a different order once grouped", () => {
+    const before: CompactableFill[] = [];
+    let t = 0;
+    for (let i = 0; i < 2000; i++) {
+      const size = 20_376_505.13 + Math.sin(i) * 1234.5678901;
+      const coin = i % 2 === 0 ? "kPEPE" : "PUMP";
+      before.push(f({ w: "a", c: coin, t, s: size, o: 1, d: -1 }));
+      before.push(f({ w: "a", c: coin, t: t + 60_000, s: size, o: 0, d: -1, pnl: -4.4664 }));
+      t += HOUR / 7;
+    }
+    const after = compactFills(before);
+    const drift = Math.abs(netSignedSize(before) - netSignedSize(after));
+    expect(drift).toBeGreaterThan(0);           // the rounding remnant is real
+    expect(checkConservation(before, after).ok).toBe(true);  // and economically nil
+  });
+
+  it("still fails when a flat wallet actually loses a fill", () => {
+    const before = [
+      f({ t: 0, s: 5, o: 1, d: 1 }),
+      f({ t: HOUR, s: 5, o: 0, d: 1 }),
+      f({ t: 2 * HOUR, s: 5, o: 1, d: 1 }),
+    ];
+    const check = checkConservation(before, [before[0], before[1]]);
+    expect(check.ok).toBe(false);
+  });
+
+  it("judges PnL drift against gross PnL, so winners cancelling losers is not a free pass", () => {
+    const before = [
+      f({ t: 0, o: 0, pnl: 100 }),
+      f({ t: HOUR, o: 0, pnl: -100 }),
+    ];
+    // Net PnL is 0 on both sides, but a lost row is still a lost row.
+    const check = checkConservation(before, [before[0]]);
+    expect(check.ok).toBe(false);
+  });
+});
