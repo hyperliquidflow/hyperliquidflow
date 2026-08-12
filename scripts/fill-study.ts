@@ -573,6 +573,64 @@ function main(cache: Cache) {
     console.log(`${label}  |` + cells.join(" |"));
   }
 
+  // ── Exit structure implied by the cohort's own entries ───────────────────
+  // exit-structure-analysis.ts answers what the market can reach from random
+  // entries. This asks the narrower question that actually sets the exits: from
+  // the entries this system would take, how far does price run our way before it
+  // runs against us? A stop and target chosen from random-entry excursions is
+  // fitted to the wrong distribution if cohort entries have any edge at all.
+  const EXIT_HORIZON_H = 24;
+  const excursions: Array<{ mfe: number; mae: number; coin: string; t: number }> = [];
+  for (const f of fullyCovered(onCoveredCoins, candles, (EXIT_HORIZON_H + 1) * 60)) {
+    const series = candles[f.c];
+    const entry = priceAt(series, f.t + 10 * MIN);
+    if (entry === null || entry <= 0) continue;
+    let mfe = 0, mae = 0;
+    for (let h = 1; h <= EXIT_HORIZON_H; h++) {
+      const px = priceAt(series, f.t + (10 + h * 60) * MIN);
+      if (px === null) continue;
+      const r = ((px - entry) / entry) * f.d;
+      if (r > mfe) mfe = r;
+      if (r < mae) mae = r;
+    }
+    excursions.push({ mfe, mae, coin: f.c, t: f.t });
+  }
+
+  console.log(`\n=== Excursion over ${EXIT_HORIZON_H}h from cohort entries (enter +10m), n=${excursions.length} ===`);
+  if (excursions.length >= 50) {
+    const q = (xs: number[], p: number) => {
+      const v = [...xs].sort((a, b) => a - b);
+      return v[Math.floor(p * (v.length - 1))];
+    };
+    const mfes = excursions.map((e) => e.mfe), maes = excursions.map((e) => e.mae);
+    console.log(`  MFE bps: p25=${bps(q(mfes,0.25)).toFixed(0)} median=${bps(q(mfes,0.5)).toFixed(0)} p75=${bps(q(mfes,0.75)).toFixed(0)} p90=${bps(q(mfes,0.9)).toFixed(0)}`);
+    console.log(`  MAE bps: p10=${bps(q(maes,0.1)).toFixed(0)} p25=${bps(q(maes,0.25)).toFixed(0)} median=${bps(q(maes,0.5)).toFixed(0)} p75=${bps(q(maes,0.75)).toFixed(0)}`);
+
+    // Grid of stop/target pairs, scored on the same coin-day clustering as
+    // everything else. Whichever pair wins here is fitted to this window and
+    // needs out-of-sample confirmation before it ships.
+    console.log(`\n  Expectancy by stop/target, net of ${ROUND_TRIP_BPS} bps, coin-day clustered:`);
+    console.log(`  target\\stop |` + [50, 100, 150, 200, 300].map((x) => `${x}bps`.padStart(12)).join(" |"));
+    for (const target of [50, 100, 150, 200, 300, 500]) {
+      const cells: string[] = [];
+      for (const stop of [50, 100, 150, 200, 300]) {
+        const rows = excursions.map((e) => {
+          // Path order is unknown within the hour, so charge the pessimistic
+          // reading: if both levels were touched, assume the stop came first.
+          const hitStop   = e.mae <= -stop / 10_000;
+          const hitTarget = e.mfe >= target / 10_000;
+          const r = hitStop ? -stop / 10_000 : hitTarget ? target / 10_000 : 0;
+          return { coin: e.coin, t: e.t, r: r - ROUND_TRIP_BPS / 10_000 };
+        });
+        const st = stats(clusterByCoinDay(rows));
+        cells.push(st ? `${bps(st.mean).toFixed(0)}(t${st.t.toFixed(1)})`.padStart(12) : "n/a".padStart(12));
+      }
+      console.log(`  ${String(target).padStart(9)}bps |` + cells.join(" |"));
+    }
+  } else {
+    console.log(`  too few covered entries to fit an exit structure`);
+  }
+
   // The score decile slice is disabled, not deleted. `sc` is read from the most
   // recent snapshot, but overall_score is computed from recent PnL, so for a
   // study window inside that lookback the score already knows how these very
