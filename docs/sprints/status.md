@@ -3,6 +3,47 @@
 Update this file whenever a sprint starts, progresses, or completes.
 At the start of each session, read this file to know where to pick up.
 
+## Where this stands, 2026-08-12
+
+Read the Edge Readiness gates before picking anything up. Six of seventeen are
+verified, two candidates are eliminated, and everything downstream waits on one
+question: whether any tradeable expression of wallet skill exists.
+
+**Verified and shipped.** The cohort is real for the first time: 57 of 60 active
+wallets are funded and holding, against 26 of 76 yesterday with 49 empty
+accounts. Two root causes fixed and confirmed in production, a liquidation gate
+that measured free margin rather than distance to liquidation, and a scan that
+activated wallets it had never checked the balance of. Rank IC is 0.0939 clean
+of lookahead, not the 0.0500 the project believed, because the old figure was
+diluted by dormant wallets. Wallet scoring works.
+
+**Eliminated, well powered.** Entry copying and coordination both fail as
+standalone systems across 120 days and 2,403 independent coin-days.
+
+**Reframed.** Testing each idea as its own trading system was the wrong frame
+for weak signals: a feature with an IC of 0.03 is useless alone and useful in
+combination. `scripts/signal-stack.ts` now measures seven features and their
+correlation matrix, because features that agree do not stack and that matrix is
+what decides whether accumulation is a real path. Six features come from the
+cohort; funding is the one input the cohort cannot bias.
+
+**A correction worth keeping.** Entry copying was described here as failing
+because it demands immediacy. The data says otherwise: entering at the whale's
+fill price returned -6.4 bps at an hour, entering a full 60 minutes late
+returned -5.9. Lateness never cost anything. What failed was the
+net-of-benchmark edge, and the 24h and 48h holds were underpowered rather than
+dead, which is why entry flow survives as a feature.
+
+**The methodological lesson, which cost most of the day.** Six defects were
+found in the measurement code, and five had already produced a confident wrong
+answer before being caught: silent candle truncation, clustered fills inflating
+a decile to t=51, unbenchmarked direction reporting market beta as edge, a stale
+price guard tuned for the wrong bar size, a wallet pool ordered by scan recency
+that drew a dormant sample, and a pool banded on trade count that admitted
+market makers because trades and fills are different units. Every one looked
+publishable first. Any result from this codebase should be assumed wrong until
+its sample has been checked against a previous run.
+
 ## Active Sprint
 
 **Recovery Phase 2: Prove or Kill (2026-08-08 audit)**  
