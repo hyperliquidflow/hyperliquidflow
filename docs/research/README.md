@@ -40,6 +40,9 @@ audit re-ran it (dossier finding R2, confirmed by both external reviews).
   does not sort the entries a follower can copy (pre-registered contrast
   -13.0 bps/day, t -0.47, FAIL). Decile 9 alone looked excellent, which is
   exactly what the single pre-registered contrast existed to prevent.
+- [2026-08-13-cache-audit.md](2026-08-13-cache-audit.md): the cache matches the
+  exchange exactly, 8,405 bars, zero differences. Determinism was already known;
+  this is fidelity, which is the claim that matters.
 - [2026-08-12-capacity.md](2026-08-12-capacity.md): what a surviving edge would
   be worth. Honest capacity is about $100k of book, roughly $364/day if the
   edge is real, bounded by the thin coins the factor prefers.
