@@ -44,6 +44,10 @@ audit re-ran it (dossier finding R2, confirmed by both external reviews).
   a 3-day momentum rule ties the long-hold lead at 72h (+61.9 vs +64.2), which
   downgrades yesterday's "momentum rejected" claim to "rejected at 1 day only".
   The corrected table does pass its split-half, with heavy front-loading.
+- [2026-08-13-factor-rivals.md](2026-08-13-factor-rivals.md): the lean is not
+  activity in disguise. Volume, volume change and funding are all near-orthogonal
+  to it and none predicts. Includes a lookahead caught before publication that
+  had volume change reading a false IC of 0.1014.
 - [2026-08-13-cache-audit.md](2026-08-13-cache-audit.md): the cache matches the
   exchange exactly, 8,405 bars, zero differences. Determinism was already known;
   this is fidelity, which is the claim that matters.
