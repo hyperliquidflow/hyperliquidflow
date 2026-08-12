@@ -120,6 +120,47 @@ const FEE_BPS_SIDE  = 4.5;  // verified base-tier taker, 2026-08-12
 const SLIP_BPS_SIDE = 5;    // haircut until a depth model exists
 const FULL_RT = (2 * (FEE_BPS_SIDE + SLIP_BPS_SIDE)) / 10_000; // 19 bps round trip
 const FUNDING_CACHE_FILE = "funding-cache.json";
+const CHECKPOINT_FILE = "fill-study-checkpoint.json";
+const CHECKPOINT_EVERY = 25;
+
+/** Everything needed to resume a fetch, plus the parameters that define it. */
+interface Checkpoint {
+  params: string;
+  fills: Fill[];
+  fetchedWalletIds: string[];
+  rawFillCount: number;
+}
+
+/**
+ * The parameters that make two runs the same study. A checkpoint from a
+ * different window, interval, pool or wallet count describes different data,
+ * so resuming across them would silently blend two samples.
+ */
+function checkpointParams(): string {
+  const pool = process.argv.find((a) => a.startsWith("--pool="))?.split("=")[1] ?? "traders";
+  return `${DAYS}|${INTERVAL}|${pool}|${MAX_WALLETS}|${COMPACT_ON_FETCH}`;
+}
+
+async function readCheckpoint(): Promise<Checkpoint | null> {
+  try {
+    const cp = JSON.parse(await fs.readFile(CHECKPOINT_FILE, "utf8")) as Checkpoint;
+    if (cp.params !== checkpointParams()) {
+      console.log(`[fill-study] checkpoint is from a different run (${cp.params}), ignoring it`);
+      return null;
+    }
+    return cp;
+  } catch {
+    return null;
+  }
+}
+
+async function writeCheckpoint(state: Omit<Checkpoint, "params">): Promise<void> {
+  // Write beside the target and rename, so a crash mid-write cannot leave a
+  // half-written checkpoint that the next run would happily resume from.
+  const tmp = `${CHECKPOINT_FILE}.tmp`;
+  await fs.writeFile(tmp, JSON.stringify({ params: checkpointParams(), ...state }));
+  await fs.rename(tmp, CHECKPOINT_FILE);
+}
 
 interface Fill {
   w: string;      // wallet id
@@ -249,11 +290,30 @@ async function fetchAll(): Promise<Cache> {
   const fills: Fill[] = [];
   let done = 0;
   let rawFillCount = 0;
+  const fetchedWalletIds: string[] = [];
+
+  // Resume a run that died partway, provided it was the same run: a checkpoint
+  // from different parameters describes a different study and is ignored rather
+  // than silently mixed in.
+  const resumed = await readCheckpoint();
+  const alreadyFetched = new Set<string>();
+  if (resumed) {
+    fills.push(...resumed.fills);
+    fetchedWalletIds.push(...resumed.fetchedWalletIds);
+    for (const id of resumed.fetchedWalletIds) alreadyFetched.add(id);
+    rawFillCount = resumed.rawFillCount;
+    done = resumed.fetchedWalletIds.length;
+    console.log(
+      `[fill-study] resuming from checkpoint: ${done} wallets already fetched, ` +
+      `${fills.length} rows carried forward`
+    );
+  }
 
   let truncatedWallets = 0;
   let failedWallets = 0;
 
   for (const w of wallets) {
+    if (alreadyFetched.has(w.id)) continue;
     try {
       // Walk startTime forward until a page comes back short of the cap.
       // Dedup by tid because a page boundary can land inside a group of fills
@@ -337,11 +397,19 @@ async function fetchAll(): Promise<Cache> {
       console.warn(`[fill-study] fills failed for ${w.address.slice(0, 10)}: ${(e as Error).message}`);
     }
     done++;
+    fetchedWalletIds.push(w.id);
     if (done % 50 === 0) {
       const shape = COMPACT_ON_FETCH
         ? `${rawFillCount} fills to ${fills.length} hourly rows`
         : `${fills.length} fills`;
       console.log(`[fill-study]   ${done}/${wallets.length} wallets, ${shape}`);
+    }
+    // Checkpoint. A 400-wallet 200-day fetch runs for hours, and one died
+    // silently to memory pressure on 2026-08-12 with nothing written and
+    // nothing in the log to say why. Losing 25 wallets is an inconvenience;
+    // losing three hours twice is how a measurement programme stalls.
+    if (done % CHECKPOINT_EVERY === 0) {
+      await writeCheckpoint({ fills, fetchedWalletIds, rawFillCount });
     }
     await new Promise((r) => setTimeout(r, REQUEST_GAP));
   }
@@ -1075,6 +1143,9 @@ async function applyFreeze(cache: Cache): Promise<Cache> {
     cache = await fetchAll();
     await fs.writeFile(CACHE_FILE, JSON.stringify(cache));
     console.log(`[fill-study] cached to ${CACHE_FILE}`);
+    // The run completed, so the checkpoint is now a stale copy of a finished
+    // study and would confuse the next one.
+    await fs.rm(CHECKPOINT_FILE, { force: true });
   } else {
     try {
       cache = JSON.parse(await fs.readFile(CACHE_FILE, "utf8")) as Cache;
