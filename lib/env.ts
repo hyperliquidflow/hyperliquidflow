@@ -18,7 +18,12 @@ function requireEnv(name: string): string {
 }
 
 function optionalEnv(name: string, fallback: string): string {
-  return process.env[name] ?? fallback;
+  // An unset GitHub Actions secret arrives as the empty string, not as absent,
+  // so a nullish check alone hands the caller "" and the fallback never
+  // applies. That turns a missing secret into an empty API URL rather than a
+  // working default.
+  const raw = process.env[name];
+  return raw === undefined || raw.trim() === "" ? fallback : raw;
 }
 
 // ── Server-only variables (never exposed to the browser) ──────────────────────
