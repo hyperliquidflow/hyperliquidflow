@@ -29,6 +29,7 @@
 import { createClient } from "@supabase/supabase-js";
 import * as fs from "fs/promises";
 import { toReturns, alignReturns, computeBeta, BETA_MIN_SAMPLE } from "../lib/beta";
+import { scoreFromDailyPnls } from "../lib/skill-test";
 
 const SUPABASE_URL              = process.env.SUPABASE_URL!;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -766,6 +767,88 @@ function main(cache: Cache) {
     console.log(`  too few covered entries to fit an exit structure`);
   }
 
+  // ── Score decile on reconstructed point-in-time scores ───────────────────
+  // The cached `sc` field is the wallet's score today, computed from PnL that
+  // includes the very trades being ranked, so sorting by it leaks the outcome
+  // and produced a monotonic decile at t above 50. wallet_score_history cannot
+  // fix it either: 648 rows starting 2026-08-08 cannot score a 120-day window,
+  // and waiting for it means December.
+  //
+  // So the score is rebuilt instead. overall_score is a function of trailing
+  // daily PnL, and closing fills carry realized PnL with a timestamp, so each
+  // wallet can be scored from its own history strictly before each entry. No
+  // lookahead, no waiting.
+  const SCORE_LOOKBACK_DAYS = 60;
+  const SCORE_MIN_ACTIVE_DAYS = 5;   // the skill test's activity floor
+
+  // wallet -> day index -> realized PnL that day
+  const pnlByWalletDay = new Map<string, Map<number, number>>();
+  const dayOf = (t: number) => Math.floor(t / 86_400_000);
+  for (const f of fills) {
+    if (f.o !== 0 || !Number.isFinite(f.pnl) || f.pnl === 0) continue;
+    if (!pnlByWalletDay.has(f.w)) pnlByWalletDay.set(f.w, new Map());
+    const m = pnlByWalletDay.get(f.w)!;
+    const d = dayOf(f.t);
+    m.set(d, (m.get(d) ?? 0) + f.pnl);
+  }
+
+  function scoreAsOf(wallet: string, t: number): number | null {
+    const m = pnlByWalletDay.get(wallet);
+    if (!m) return null;
+    const today = dayOf(t);
+    const series: number[] = [];
+    let active = 0;
+    for (let d = today - SCORE_LOOKBACK_DAYS; d < today; d++) {
+      const v = m.get(d) ?? 0;
+      series.push(v);
+      if (v !== 0) active++;
+    }
+    if (active < SCORE_MIN_ACTIVE_DAYS) return null;
+    return scoreFromDailyPnls(series);
+  }
+
+  console.log(`\n=== Score decile on point-in-time scores, enter +10m, hold 4h, net ===`);
+  const ptSet = fullyCovered(onCoveredCoins, candles, 250);
+  const ptScored = ptSet
+    .map((f) => ({ f, s: scoreAsOf(f.w, f.t) }))
+    .filter((x): x is { f: Fill; s: number } => x.s !== null)
+    .sort((a, b) => a.s - b.s);
+
+  console.log(`  ${ptScored.length} of ${ptSet.length} episodes carry enough history to score`);
+  const dz = Math.floor(ptScored.length / 10);
+  if (dz >= 30) {
+    console.log(`  decile | score range   |  mean bps |    t | n(coin-days)`);
+    console.log(`  -------+---------------+-----------+------+-------------`);
+    for (let d = 0; d < 10; d++) {
+      const bucket = ptScored.slice(d * dz, (d + 1) * dz);
+      const rows: Array<{ coin: string; t: number; r: number }> = [];
+      for (const { f } of bucket) {
+        const entry = priceAt(candles[f.c], f.t + 10 * MIN);
+        const exit  = priceAt(candles[f.c], f.t + 250 * MIN);
+        const bEntry = priceAt(btc, f.t + 10 * MIN);
+        const bExit  = priceAt(btc, f.t + 250 * MIN);
+        if (entry === null || exit === null || bEntry === null || bExit === null) continue;
+        if (entry <= 0 || bEntry <= 0) continue;
+        const beta = betaBefore(candles[f.c], btc, f.t, `${f.c}|${f.t}`);
+        rows.push({ coin: f.c, t: f.t,
+          r: ((exit - entry) / entry) * f.d - ((bExit - bEntry) / bEntry) * f.d * beta - ROUND_TRIP_BPS / 10_000 });
+      }
+      const st = stats(clusterByCoinDay(rows));
+      if (!st) continue;
+      const lo = bucket[0].s.toFixed(3), hi = bucket[bucket.length - 1].s.toFixed(3);
+      console.log(
+        `  ${String(d + 1).padStart(6)} | ${`${lo}-${hi}`.padStart(13)} | ` +
+        `${bps(st.mean).toFixed(1).padStart(9)} | ${st.t.toFixed(1).padStart(4)} | ${String(st.n).padStart(12)}`
+      );
+    }
+    console.log(`  A monotone rise means selection works and the top is the trade.`);
+    console.log(`  A monotone fall in the bottom deciles means fading weak flow is the trade.`);
+  } else {
+    console.log(`  too few scorable episodes to decile`);
+  }
+
+  // The legacy slice using today's score is kept only behind a flag, as a
+  // demonstration of what the leak looks like.
   // The score decile slice is disabled, not deleted. `sc` is read from the most
   // recent snapshot, but overall_score is computed from recent PnL, so for a
   // study window inside that lookback the score already knows how these very
