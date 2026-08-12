@@ -31,6 +31,7 @@ import * as fs from "fs/promises";
 import { readFileSync } from "fs";
 import { toReturns, alignReturns, computeBeta, BETA_MIN_SAMPLE } from "../lib/beta";
 import { scoreFromDailyPnls } from "../lib/skill-test";
+import { fetchDiscoveryDates, freezeToDiscovery, describeFreeze, type DiscoveryQuery } from "../lib/discovery";
 import {
   priceAt as priceAtBar,
   staleTolerance,
@@ -53,9 +54,12 @@ if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-const CACHE_FILE   = "fill-study-cache.json";
 const DO_FETCH     = process.argv.includes("--fetch");
 const FREEZE_POOL  = process.argv.includes("--freeze-pool");
+// Analysing an archived cache while a fresh fetch writes the default one, and
+// re-deriving an old result without refetching, both need this.
+const CACHE_OVERRIDE = process.argv.find((a) => a.startsWith("--cache="))?.split("=")[1];
+const CACHE_FILE = CACHE_OVERRIDE ?? "fill-study-cache.json";
 const DAYS         = Number(process.argv.find((a) => a.startsWith("--days="))?.split("=")[1] ?? 7);
 const MAX_WALLETS  = Number(process.argv.find((a) => a.startsWith("--wallets="))?.split("=")[1] ?? 400);
 const TOP_COINS    = Number(process.argv.find((a) => a.startsWith("--coins="))?.split("=")[1] ?? 25);
@@ -1000,53 +1004,15 @@ function main(cache: Cache) {
   console.log(`\nNothing was written.`);
 }
 
-/**
- * Drop every fill a real-time follower could not have seen, because the wallet
- * that made it had not been discovered yet.
- *
- * Discovery reads the Hyperliquid leaderboard, which ranks by realised PnL, so
- * a wallet enters this project's universe *because* it had already done well.
- * Any entry of that wallet before its discovery date is therefore selected with
- * knowledge of how the period turned out. Entries after discovery carry no such
- * knowledge: the selection used only information that predates them.
- *
- * The consequence for window length is worth stating plainly, because it bounds
- * what any backtest here can honestly claim. Discovery began 2026-04-11, so a
- * window reaching further back than that cannot be frozen at all. Fetching more
- * history buys regime coverage for the contaminated version of the study and
- * nothing for the clean one.
- */
-async function freezeToDiscovery(cache: Cache): Promise<Cache> {
+/** Restrict the cache to entries a real-time follower could have acted on. */
+async function applyFreeze(cache: Cache): Promise<Cache> {
   const ids = [...new Set(cache.fills.map((f) => f.w))];
-  const discovered = new Map<string, number>();
-  for (let i = 0; i < ids.length; i += 200) {
-    const { data, error } = await supabase
-      .from("wallets")
-      .select("id, created_at")
-      .in("id", ids.slice(i, i + 200));
-    if (error) throw new Error(`discovery date lookup failed: ${error.message}`);
-    for (const row of data ?? []) {
-      discovered.set(row.id as string, new Date(row.created_at as string).getTime());
-    }
-  }
-
-  const before = cache.fills.length;
-  // A wallet with no discovery row cannot be shown to have been knowable, so it
-  // is dropped rather than assumed available.
-  const kept = cache.fills.filter((f) => {
-    const seen = discovered.get(f.w);
-    return seen !== undefined && f.t >= seen;
-  });
-  const walletsBefore = ids.length;
-  const walletsAfter = new Set(kept.map((f) => f.w)).size;
-  const earliest = Math.min(...[...discovered.values()].filter(Number.isFinite));
-
-  console.log(`[fill-study] --freeze-pool: entries restricted to each wallet's own post-discovery history`);
-  console.log(`[fill-study]   fills   ${before} to ${kept.length} (${((kept.length / before) * 100).toFixed(0)}% kept)`);
-  console.log(`[fill-study]   wallets ${walletsBefore} to ${walletsAfter}`);
-  console.log(`[fill-study]   earliest discovery ${new Date(earliest).toISOString().slice(0, 10)}, so no clean claim predates it`);
-
-  return { ...cache, fills: kept };
+  // Cast to the narrow slice this uses; the full client type is large enough
+  // to blow the compiler's structural comparison budget.
+  const discovered = await fetchDiscoveryDates(supabase as unknown as DiscoveryQuery, ids);
+  const result = freezeToDiscovery(cache.fills, discovered);
+  for (const line of describeFreeze(result, "[fill-study]")) console.log(line);
+  return { ...cache, fills: result.kept };
 }
 
 (async () => {
@@ -1063,7 +1029,7 @@ async function freezeToDiscovery(cache: Cache): Promise<Cache> {
       process.exit(1);
     }
   }
-  if (FREEZE_POOL) cache = await freezeToDiscovery(cache);
+  if (FREEZE_POOL) cache = await applyFreeze(cache);
   main(cache);
 })().catch((e) => {
   console.error("[fill-study] FAILED:", e.message);

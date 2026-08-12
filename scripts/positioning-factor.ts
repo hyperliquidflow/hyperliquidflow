@@ -28,7 +28,9 @@
 // Reads the fill-study cache. Writes nothing.
 
 import * as fs from "fs/promises";
+import { createClient } from "@supabase/supabase-js";
 import { sampleRankCorrelation } from "simple-statistics";
+import { fetchDiscoveryDates, freezeToDiscovery, describeFreeze, type DiscoveryQuery } from "../lib/discovery";
 import {
   priceAt,
   staleTolerance,
@@ -38,8 +40,10 @@ import {
   fundingOverHold,
 } from "../lib/study-stats";
 
-const CACHE_FILE = "fill-study-cache.json";
+const CACHE_FILE = process.argv.find((a) => a.startsWith("--cache="))?.split("=")[1]
+  ?? "fill-study-cache.json";
 const FUNDING_CACHE_FILE = "funding-cache.json";
+const FREEZE_POOL = process.argv.includes("--freeze-pool");
 const DAY_MS = 86_400_000;
 const ROUND_TRIP_BPS = 7;
 
@@ -63,7 +67,25 @@ const BAR_MINUTES: Record<string, number> = { "1m": 1, "5m": 5, "15m": 15, "1h":
 
 async function main() {
   const cache = JSON.parse(await fs.readFile(CACHE_FILE, "utf8")) as Cache;
-  const { fills, candles } = cache;
+  const { candles } = cache;
+  let fills = cache.fills;
+
+  if (FREEZE_POOL) {
+    // Only entries a real-time follower could have acted on. One honest caveat
+    // specific to this script: reconstruction walks fills forward, so a wallet
+    // frozen mid-window starts flat on its discovery date and a position it
+    // opened earlier registers as a phantom short when it closes. The 14-day
+    // burn-in absorbs this at the window start; for wallets discovered later it
+    // decays over their own first days. Almost all wallets here were discovered
+    // before the window opens, so the effect is small, but it is not zero.
+    const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+    const ids = [...new Set(fills.map((f) => f.w))];
+    const discovered = await fetchDiscoveryDates(supabase as unknown as DiscoveryQuery, ids);
+    const result = freezeToDiscovery(fills, discovered);
+    for (const line of describeFreeze(result, "[factor]")) console.log(line);
+    fills = result.kept;
+  }
+
   const closes = fills.filter((f) => f.o === 0).length;
   console.log(`[factor] ${fills.length} fills (${closes} closing), window ${cache.days}d, interval ${cache.interval}`);
   if (closes === 0) {
