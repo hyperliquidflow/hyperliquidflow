@@ -1,0 +1,711 @@
+<title>HyperliquidFLOW in Notion clothes</title>
+<style>
+  /* ============================================================
+     A visual study, not a proposal. Every value here is local to
+     this file. lib/design-tokens.ts is untouched and remains the
+     only source of truth for anything shipped.
+     ============================================================ */
+
+  :root {
+    /* Notion's neutrals are warm, biased brown rather than grey.
+       That bias is most of why the product feels calm. */
+    --ground:      #ffffff;
+    --panel:       #f7f7f5;
+    --panel-2:     #f1f1ef;
+    --ink:         #37352f;
+    --ink-muted:   rgba(55,53,47,0.65);
+    --ink-faint:   rgba(55,53,47,0.45);
+    --ink-ghost:   rgba(55,53,47,0.28);
+    --hairline:    rgba(55,53,47,0.09);
+    --hover:       rgba(55,53,47,0.04);
+    --sel:         rgba(35,131,226,0.14);
+
+    --pos:         #0f7b6c;
+    --pos-bg:      #ddedea;
+    --neg:         #e03e3e;
+    --neg-bg:      #fbe4e4;
+    --warn:        #cb912f;
+    --warn-bg:     #fbf3db;
+    --flat:        #787774;
+    --flat-bg:     #f1f1ef;
+
+    --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+
+    --rail: 240px;
+    --col:  900px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground:    #191919;
+      --panel:     #202020;
+      --panel-2:   #2c2c2c;
+      --ink:       #d4d4d4;
+      --ink-muted: rgba(255,255,255,0.62);
+      --ink-faint: rgba(255,255,255,0.44);
+      --ink-ghost: rgba(255,255,255,0.28);
+      --hairline:  rgba(255,255,255,0.10);
+      --hover:     rgba(255,255,255,0.055);
+      --sel:       rgba(35,131,226,0.28);
+
+      --pos:       #4dab9a;  --pos-bg: rgba(77,171,154,0.16);
+      --neg:       #ff7369;  --neg-bg: rgba(255,115,105,0.16);
+      --warn:      #ffdc49;  --warn-bg: rgba(255,220,73,0.14);
+      --flat:      #979a9b;  --flat-bg: rgba(255,255,255,0.07);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground:    #191919;
+    --panel:     #202020;
+    --panel-2:   #2c2c2c;
+    --ink:       #d4d4d4;
+    --ink-muted: rgba(255,255,255,0.62);
+    --ink-faint: rgba(255,255,255,0.44);
+    --ink-ghost: rgba(255,255,255,0.28);
+    --hairline:  rgba(255,255,255,0.10);
+    --hover:     rgba(255,255,255,0.055);
+    --sel:       rgba(35,131,226,0.28);
+
+    --pos:       #4dab9a;  --pos-bg: rgba(77,171,154,0.16);
+    --neg:       #ff7369;  --neg-bg: rgba(255,115,105,0.16);
+    --warn:      #ffdc49;  --warn-bg: rgba(255,220,73,0.14);
+    --flat:      #979a9b;  --flat-bg: rgba(255,255,255,0.07);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection { background: var(--sel); }
+
+  :focus-visible {
+    outline: 2px solid var(--pos);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+
+  /* ---------- app shell ---------- */
+
+  .app {
+    display: grid;
+    grid-template-columns: var(--rail) 1fr;
+    min-height: 100vh;
+  }
+
+  .rail {
+    background: var(--panel);
+    border-right: 1px solid var(--hairline);
+    padding: 14px 0 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .rail-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px 14px;
+  }
+
+  .rail-mark {
+    width: 20px; height: 20px;
+    border-radius: 4px;
+    background: var(--ink);
+    color: var(--ground);
+    font-size: 11px;
+    font-weight: 700;
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+  }
+
+  /* Brand rule from lib/design-tokens.ts holds even in a restyle:
+     the wordmark is one color, never split. */
+  .rail-word {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .rail-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ink-ghost);
+    padding: 16px 14px 4px;
+    letter-spacing: 0.02em;
+  }
+
+  .rail-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 6px;
+    padding: 5px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    color: var(--ink-muted);
+    text-decoration: none;
+    transition: background 0.08s;
+    cursor: pointer;
+  }
+  .rail-item:hover { background: var(--hover); }
+  .rail-item.on { background: var(--panel-2); color: var(--ink); font-weight: 500; }
+  .rail-glyph { width: 16px; text-align: center; color: var(--ink-ghost); flex-shrink: 0; }
+  .rail-item.on .rail-glyph { color: var(--ink-faint); }
+
+  .rail-foot {
+    margin-top: auto;
+    padding: 12px 14px 0;
+    font-size: 12px;
+    color: var(--ink-ghost);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--pos);
+    flex-shrink: 0;
+  }
+
+  /* ---------- page ---------- */
+
+  .main { background: var(--ground); min-width: 0; }
+
+  .topbar {
+    height: 45px;
+    border-bottom: 1px solid var(--hairline);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 16px;
+    font-size: 14px;
+    color: var(--ink-muted);
+    position: sticky;
+    top: 0;
+    background: var(--ground);
+    z-index: 5;
+  }
+
+  .crumb { color: var(--ink-muted); }
+  .crumb-sep { color: var(--ink-ghost); }
+
+  .toggle {
+    margin-left: auto;
+    font: inherit;
+    font-size: 13px;
+    color: var(--ink-muted);
+    background: transparent;
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    padding: 3px 10px;
+    cursor: pointer;
+    transition: background 0.08s;
+  }
+  .toggle:hover { background: var(--hover); }
+
+  .page {
+    max-width: var(--col);
+    margin: 0 auto;
+    padding: 56px 60px 120px;
+  }
+
+  .page-icon { font-size: 40px; line-height: 1; margin-bottom: 6px; }
+
+  h1 {
+    font-size: 40px;
+    font-weight: 700;
+    letter-spacing: -0.022em;
+    line-height: 1.15;
+    margin: 0 0 6px;
+    text-wrap: balance;
+  }
+
+  .lede {
+    font-size: 16px;
+    color: var(--ink-muted);
+    margin: 0 0 6px;
+    max-width: 62ch;
+  }
+
+  h2 {
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.012em;
+    margin: 44px 0 10px;
+    text-wrap: balance;
+  }
+
+  h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 30px 0 8px;
+  }
+
+  p { margin: 0 0 12px; max-width: 68ch; }
+  p.tight { margin-bottom: 4px; }
+
+  .meta {
+    font-size: 12px;
+    color: var(--ink-ghost);
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    padding: 10px 0 0;
+    border-top: 1px solid var(--hairline);
+    margin-top: 14px;
+  }
+
+  /* ---------- properties row (Notion page properties) ---------- */
+
+  .props { display: flex; flex-direction: column; gap: 2px; margin: 18px 0 0; }
+  .prop { display: grid; grid-template-columns: 160px 1fr; align-items: center; gap: 8px; font-size: 14px; padding: 3px 0; }
+  .prop-k { color: var(--ink-faint); display: flex; align-items: center; gap: 7px; }
+  .prop-v { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+  /* ---------- callout ---------- */
+
+  .callout {
+    display: flex;
+    gap: 12px;
+    background: var(--panel);
+    border-radius: 4px;
+    padding: 16px 16px 16px 14px;
+    margin: 20px 0;
+    font-size: 14px;
+    line-height: 1.55;
+  }
+  .callout-icon { font-size: 16px; line-height: 1.5; flex-shrink: 0; }
+  .callout p { margin: 0 0 8px; max-width: none; }
+  .callout p:last-child { margin: 0; }
+
+  /* ---------- stat blocks ---------- */
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--hairline);
+    border: 1px solid var(--hairline);
+    border-radius: 4px;
+    overflow: hidden;
+    margin: 22px 0;
+  }
+  .stat { background: var(--ground); padding: 14px 16px 16px; }
+  .stat-k {
+    font-size: 12px;
+    color: var(--ink-faint);
+    margin-bottom: 6px;
+    white-space: nowrap;
+  }
+  .stat-v {
+    font-size: 26px;
+    font-weight: 600;
+    letter-spacing: -0.018em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+  .stat-s { font-size: 12px; color: var(--ink-ghost); margin-top: 4px; }
+
+  /* ---------- table ---------- */
+
+  .scroll { overflow-x: auto; margin: 14px 0 0; }
+
+  table { border-collapse: collapse; width: 100%; font-size: 14px; }
+
+  th {
+    text-align: left;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--ink-faint);
+    padding: 6px 10px;
+    border-bottom: 1px solid var(--hairline);
+    white-space: nowrap;
+  }
+  th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--hairline);
+    vertical-align: middle;
+  }
+  tbody tr { transition: background 0.08s; }
+  tbody tr:hover { background: var(--hover); }
+
+  td.name { font-weight: 500; }
+  .addr { font-family: var(--mono); font-size: 13px; color: var(--ink-faint); user-select: text; }
+  .sub { font-size: 12px; color: var(--ink-ghost); }
+
+  /* ---------- pills ---------- */
+
+  .pill {
+    display: inline-block;
+    font-size: 12px;
+    line-height: 18px;
+    padding: 0 8px;
+    border-radius: 3px;
+    white-space: nowrap;
+    background: var(--flat-bg);
+    color: var(--flat);
+  }
+  .pill.pos  { background: var(--pos-bg);  color: var(--pos); }
+  .pill.neg  { background: var(--neg-bg);  color: var(--neg); }
+  .pill.warn { background: var(--warn-bg); color: var(--warn); }
+
+  .num.pos { color: var(--pos); }
+  .num.neg { color: var(--neg); }
+
+  /* ---------- score bar ---------- */
+
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .bar-track {
+    width: 56px; height: 4px;
+    background: var(--panel-2);
+    border-radius: 2px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .bar-fill { height: 100%; background: var(--ink-ghost); border-radius: 2px; }
+
+  /* ---------- divider ---------- */
+
+  hr {
+    border: 0;
+    border-top: 1px solid var(--hairline);
+    margin: 40px 0;
+  }
+
+  /* ---------- notes list ---------- */
+
+  ul.notes { padding-left: 0; list-style: none; margin: 10px 0 0; }
+  ul.notes li {
+    display: grid;
+    grid-template-columns: 22px 1fr;
+    gap: 6px;
+    padding: 7px 0;
+    font-size: 14px;
+    line-height: 1.55;
+    border-bottom: 1px solid var(--hairline);
+    max-width: 72ch;
+  }
+  ul.notes li:last-child { border-bottom: 0; }
+  .tick { color: var(--ink-ghost); }
+
+  code {
+    font-family: var(--mono);
+    font-size: 0.88em;
+    background: var(--panel-2);
+    padding: 1px 4px;
+    border-radius: 3px;
+    user-select: text;
+  }
+
+  @media (max-width: 860px) {
+    .app { grid-template-columns: 1fr; }
+    .rail { display: none; }
+    .page { padding: 36px 22px 90px; }
+    h1 { font-size: 30px; }
+    .stats { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+
+<div class="app">
+
+  <nav class="rail">
+    <div class="rail-head">
+      <div class="rail-mark">H</div>
+      <div class="rail-word">HYPERLIQUIDFLOW</div>
+    </div>
+
+    <a class="rail-item on"><span class="rail-glyph">◆</span>Overview</a>
+
+    <div class="rail-label">Wallets</div>
+    <a class="rail-item"><span class="rail-glyph">◇</span>Discovery</a>
+    <a class="rail-item"><span class="rail-glyph">◇</span>Leaderboard</a>
+    <a class="rail-item"><span class="rail-glyph">◇</span>In Position</a>
+    <a class="rail-item"><span class="rail-glyph">◇</span>Following</a>
+    <a class="rail-item"><span class="rail-glyph">◇</span>Paper</a>
+
+    <div class="rail-label">Signals</div>
+    <a class="rail-item"><span class="rail-glyph">◇</span>Feed</a>
+    <a class="rail-item"><span class="rail-glyph">◇</span>Divergence</a>
+    <a class="rail-item"><span class="rail-glyph">◇</span>Radar</a>
+    <a class="rail-item"><span class="rail-glyph">◇</span>Signal Scores</a>
+
+    <div class="rail-label">Research</div>
+    <a class="rail-item"><span class="rail-glyph">◇</span>Rank IC</a>
+    <a class="rail-item"><span class="rail-glyph">◇</span>Factor Journal</a>
+
+    <div class="rail-foot"><span class="dot"></span>Updated 4 min ago</div>
+  </nav>
+
+  <main class="main">
+    <div class="topbar">
+      <span class="crumb">HyperliquidFLOW</span>
+      <span class="crumb-sep">/</span>
+      <span class="crumb">Overview</span>
+      <button class="toggle" id="tt" type="button">Toggle theme</button>
+    </div>
+
+    <div class="page">
+
+      <div class="page-icon">🐋</div>
+      <h1>Overview</h1>
+      <p class="lede">An activated cohort of Hyperliquid wallets, rebuilt nightly, ranked by a four factor score.</p>
+
+      <div class="props">
+        <div class="prop"><span class="prop-k"><span class="tick">◷</span>Last scan</span><span class="prop-v">13 Aug 2026, 00:00 UTC</span></div>
+        <div class="prop"><span class="prop-k"><span class="tick">◈</span>Regime</span><span class="prop-v"><span class="pill neg">BEAR</span> <span class="sub">BTC 24h, 2.4%</span></span></div>
+        <div class="prop"><span class="prop-k"><span class="tick">◉</span>Cohort</span><span class="prop-v">498 active of 4,512 discovered</span></div>
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-k">Active wallets</div>
+          <div class="stat-v">498</div>
+          <div class="stat-s">57 funded and holding</div>
+        </div>
+        <div class="stat">
+          <div class="stat-k">Book value</div>
+          <div class="stat-v">$84.2M</div>
+          <div class="stat-s">across the cohort</div>
+        </div>
+        <div class="stat">
+          <div class="stat-k">Signals, 24h</div>
+          <div class="stat-v">37</div>
+          <div class="stat-s">6 recipes live</div>
+        </div>
+        <div class="stat">
+          <div class="stat-k">Rank IC</div>
+          <div class="stat-v">0.0939</div>
+          <div class="stat-s">clean of lookahead</div>
+        </div>
+      </div>
+
+      <div class="callout">
+        <div class="callout-icon">⚑</div>
+        <div>
+          <p><strong>The forward record is the only live instrument.</strong> Backtested leads were closed on 13 August 2026. Day 60 of the out of sample record falls around 11 October.</p>
+          <p style="color: var(--ink-muted)">Everything below describes what the cohort did. None of it forecasts what it will do.</p>
+        </div>
+      </div>
+
+      <h2>Leaderboard</h2>
+      <p class="tight sub">Ranked by composite score. Score is computed from each wallet's own realised history, never from the window being measured.</p>
+
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:34px" class="num">#</th>
+              <th>Wallet</th>
+              <th>Style</th>
+              <th class="num">Equity</th>
+              <th class="num">30d PnL</th>
+              <th class="num" style="width:110px">Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="num sub">1</td>
+              <td><div class="addr">0x7a3f…c41d</div><div class="sub">Elite</div></td>
+              <td><span class="pill">Swing</span></td>
+              <td class="num">$4.82M</td>
+              <td class="num pos">+18.4%</td>
+              <td class="num"><div class="bar"><div class="bar-track"><div class="bar-fill" style="width:93%"></div></div><span>0.93</span></div></td>
+            </tr>
+            <tr>
+              <td class="num sub">2</td>
+              <td><div class="addr">0x1c98…7b02</div><div class="sub">Major</div></td>
+              <td><span class="pill">Scalp</span></td>
+              <td class="num">$2.10M</td>
+              <td class="num pos">+11.9%</td>
+              <td class="num"><div class="bar"><div class="bar-track"><div class="bar-fill" style="width:88%"></div></div><span>0.88</span></div></td>
+            </tr>
+            <tr>
+              <td class="num sub">3</td>
+              <td><div class="addr">0xbe44…9f17</div><div class="sub">Major</div></td>
+              <td><span class="pill">Swing</span></td>
+              <td class="num">$1.74M</td>
+              <td class="num neg">-3.2%</td>
+              <td class="num"><div class="bar"><div class="bar-track"><div class="bar-fill" style="width:81%"></div></div><span>0.81</span></div></td>
+            </tr>
+            <tr>
+              <td class="num sub">4</td>
+              <td><div class="addr">0x02da…5e88</div><div class="sub">Large</div></td>
+              <td><span class="pill">Position</span></td>
+              <td class="num">$942K</td>
+              <td class="num pos">+7.6%</td>
+              <td class="num"><div class="bar"><div class="bar-track"><div class="bar-fill" style="width:77%"></div></div><span>0.77</span></div></td>
+            </tr>
+            <tr>
+              <td class="num sub">5</td>
+              <td><div class="addr">0x9f10…31ac</div><div class="sub">Large</div></td>
+              <td><span class="pill">Swing</span></td>
+              <td class="num">$715K</td>
+              <td class="num pos">+2.1%</td>
+              <td class="num"><div class="bar"><div class="bar-track"><div class="bar-fill" style="width:74%"></div></div><span>0.74</span></div></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Live feed</h2>
+      <p class="tight sub">Six recipes, each a pure function from a snapshot pair to a list of events.</p>
+
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Recipe</th>
+              <th>Coin</th>
+              <th>Direction</th>
+              <th class="num">Wallets</th>
+              <th class="num">Notional</th>
+              <th class="num">Age</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="name">Whale Convergence<div class="sub">3+ wallets add, same direction, inside the window</div></td>
+              <td><span class="pill">HYPE</span></td>
+              <td><span class="pill pos">LONG</span></td>
+              <td class="num">4</td>
+              <td class="num">$1.42M</td>
+              <td class="num sub">12m</td>
+            </tr>
+            <tr>
+              <td class="name">Silent Loading<div class="sub">Cohort loading while price sits flat under 0.5%</div></td>
+              <td><span class="pill">SOL</span></td>
+              <td><span class="pill pos">LONG</span></td>
+              <td class="num">3</td>
+              <td class="num">$780K</td>
+              <td class="num sub">41m</td>
+            </tr>
+            <tr>
+              <td class="name">Funding Carry<div class="sub">New position in a positive funding perp</div></td>
+              <td><span class="pill">ARB</span></td>
+              <td><span class="pill neg">SHORT</span></td>
+              <td class="num">2</td>
+              <td class="num">$318K</td>
+              <td class="num sub">1h 06m</td>
+            </tr>
+            <tr>
+              <td class="name">Multi Wallet Confirmation<div class="sub">Confirmed by 3+ wallets scoring 0.75 and above</div></td>
+              <td><span class="pill">BTC</span></td>
+              <td><span class="pill pos">LONG</span></td>
+              <td class="num">5</td>
+              <td class="num">$3.06M</td>
+              <td class="num sub">2h 18m</td>
+            </tr>
+            <tr>
+              <td class="name">Dip Conviction<div class="sub">High score wallet re enters past its drawdown threshold</div></td>
+              <td><span class="pill">DOGE</span></td>
+              <td><span class="pill pos">LONG</span></td>
+              <td class="num">1</td>
+              <td class="num">$96K</td>
+              <td class="num sub">3h 44m</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>Signal scores</h2>
+      <p class="tight sub">A record of what happened, not a forecast. Headline stats stay hidden below 30 graded outcomes.</p>
+
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Recipe</th>
+              <th class="num">Graded</th>
+              <th class="num">24h accuracy</th>
+              <th class="num">Net, bps</th>
+              <th>State</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td class="name">Whale Convergence</td><td class="num">41</td><td class="num">52.1%</td><td class="num neg">-14.2</td><td><span class="pill">Reported</span></td></tr>
+            <tr><td class="name">Multi Wallet Confirmation</td><td class="num">36</td><td class="num">49.8%</td><td class="num neg">-8.6</td><td><span class="pill">Reported</span></td></tr>
+            <tr><td class="name">Silent Loading</td><td class="num">22</td><td class="num sub">withheld</td><td class="num sub">withheld</td><td><span class="pill warn">Below sample</span></td></tr>
+            <tr><td class="name">Funding Carry</td><td class="num">18</td><td class="num sub">withheld</td><td class="num sub">withheld</td><td><span class="pill warn">Below sample</span></td></tr>
+            <tr><td class="name">Smart Money vs. Retail</td><td class="num">9</td><td class="num sub">withheld</td><td class="num sub">withheld</td><td><span class="pill warn">Below sample</span></td></tr>
+            <tr><td class="name">Dip Conviction</td><td class="num">4</td><td class="num sub">withheld</td><td class="num sub">withheld</td><td><span class="pill warn">Below sample</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <hr>
+
+      <h2>What the study actually shows</h2>
+
+      <h3>What this language buys</h3>
+      <ul class="notes">
+        <li><span class="tick">+</span><span><strong>Density without noise.</strong> Hairline rules and a single ground let five columns sit together without the eye having to fight card borders, glass blur and a shadow on every block.</span></li>
+        <li><span class="tick">+</span><span><strong>Hierarchy comes from size, not chrome.</strong> A 40px page title against 14px body does the work that a bordered header currently does, and costs nothing to render.</span></li>
+        <li><span class="tick">+</span><span><strong>The warm neutral reads calmer.</strong> Notion's ink is a brown black, not grey. On a data page that difference is most of why it feels quiet rather than clinical.</span></li>
+        <li><span class="tick">+</span><span><strong>Restraint suits the new posture.</strong> A product that just retracted its edge claims is better served by a document than by a trading terminal.</span></li>
+      </ul>
+
+      <h3>What it costs</h3>
+      <ul class="notes">
+        <li><span class="tick">-</span><span><strong>Live state gets quiet.</strong> There is no real place for a pulsing dot or a teal active rail here. Freshness has to be carried by text, which is weaker for something polling every 60 seconds.</span></li>
+        <li><span class="tick">-</span><span><strong>The 900px column fights wide tables.</strong> Market Radar and the leaderboard want full bleed. Notion answers this with horizontal scroll, which is worse than the current full width layout.</span></li>
+        <li><span class="tick">-</span><span><strong>It is not a distinctive identity.</strong> This looks like every Notion adjacent tool, which is the opposite of what the current dark aura and grain were built for.</span></li>
+        <li><span class="tick">-</span><span><strong>Nothing here is token compatible.</strong> Different scale, different neutrals, different fonts. Adopting any of it means a token migration, not a page edit.</span></li>
+      </ul>
+
+      <h3>The part worth stealing</h3>
+      <p>Two ideas survive contact with the existing system without a rewrite. <strong>Page properties</strong>, the key and value rows under the title, are a better home for scan time, regime and cohort size than another row of stat cards. And <strong>the callout block</strong> is a clean pattern for the standing caveat this product now has to carry on every page.</p>
+
+      <div class="meta">
+        <span>Study only</span>
+        <span>Nothing here is wired to data</span>
+        <span><code>lib/design-tokens.ts</code> untouched</span>
+        <span>13 Aug 2026</span>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+  (function () {
+    var btn = document.getElementById("tt");
+    btn.addEventListener("click", function () {
+      var root = document.documentElement;
+      var now = root.getAttribute("data-theme");
+      if (!now) {
+        var darkOS = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        now = darkOS ? "dark" : "light";
+      }
+      root.setAttribute("data-theme", now === "dark" ? "light" : "dark");
+    });
+  })();
+</script>
