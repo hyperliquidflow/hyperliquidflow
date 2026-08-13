@@ -18,7 +18,7 @@ export const RECIPE_META: Record<string, { label: string; desc: string }> = {
     desc:  "High-score wallet re-enters after coin drops past its volatility-scaled drawdown threshold from the 4h high",
   },
   rotation_carry: {
-    label: "Funded Edge",
+    label: "Funding Carry",
     desc:  "New position in positive-funding perp with >0.03%/hr funding. Net win-rate filter activates after 10 graded signals.",
   },
   funding_divergence: {
@@ -26,7 +26,7 @@ export const RECIPE_META: Record<string, { label: string; desc: string }> = {
     desc:  "Smart Money bias opposite to funding-implied retail bias, funding >0.05%/hr",
   },
   whale_validated: {
-    label: "Alpha Confirmation",
+    label: "Multi Wallet Confirmation",
     desc:  "Signal confirmed by 3+ high-score wallets (score 0.75+) with fresh position activity",
   },
 };

@@ -75,7 +75,7 @@ export function PerformanceClient({ initialData }: { initialData: RecipeStats[] 
     <div className="page-enter">
       <PageHeader
         title="Signal Scores"
-        subtitle="Which signals are working. Ranked by 24h directional accuracy over the selected window."
+        subtitle="Ranked by 24h directional accuracy over the selected window. A record of what happened, not a forecast."
       />
       <div style={{ ...S.page, paddingTop: space.contentPaddingTop }}>
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
