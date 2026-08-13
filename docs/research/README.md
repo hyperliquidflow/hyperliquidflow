@@ -62,6 +62,14 @@ audit re-ran it (dossier finding R2, confirmed by both external reviews).
   control. Both leads stay positive and below the bar. Establishes the hard
   bound that no clean window can predate 2026-04-11, which is why the forward
   record is the only instrument that can settle either lead.
+- [2026-08-13-mirror-exit.md](2026-08-13-mirror-exit.md): the copy test that
+  should have been run first, hold what they hold until they drop it. **FAILS**
+  its pre-registered bar at t 1.61 against 2.5, so it is dead by the written
+  consequence. But it is the first copy variant with a **positive** point
+  estimate, +71.3 bps an episode with a positive trimmed mean and halves that
+  agree, where every fixed-horizon test was negative. Ran on 41 survivor-selected
+  wallets, which favours the lead, so the fail is a stronger kill not a weaker
+  one. Wider unconditioned run announced before this result was read.
 - [2026-08-13-websocket-coverage.md](2026-08-13-websocket-coverage.md): a data
   availability result. The public WS trades feed carries **both counterparty
   addresses** on every trade, which the docs deny and 732 observed trades

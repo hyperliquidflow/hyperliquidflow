@@ -17,7 +17,7 @@ import { fetchCandleSnapshot, fetchFundingHistory } from "@/lib/hyperliquid-api-
 import { computeBeta, toReturns, alignReturns } from "@/lib/beta";
 import { computeAlpha, marketReturnBps } from "@/lib/benchmark";
 import {
-  clusterByDay, trimmedMean, bootstrapMeanCI, fundingOverHold, describe, priceAt, staleTolerance,
+  clusterByDay, trimmedMean, bootstrapMeanCI, fundingOverHold, describe, priceAt, staleTolerance, mulberry32,
 } from "@/lib/study-stats";
 
 const arg = (n: string, d: number): number => {
@@ -28,6 +28,11 @@ const arg = (n: string, d: number): number => {
 const N_WALLETS = arg("wallets", 150);
 const DAYS      = arg("days", 90);
 const LAG_MIN   = arg("lag", 10);
+// --pool=discovered draws from every wallet discovered before the cutoff,
+// survivor or not. is_active selects on having passed the hygiene gates AND
+// still trading, which is survivorship reintroduced through a convenient filter.
+const POOL      = process.argv.find((a) => a.startsWith("--pool="))?.split("=")[1] ?? "active";
+const SEED      = arg("seed", 20260813);
 
 const COST_BPS  = 19;            // 4.5 taker + 5 slippage, both sides
 const MIN_EPISODES = 200;        // pre-registered power floor
@@ -85,10 +90,30 @@ function episodes(address: string, fills: RawFill[], discoveredAt: number): Epis
 }
 
 async function main(): Promise<void> {
-  const { data: ws, error } = await supabase
-    .from("wallets").select("address, created_at").eq("is_active", true).limit(N_WALLETS);
-  if (error) { console.error(error.message); process.exit(1); }
-  console.log(`[mirror] ${ws?.length ?? 0} active wallets, ${DAYS}d window, lag ${LAG_MIN}m`);
+  let ws: Array<{ address: string; created_at: string | null }> = [];
+  if (POOL === "discovered") {
+    // Everything discovered before May, drawn at random with a recorded seed so
+    // the draw cannot be conditioned on performance and the run is repeatable.
+    const { data, error } = await supabase
+      .from("wallets").select("address, created_at")
+      .lt("created_at", "2026-05-01").limit(5000);
+    if (error) { console.error(error.message); process.exit(1); }
+    const pool = (data ?? []) as typeof ws;
+    const rng = mulberry32(SEED);
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    ws = pool.slice(0, N_WALLETS);
+    console.log(`[mirror] pool=discovered, ${pool.length} candidates, sampled ${ws.length} with seed ${SEED}`);
+  } else {
+    const { data, error } = await supabase
+      .from("wallets").select("address, created_at").eq("is_active", true).limit(N_WALLETS);
+    if (error) { console.error(error.message); process.exit(1); }
+    ws = (data ?? []) as typeof ws;
+    console.log(`[mirror] pool=active, ${ws.length} wallets. NOTE: selects on surviving, favours the lead.`);
+  }
+  console.log(`[mirror] ${DAYS}d window, lag ${LAG_MIN}m`);
 
   const since = Date.now() - DAYS * 86_400_000;
   const all: Episode[] = [];
