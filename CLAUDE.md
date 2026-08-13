@@ -58,6 +58,16 @@ edge, a stale-price guard tuned for the wrong bar size dropping a third of a
 sample, a wallet pool ordered by scan recency drawing dormant wallets, and a
 pool banded on trade count admitting market makers.
 
+A seventh, found 2026-08-13 and different in kind: **the apparatus shaped the
+question.** Every copy test used a fixed horizon (1h to 72h) because
+`signal-lab.ts` emits entry events and the grading loop resolves them at fixed
+windows, so "does copying work" was poured into the signal-shaped mould that
+already existed. Measured afterwards: the median cohort position lasts 14.4 hours
+and 78.3% close inside 48 hours, so the 48-hour test held long after the wallet
+had left. The literal reading, hold what they hold until they drop it, went
+untested for months. Ask what the question actually is before reusing the
+measurement you already have.
+
 Before reading any research output:
 - Compare row counts against the previous run. A 33x drop with no error is a bug, not a finding.
 - Every row of a table must use the same sample. Non-monotonic `n` across horizons means data is missing.
