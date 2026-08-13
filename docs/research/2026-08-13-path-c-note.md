@@ -1,5 +1,18 @@
 # The strongest thing here is the information, not the trade
 
+> **SUPERSEDED 2026-08-13 late.** This note's entire argument rests on the
+> positioning diagnostic being strong (IC 0.0641, t 3.13) while its book is weak.
+> The 200-day frozen run puts that diagnostic at **IC 0.0185, t 0.70**
+> ([2026-08-13-200d-frozen-extension.md](2026-08-13-200d-frozen-extension.md)),
+> so the asset this note proposed selling does not exist. Kept as the record of
+> the reasoning, not as a live recommendation.
+>
+> The distinction it draws still holds in general form, and one asset it does not
+> discuss survives: **wallet ranking** (rank IC 0.0939) is a different measurement
+> from the positioning factor and was not killed by that run. Any revived version
+> of this argument has to be built on that instead, and pre-registered before it
+> is measured.
+
 A strategy note the reviews asked for: capacity changes the Path A versus Path C
 calculation, and it should be written down while it is cheap to think about
 rather than after a quarter has been spent.

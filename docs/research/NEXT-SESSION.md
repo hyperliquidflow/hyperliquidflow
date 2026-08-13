@@ -1,73 +1,70 @@
 # Pick up here
 
-Written 2026-08-13 at session close, with one job still in flight.
+Rewritten 2026-08-13 after the 200-day run completed. **Nothing is in flight.**
 
-## The one thing in flight
+## What happened since the last handoff
 
-A 200-day, 400-wallet fetch was running when the session ended. It writes
-`fill-study-cache.json` only on success, and it checkpoints every 25 wallets to
-`fill-study-checkpoint.json`, so an interruption costs 25 wallets rather than
-the whole run.
+The 200-day, 400-wallet fetch finished cleanly (`fetched_at`
+2026-08-12T23:41:12Z, 335,378 fills, 398 wallets, checkpoint self-deleted). Both
+pre-registered studies ran against it exactly as written.
 
-**First, work out which of these three states you are in.**
+**Both leads failed their bars, and Amendment 2 makes a failure here a kill.**
 
-```bash
-pgrep -f "fill-study.*--fetch"        # still running?
-ls -l fill-study-cache.json           # 9.7M and dated 2026-08-12 means the OLD 120d cache
-ls -l fill-study-checkpoint.json      # exists means a run was interrupted partway
-```
+- Lead 1, positioning factor: book t 1.33 against a bar of 2.5. Its diagnostic
+  IC, the number this project leaned on hardest, fell from 0.0653 (t 3.17) to
+  0.0185 (t 0.70).
+- Lead 2, long holds on entries: t 0.4 at the primary 48h hold, trimmed mean
+  negative, split halves disagreeing in sign at every long hold. Three
+  independent clauses failed.
+- Hypothesis 4, skill selection: contrast -30.6 bps/day, t -1.98. Fails, and the
+  sign is negative rather than absent.
 
-1. **Still running.** Leave it. It was at 350/400 wallets at session close.
-2. **Finished.** `fill-study-cache.json` will be large and freshly dated, and
-   the checkpoint file will be gone (a completed run deletes its own). Run the
-   two studies below.
-3. **Died partway.** The checkpoint survives. Re-run the exact same command and
-   it resumes, skipping completed wallets:
+Full entry, with commands, cache fingerprint and verbatim tables:
+[2026-08-13-200d-frozen-extension.md](2026-08-13-200d-frozen-extension.md).
 
-```bash
-npx tsx --env-file=.env.local scripts/fill-study.ts --fetch --days=200 \
-  --interval=1h --pool=traders --wallets=400
-```
+## The next move is not a research task
 
-Note: the parameters must match exactly or the checkpoint is ignored by design,
-because a checkpoint from a different window is a different study.
+Per the pre-registration section "If both leads fail", the follow premise and the
+positioning premise are both dead and what is due is **a written owner decision
+between Path B (mechanical flows, a larger build) and Path D (stop or hold)**,
+made from these documents rather than from memory.
 
-## Then run the two pre-registered studies
+That decision belongs to the owner. Do not open it by writing code toward either
+path, and do not reopen it by running another backtest.
 
-Parameters are fixed by Amendments 1 and 4 and must not be changed:
+## What not to do, in order of how tempting it is
 
-```bash
-npx tsx --env-file=.env.local scripts/fill-study.ts --freeze-pool
-npx tsx --env-file=.env.local scripts/positioning-factor.ts --freeze-pool --legs=5 --min-volume=2000000
-```
+1. **Do not sweep wallet count on this cache.** The 200-day run tripled the pool
+   (112 to 385) at the same time it extended the window, and the freeze made the
+   window change a no-op, so pool depth is a live confound. Testing it is a
+   threshold search on a dead lead, which the Lead 1 fail consequence forbids by
+   name. If the "the factor lives in the top of the band" idea is worth pursuing,
+   it is a materially different hypothesis and needs its own pre-registration
+   written before any run.
+2. **Do not retest the dead hypotheses on historical windows.** Six are dead:
+   both leads, short-hold entry copying, coordination, exit copying, and
+   skill-selected entries.
+3. **Do not treat the surviving wallet ranking as a survivor of this run.** It is
+   real (rank IC 0.0939 clean of lookahead) and it was never one of the leads.
+   Everything measured here says the ranking does not transfer to a follower
+   copying trades, which is a different claim from the ranking being real.
+4. **Do not refetch to get more history.** No clean window can predate
+   2026-04-11. More history buys regime coverage for the contaminated version of
+   a study and nothing for the clean one.
 
-## How to read the result, decided in advance
+## The clock still running, which needs nothing
 
-**Amendment 2 governs this run and it is one-sided.** No study-band wallet
-existed 200 days ago, so the window cannot be frozen before 2026-04-11 and
-survivorship works in the leads' favour.
+`scripts/factor-shadow.ts` at 03:00 UTC, visible at `/portfolio/journal`. It
+resolves yesterday, records today, never backfills.
 
-- **A failure counts as a kill.** A lead that cannot clear its bar even with
-  survivorship helping it is dead.
-- **A pass confirms nothing** and may not be cited as confirmation anywhere.
-  Record it as "not killed by the contaminated window".
-
-File the output in `docs/research/` as a dated entry with the command, the cache
-fingerprint, and an explicit pass or fail against the written bar. Do not
-reframe the bar.
+One correction it needs before day 60 is read: Amendment 3 powered the day-60
+diagnostic checkpoint at 82%, computed from an assumed effect of t 3.17 over 104
+days. The 200-day run puts that diagnostic at t 0.70. Re-derive the checkpoint
+with `lib/power.ts` before reading day 60 in either direction. Recording in the
+meantime costs nothing and the arithmetic can be redone at any time.
 
 ## Before proposing any new research
 
-Read `docs/research/README.md` and the hypothesis map in
-`docs/sprints/status.md`. Four hypotheses are dead and must not be retested on
-historical windows. Two are "failed but alive", and **only the forward record
-can promote them; no backtest ever can.**
-
-## The clock that matters
-
-`scripts/factor-shadow.ts` runs daily at 03:00 UTC and needs nothing. Day 60
-(around 2026-10-11) is a powered checkpoint on the diagnostic at t 1.5. The
-traded book confirms at day 283. Use `lib/power.ts` before setting any new bar:
-the original 60-day traded bar had 34% power and would have killed a real edge.
-
-Progress is visible at `/portfolio/journal`.
+Read [README.md](README.md) and the hypothesis map at the top of
+`docs/sprints/status.md`. The register rule stands: a result that is not filed
+there does not exist.

@@ -62,3 +62,11 @@ audit re-ran it (dossier finding R2, confirmed by both external reviews).
   control. Both leads stay positive and below the bar. Establishes the hard
   bound that no clean window can predate 2026-04-11, which is why the forward
   record is the only instrument that can settle either lead.
+- [2026-08-13-200d-frozen-extension.md](2026-08-13-200d-frozen-extension.md):
+  **the run both leads were built to face, and both FAIL.** Lead 1's book reads
+  t 1.33 and its diagnostic IC falls from 0.0653 (t 3.17) to 0.0185 (t 0.70);
+  Lead 2 fails on three clauses at once and its split halves disagree in sign at
+  every long hold. Amendment 2 makes a failure here a kill, so both are dead.
+  Read the second section first: the freeze discards all 80 extra days, so the
+  fetch bought three days and tripled the wallet pool, and every difference is a
+  pool-composition difference. Owner decision now due between Path B and Path D.

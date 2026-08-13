@@ -3,7 +3,54 @@
 Update this file whenever a sprint starts, progresses, or completes.
 At the start of each session, read this file to know where to pick up.
 
+## Where this stands, 2026-08-13 late: the 200-day run landed and both leads are dead
+
+The extension the whole pre-registration was built for completed and was read
+against its written bars. Full entry with commands, fingerprint and tables:
+[docs/research/2026-08-13-200d-frozen-extension.md](../research/2026-08-13-200d-frozen-extension.md).
+
+**The map, revised.**
+
+| Hypothesis | State | Evidence |
+|---|---|---|
+| Wallet ranking (who is in the cohort) | supported, untouched by this run | rank IC 0.0939 clean of lookahead |
+| Positioning factor, diagnostic | **dead** | IC 0.0185, t 0.70 on 385 wallets, was 0.0653 (t 3.17) on 112 |
+| Positioning factor, traded book | **dead** | +29.6 bps/day, t 1.33, bar was 2.5 |
+| Long holds on entries | **dead** | +9.2 at 48h (t 0.4), trimmed negative, halves disagree in sign |
+| Short-hold entry copying | dead | negative at every hold, even at zero latency |
+| Coordination | dead | no dose-response |
+| Exit copying | dead | -48.8 bps at 48h, t -2.5 |
+| Skill-selected entries | dead | pre-registered contrast -30.6 bps/day, t -1.98 |
+
+**Amendment 2 governs the reading and it was written before the data existed:** a
+failure on this window is a kill, because survivorship works in the leads' favour
+there. Both leads failed. Neither may be tuned, re-weighted, re-sliced or given a
+new lookback on this cache.
+
+**The one thing to understand before citing any of this.** The freeze cuts every
+entry to its wallet's own post-discovery history and discovery began 2026-04-11,
+so the 80 extra days of history were discarded in full. The fetch bought three
+measurable days (104 to 107) and tripled the wallet pool (112 to 385). Every
+difference against the 120-day run is a pool-composition difference. Pool depth
+was the one parameter Amendment 1 did not pin, and the archived 120-day cache
+was overwritten by this fetch, so the confound cannot now be separated on this
+data. It is recorded, not resolved, and it does not rescue either lead.
+
+**Owner decision now due**, per the pre-registration section "If both leads
+fail": Path B (mechanical flows, a larger build) or Path D (stop or hold),
+written from these documents rather than from memory. Stopping on evidence is a
+successful outcome. This is the owner's call and no code should be written
+toward either path before it is made.
+
+**Still running, needing nothing.** `scripts/factor-shadow.ts` at 03:00 UTC. Its
+day-60 checkpoint was powered at 82% off an assumed t 3.17 over 104 days; at
+t 0.70 that arithmetic no longer describes the instrument and should be redone
+with `lib/power.ts` before day 60 is read. Recording costs nothing.
+
 ## Where this stands, 2026-08-13: two external reviews answered in full
+
+**Superseded by the section above.** Kept because the reasoning that led into the
+200-day run is the record of how these leads were killed.
 
 Read `docs/research/README.md` first. Every result now lives there with its
 command, cache fingerprint and pass/fail against a bar written before the run.
@@ -154,8 +201,20 @@ its sample has been checked against a previous run.
 ## Active Sprint
 
 **Recovery Phase 2: Prove or Kill (2026-08-08 audit)**  
-Status: ACTIVE, started 2026-08-09. This phase is mostly waiting plus a weekly
-review. No code work is required to progress it.
+Status: **RESOLVED 2026-08-13, outcome KILL.** Started 2026-08-09. The phase
+asked one question, whether any tradeable expression of wallet skill exists, and
+the 200-day frozen run answered no on every candidate that reached a bar. See
+the section at the top of this file and
+[docs/research/2026-08-13-200d-frozen-extension.md](../research/2026-08-13-200d-frozen-extension.md).
+
+Per `docs/preflight/kill-criteria.md`, a triggered kill is a successful outcome
+of that document, not a failure of the project: the measurement layer worked and
+said the premise is weaker than hoped before another year went into it. The two
+fallback paths it names are a pivot to a data or intelligence product making
+analytics claims rather than alpha claims, or shutting down. That choice is the
+owner decision now due, and no new sprint should be opened before it is made.
+
+Everything below this line is the history that led here, kept as the record.
 
 Phases 0 and 1 are COMPLETE and verified in production (2026-08-08/09):
 - Phase 0 resurrected the pipelines: all 5 workflows active, keepalive prevents
