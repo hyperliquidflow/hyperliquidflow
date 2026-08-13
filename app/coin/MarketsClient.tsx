@@ -8,6 +8,7 @@ import Link from "next/link";
 import { formatUsd } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
+import type { MarketsPayload } from "@/app/api/markets/route";
 import { color, card as C, space } from "@/lib/design-tokens";
 
 const S = {
@@ -36,6 +37,15 @@ export function MarketsClient({ initialData }: { initialData: CohortCachePayload
     refetchInterval: 60_000,
   });
 
+  // Exchange facts, joined per row so the table can be read for cost of carry.
+  const { data: mkts } = useQuery<MarketsPayload>({
+    queryKey:        ["markets-ctx"],
+    queryFn:         () => fetch("/api/markets").then((r) => r.json()),
+    refetchInterval: 60_000,
+    staleTime:       55_000,
+  });
+  const ctxByCoin = new Map((mkts?.markets ?? []).map((m) => [m.coin, m]));
+
   const coins = (data?.coin_exposure ?? []).filter((e) => e.notional > 0);
 
   return (
@@ -54,7 +64,7 @@ export function MarketsClient({ initialData }: { initialData: CohortCachePayload
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  {["Coin", "Book", "Share", "Net side", "Long", "Short"].map((h) => (
+                  {["Coin", "24h", "Open Interest", "Funding 1h", "Book", "Net side"].map((h) => (
                     <th key={h} style={S.th}>{h}</th>
                   ))}
                 </tr>
@@ -64,6 +74,7 @@ export function MarketsClient({ initialData }: { initialData: CohortCachePayload
                   const sided = e.long_notional != null && e.short_notional != null;
                   const net   = e.net_pct ?? 0;
                   const netClr = !sided ? color.textMuted : net >= 20 ? color.green : net <= -20 ? color.red : color.textMuted;
+                  const m = ctxByCoin.get(e.coin);
                   return (
                     <tr key={e.coin}>
                       <td style={S.td}>
@@ -72,13 +83,17 @@ export function MarketsClient({ initialData }: { initialData: CohortCachePayload
                           {e.coin}
                         </Link>
                       </td>
+                      <td style={{ ...S.td, color: !m ? color.textMuted : m.change24h >= 0 ? color.green : color.red }}>
+                        {m ? `${m.change24h >= 0 ? "+" : ""}${(m.change24h * 100).toFixed(2)}%` : "--"}
+                      </td>
+                      <td style={S.td}>{m ? formatUsd(m.open_interest) : "--"}</td>
+                      <td style={{ ...S.td, color: !m ? color.textMuted : m.funding1h >= 0 ? color.green : color.red }}>
+                        {m ? `${m.funding1h >= 0 ? "+" : ""}${(m.funding1h * 100).toFixed(4)}%` : "--"}
+                      </td>
                       <td style={S.td}>{formatUsd(e.notional)}</td>
-                      <td style={{ ...S.td, color: color.textMuted }}>{e.pct}%</td>
                       <td style={{ ...S.td, color: netClr, fontWeight: 700 }}>
                         {sided ? `${net > 0 ? "+" : ""}${net}%` : "n/a"}
                       </td>
-                      <td style={{ ...S.td, color: color.green }}>{sided ? formatUsd(e.long_notional ?? 0) : "n/a"}</td>
-                      <td style={{ ...S.td, color: color.red }}>{sided ? formatUsd(e.short_notional ?? 0) : "n/a"}</td>
                     </tr>
                   );
                 })}
@@ -87,8 +102,10 @@ export function MarketsClient({ initialData }: { initialData: CohortCachePayload
           )}
         </div>
         <div style={{ ...S.muted, marginTop: "10px", paddingBottom: space.contentPaddingBot }}>
-          Net side runs from +100%, every dollar long, to -100%, every dollar short. This describes
-          positions held, not a recommendation.
+          Open interest, funding and the 24h move are exchange-wide and verifiable against
+          Hyperliquid. Book and net side describe the tracked cohort only. Net side runs from
+          +100%, every dollar long, to -100%, every dollar short. This describes positions held,
+          not a recommendation.
         </div>
       </div>
     </div>

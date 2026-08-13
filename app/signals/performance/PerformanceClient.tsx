@@ -74,10 +74,19 @@ export function PerformanceClient({ initialData }: { initialData: RecipeStats[] 
   return (
     <div className="page-enter">
       <PageHeader
-        title="Signal Scores"
+        title="Signal Record"
         subtitle="Ranked by 24h directional accuracy over the selected window. A record of what happened, not a forecast."
       />
       <div style={{ ...S.page, paddingTop: space.contentPaddingTop }}>
+        <div style={{
+          ...C.base, padding: space.cardBodyPadding, marginBottom: "16px",
+          fontSize: "13px", color: color.textMuted, lineHeight: 1.6,
+        }}>
+          No recipe has cleared an evidence bar. Accuracy below 30 resolved outcomes is withheld
+          because it is not a sample yet, and the recipes that do report have not shown positive
+          expectancy net of costs. Treat everything here as a log of what fired, not as trade ideas.
+          The full record is at <a href="/research" style={{ color: color.textMuted }}>What We Know</a>.
+        </div>
         <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
           <div style={S.tog}>
             <button style={{ ...S.togBtn, ...(win === "7d" ? S.togBtnOn : {}) }} onClick={() => setWin("7d")}>7d</button>

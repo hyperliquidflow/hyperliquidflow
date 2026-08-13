@@ -42,6 +42,21 @@ export interface CohortExposure {
   direction:      string;
 }
 
+/**
+ * Change in net exposure between each wallet's two most recent snapshots.
+ *
+ * Only wallets observed twice are counted. refresh-cohort writes snapshots for a
+ * rotating batch, so a wallet absent from the newer pass was probably not
+ * sampled rather than flat, and treating absence as a close would invent flow
+ * that did not happen. `wallets_compared` is reported so the number can be read
+ * against how much of the cohort it covers.
+ */
+export interface ExposureChange {
+  net_delta:        number;
+  wallets_compared: number;
+  previous_at:      string | null;
+}
+
 export interface DeepDivePayload {
   coin:    string;
   candles: unknown[];
@@ -54,7 +69,18 @@ export interface DeepDivePayload {
   } | null;
   fundingHistory: Array<{ time: number; fundingRate: string }>;
   cohortExposure: CohortExposure | null;
+  exposureChange: ExposureChange | null;
   holders:        Holder[];
+}
+
+/** Signed notional this wallet held in `coin`, 0 if it held none. */
+function signedNotional(positions: RawPosition[], coin: string): number {
+  const pos = positions.find((p) => p.position.coin === coin);
+  if (!pos) return 0;
+  const szi = parseFloat(pos.position.szi ?? "0");
+  const val = parseFloat(pos.position.positionValue ?? "0");
+  if (!Number.isFinite(val) || val <= 0 || szi === 0) return 0;
+  return szi > 0 ? val : -val;
 }
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
@@ -91,6 +117,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     // Compute real cohort exposure for this coin from the latest Supabase snapshots.
     // This reads actual position data, not signal metadata (which is unreliable for this).
     let cohortExposure: CohortExposure | null = null;
+    let exposureChange: ExposureChange | null = null;
     let holders: Holder[] = [];
     try {
       const cohortRaw = await kv.get<string>("cohort:active");
@@ -103,10 +130,28 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         if (walletIds.length > 0) {
           const { data: snaps } = await supabase
             .from("cohort_snapshots")
-            .select("wallet_id, positions")
+            .select("wallet_id, positions, snapshot_time")
             .in("wallet_id", walletIds)
             .order("snapshot_time", { ascending: false })
-            .limit(walletIds.length * 2);
+            .limit(walletIds.length * 3);
+
+          // Second-newest row per wallet, for the change calculation below.
+          const priorSnap = new Map<string, { positions: RawPosition[]; at: string }>();
+          const snapCount = new Map<string, number>();
+          for (const snap of snaps ?? []) {
+            const n = (snapCount.get(snap.wallet_id) ?? 0) + 1;
+            snapCount.set(snap.wallet_id, n);
+            if (n === 2) {
+              priorSnap.set(snap.wallet_id, {
+                positions: (snap.positions as RawPosition[]) ?? [],
+                at:        snap.snapshot_time as string,
+              });
+            }
+          }
+
+          let netDelta        = 0;
+          let walletsCompared = 0;
+          let previousAt: string | null = null;
 
           const seenWallets = new Set<string>();
           let longNotional  = 0;
@@ -117,6 +162,16 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             if (seenWallets.has(snap.wallet_id)) continue;
             seenWallets.add(snap.wallet_id);
             const positions = snap.positions as RawPosition[] ?? [];
+
+            // Change is measured over wallets seen twice, whether or not they
+            // hold this coin now, so an exit counts as outflow.
+            const prior = priorSnap.get(snap.wallet_id);
+            if (prior) {
+              netDelta += signedNotional(positions, coin) - signedNotional(prior.positions, coin);
+              walletsCompared++;
+              if (previousAt == null || prior.at > previousAt) previousAt = prior.at;
+            }
+
             const pos = positions.find((p) => p.position.coin === coin);
             if (!pos) continue;
             const szi = parseFloat(pos.position.szi ?? "0");
@@ -140,6 +195,14 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
           // Largest positions first. The tail is noise on a page meant to be read.
           holders = holders.sort((a, b) => b.notional - a.notional).slice(0, 12);
+
+          if (walletsCompared > 0) {
+            exposureChange = {
+              net_delta:        netDelta,
+              wallets_compared: walletsCompared,
+              previous_at:      previousAt,
+            };
+          }
 
           if (walletCount > 0) {
             const net = longNotional - shortNotional;
@@ -172,6 +235,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         fundingRate: f.fundingRate,
       })),
       cohortExposure,
+      exposureChange,
       holders,
     };
 

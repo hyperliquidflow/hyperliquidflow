@@ -4,7 +4,7 @@
 
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { formatUsd, formatPct, truncateAddress } from "@/lib/utils";
+import { formatUsd, formatPct, truncateAddress, timeAgo } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import type { DeepDivePayload } from "@/app/api/deep-dive/route";
 import { color, card as C, type as T, space, radius } from "@/lib/design-tokens";
@@ -61,6 +61,7 @@ export function CoinClient({ coin, initialData }: { coin: string; initialData: D
 
   const ctx      = data?.ctx ?? null;
   const exposure = data?.cohortExposure ?? null;
+  const flow     = data?.exposureChange ?? null;
   const holders  = data?.holders ?? [];
 
   const mark    = num(ctx?.markPx);
@@ -129,6 +130,22 @@ export function CoinClient({ coin, initialData }: { coin: string; initialData: D
                 <span style={{ fontSize: "13px", color: color.green }}>{formatUsd(longN)} long</span>
                 <span style={{ fontSize: "13px", color: color.red }}>{formatUsd(shortN)} short</span>
               </div>
+
+              {flow && (
+                <div style={{ borderTop: `1px solid ${color.divider}`, paddingTop: "12px", display: "flex", alignItems: "baseline", gap: "8px", flexWrap: "wrap" as const }}>
+                  <span style={{ ...T.statLabel }}>Change</span>
+                  <span style={{
+                    fontSize: "16px", fontWeight: 700, fontVariantNumeric: "tabular-nums",
+                    color: flow.net_delta > 0 ? color.green : flow.net_delta < 0 ? color.red : color.textMuted,
+                  }}>
+                    {flow.net_delta > 0 ? "+" : flow.net_delta < 0 ? "-" : ""}{formatUsd(Math.abs(flow.net_delta))}
+                  </span>
+                  <span style={S.muted}>
+                    net, across {flow.wallets_compared} wallets seen twice
+                    {flow.previous_at ? `, since ${timeAgo(flow.previous_at)}` : ""}
+                  </span>
+                </div>
+              )}
             </div>
           ) : (
             <div style={{ padding: space.cardBodyPadding, ...S.muted }}>No tracked wallet holds {coin} right now.</div>
