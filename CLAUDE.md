@@ -67,6 +67,8 @@ Before reading any research output:
 - `candleSnapshot` caps near 5,000 bars and **truncates silently** to the most recent. Reach per interval: 1m 3.5d, 5m 17.4d, 15m 52d, 1h 208d.
 - `userFillsByTime` caps at 2,000 fills, oldest first from `startTime`, with no truncation signal. Paginate by advancing past the newest fill seen.
 - `total_trades` counts trades; the fills endpoint returns partial fills. One trade can be many fills, so banding on trade count does not bound fetch size.
+- **The WS `trades` subscription carries both counterparty addresses** in a `users` array, on every trade. The docs say it omits them; measured on 732 trades across two runs, it does not. No liquidation flag anywhere on the trade object. Measured rate: 19.5 trades/s and 0.47 GB/day raw across 15 coins, 252 distinct addresses in 30s, busiest address 21.3% of trades. See [docs/research/2026-08-13-websocket-coverage.md](docs/research/2026-08-13-websocket-coverage.md).
+- **Liquidations cannot be seen exchange-wide.** `userEvents` and `userNonFundingLedgerUpdates` report them but are per-user subscriptions, so they need the address in advance. Positioning and flow have a path to full coverage via the trades feed; liquidations do not.
 
 ## Sprint Workflow
 

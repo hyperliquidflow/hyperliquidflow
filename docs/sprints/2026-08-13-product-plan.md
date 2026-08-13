@@ -25,6 +25,23 @@ existed only to serve a liquidation heatmap over time and had no consumer.
 ships on the coin page, the markets index carries funding and open interest, and
 the Signal Record has an honest empty state.
 
+## The one thing that changes the ceiling
+
+Measured 2026-08-13, after all six phases shipped:
+[websocket-coverage.md](../research/2026-08-13-websocket-coverage.md). The public
+WS `trades` feed carries **both counterparty addresses on every trade**, contrary
+to the documentation. That means exchange-wide flow at address level is
+obtainable, against the roughly 500 wallets sampled once a day today.
+
+It does not unlock liquidations, which stay per-user subscriptions, so the Phase 4
+conclusion holds. And it proves nothing about edge: a wider telescope does not
+revive a measurement that failed, and anything built on it needs its own
+pre-registration before its first run.
+
+Before any build, someone has to answer the cost question the note leaves open:
+0.47 GB/day raw for 15 coins, and a persistent connection that neither the GitHub
+Actions cron nor the daily scan pattern can hold. That estimate comes first.
+
 **What is left, in rough order of value:**
 
 1. **Nothing on the coin page is charted.** Candles are fetched, capped at 200,

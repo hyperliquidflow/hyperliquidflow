@@ -62,6 +62,12 @@ audit re-ran it (dossier finding R2, confirmed by both external reviews).
   control. Both leads stay positive and below the bar. Establishes the hard
   bound that no clean window can predate 2026-04-11, which is why the forward
   record is the only instrument that can settle either lead.
+- [2026-08-13-websocket-coverage.md](2026-08-13-websocket-coverage.md): a data
+  availability result. The public WS trades feed carries **both counterparty
+  addresses** on every trade, which the docs deny and 732 observed trades
+  confirm. Exchange-wide flow at address level is obtainable; exchange-wide
+  liquidations are not, because those subscriptions are per-user. Proves nothing
+  about edge and revives no dead hypothesis.
 - [2026-08-13-200d-frozen-extension.md](2026-08-13-200d-frozen-extension.md):
   **the run both leads were built to face, and both FAIL.** Lead 1's book reads
   t 1.33 and its diagnostic IC falls from 0.0653 (t 3.17) to 0.0185 (t 0.70);
