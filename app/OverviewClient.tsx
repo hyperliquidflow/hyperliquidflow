@@ -10,8 +10,8 @@ import type { RankIcPayload } from "@/app/api/rank-ic/route";
 import { PageHeader } from "@/components/page-header";
 import { RECIPE_META } from "@/lib/recipe-meta";
 import { OverviewLoadingState } from "@/components/loading-state";
-import { color, card as C, type as T, space } from "@/lib/design-tokens";
-import { ScoreHover, useScoreHover } from "@/components/score-popup";
+import { color, card as C, type as T, space, radius } from "@/lib/design-tokens";
+import { ScoreHover } from "@/components/score-popup";
 
 const S = {
   page:  { padding: space.pagePaddingX },
@@ -23,18 +23,6 @@ const S = {
 };
 
 type Signal = CohortCachePayload["recent_signals"][number];
-
-function AvgScoreCard({ label, value, sub }: { label: string; value: string; sub: string }) {
-  const { triggerProps, popup } = useScoreHover();
-  return (
-    <div {...triggerProps} style={{ ...S.card, padding: "14px 16px", transition: "border-color 0.2s, background 0.2s" }}>
-      <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(255,255,255,0.38)" }}>{label}</div>
-      <div style={{ fontSize: "32px", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: color.text, marginTop: "10px", lineHeight: 1 }}>{value}</div>
-      <div style={{ fontSize: "13px", color: "rgba(255,255,255,0.32)", marginTop: "6px" }}>{sub}</div>
-      {popup}
-    </div>
-  );
-}
 
 function TopWalletScore({ score }: { score: number }) {
   return (
@@ -233,8 +221,7 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
   const regime       = data.regime ?? "RANGING";
   const totalAv      = data.top_wallets.reduce((s, w) => s + w.account_value, 0);
   const totalPnl     = data.top_wallets.reduce((s, w) => s + w.unrealized_pnl, 0);
-  const avgScore     = data.top_wallets.length > 0
-    ? data.top_wallets.reduce((s, w) => s + w.overall_score, 0) / data.top_wallets.length : 0;
+  const tilt         = data.cohort_tilt;
   const heatmap      = buildHeatmap(data.recent_signals);
   const regimeHist   = buildRegimeHistory(data.regime_history, regime);
   const coinExposure = buildCoinExposure(data.coin_exposure);
@@ -301,11 +288,17 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
             { label: "Smart Money",    value: `${data.total_active_wallets ?? data.wallet_count}`, sub: "wallets tracked" },
             { label: "Book Value",     value: formatUsd(totalAv),      sub: "across Smart Money" },
             { label: "Unrealised PnL", value: formatUsd(totalPnl), clr: totalPnl >= 0 ? color.green : color.red, sub: "open positions" },
-            { label: "Avg Score",      value: avgScore.toFixed(2),     sub: "out of 1.00", scoreHover: true },
-          ].map(({ label, value, sub, clr, scoreHover }) => (
-            scoreHover ? (
-              <AvgScoreCard key={label} label={label} value={value} sub={sub} />
-            ) : (
+            {
+              label: "Cohort Tilt",
+              value: tilt ? `${tilt.long_pct}%` : "--",
+              clr:   tilt == null ? color.textMuted
+                   : tilt.label === "BULL" ? color.green
+                   : tilt.label === "BEAR" ? color.red
+                   : color.text,
+              sub:   tilt ? `long vs ${tilt.short_pct}% short` : "no open positions",
+            },
+          ].map(({ label, value, sub, clr }) => (
+            (
               <div key={label} style={{ ...S.card, padding: "14px 16px", transition: "border-color 0.2s, background 0.2s" }}>
                 <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "rgba(255,255,255,0.38)" }}>{label}</div>
                 <div style={{ fontSize: "32px", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: clr ?? color.text, marginTop: "10px", lineHeight: 1 }}>{value}</div>
@@ -493,18 +486,40 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
           <div style={S.card}>
             <div style={{ ...S.hdr, padding: "10px 16px" }}>
               <span style={S.title}>Smart Money Exposure</span>
-              <span style={{ ...S.link, cursor: "default" }}>by notional</span>
+              <span style={{ ...S.link, cursor: "default" }}>share of book, net side</span>
             </div>
             <div style={{ padding: "8px 12px 10px", display: "flex", flexDirection: "column", gap: "8px" }}>
-              {coinExposure.length > 0 ? coinExposure.slice(0, 4).map(({ coin, pct }) => (
-                <div key={coin} style={{ display: "grid", gridTemplateColumns: "38px 1fr 40px", alignItems: "center", gap: "10px" }}>
-                  <span style={{ fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.5)", letterSpacing: "0.06em" }}>{coin}</span>
-                  <div style={{ height: "4px", background: "rgba(255,255,255,0.06)", borderRadius: "2px", overflow: "hidden" }}>
-                    <div style={{ height: "100%", width: `${pct}%`, background: color.green, borderRadius: "2px", transition: "width 0.65s cubic-bezier(0.22,1,0.36,1)" }} />
+              {coinExposure.length > 0 ? coinExposure.slice(0, 4).map((e) => {
+                // Cached payloads written before the side split carry no long/short
+                // fields. Draw those neutral rather than guessing a direction.
+                const sided = e.long_notional != null && e.short_notional != null;
+                const total = (e.long_notional ?? 0) + (e.short_notional ?? 0);
+                const longShare = sided && total > 0 ? ((e.long_notional ?? 0) / total) * 100 : 0;
+                const net = e.net_pct ?? 0;
+                return (
+                  <div key={e.coin} style={{ display: "grid", gridTemplateColumns: "38px 1fr 40px", alignItems: "center", gap: "10px" }}>
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.5)", letterSpacing: "0.06em" }}>{e.coin}</span>
+                    <div style={{ height: "4px", background: color.barBg, borderRadius: radius.bar, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: `${e.pct}%`, display: "flex", borderRadius: radius.bar, overflow: "hidden", transition: "width 0.65s cubic-bezier(0.22,1,0.36,1)" }}>
+                        {sided ? (
+                          <>
+                            <div style={{ width: `${longShare}%`,       background: color.green }} />
+                            <div style={{ width: `${100 - longShare}%`, background: color.red }} />
+                          </>
+                        ) : (
+                          <div style={{ width: "100%", background: color.neutral }} />
+                        )}
+                      </div>
+                    </div>
+                    <span style={{
+                      fontSize: "11px", fontWeight: 600, textAlign: "right", fontVariantNumeric: "tabular-nums",
+                      color: !sided ? color.textMuted : net >= 20 ? color.green : net <= -20 ? color.red : color.textMuted,
+                    }}>
+                      {sided ? `${net > 0 ? "+" : ""}${net}%` : `${e.pct}%`}
+                    </span>
                   </div>
-                  <span style={{ fontSize: "11px", fontWeight: 600, color: "rgba(255,255,255,0.38)", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{pct}%</span>
-                </div>
-              )) : (
+                );
+              }) : (
                 <div style={{ ...S.muted, paddingTop: "8px" }}>No signal data yet</div>
               )}
             </div>

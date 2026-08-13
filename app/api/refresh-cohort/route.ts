@@ -429,7 +429,10 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
     type RawPos = { position?: { coin?: string; positionValue?: string; szi?: string } };
     const seenSpotlight = new Set<string>();
     const spotlightPositions: SpotlightWallet[] = [];
-    const coinNotionalMap = new Map<string, number>();
+    // Per coin, split by side. Summing absolute notional here made a coin the
+    // cohort is 90% short indistinguishable from one it is 90% long, which is
+    // the only thing about an exposure number a reader actually needs.
+    const coinNotionalMap = new Map<string, { long: number; short: number }>();
     let longNotional = 0;
     let shortNotional = 0;
     for (const r of (snapRows ?? [])) {
@@ -449,17 +452,28 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
         const val  = Math.abs(parseFloat(ap.position?.positionValue ?? "0"));
         const szi  = parseFloat(ap.position?.szi ?? "0");
         if (coin && Number.isFinite(val) && val > 0) {
-          coinNotionalMap.set(coin, (coinNotionalMap.get(coin) ?? 0) + val);
-          if (szi > 0) longNotional += val;
-          else if (szi < 0) shortNotional += val;
+          const side = coinNotionalMap.get(coin) ?? { long: 0, short: 0 };
+          if (szi > 0)      { side.long  += val; longNotional  += val; }
+          else if (szi < 0) { side.short += val; shortNotional += val; }
+          coinNotionalMap.set(coin, side);
         }
       }
     }
-    const totalCoinNotional = Array.from(coinNotionalMap.values()).reduce((s, v) => s + v, 0) || 1;
-    const coinExposure = Array.from(coinNotionalMap.entries())
-      .sort((a, b) => b[1] - a[1])
+    const coinTotals = Array.from(coinNotionalMap.entries())
+      .map(([coin, side]) => ({ coin, side, total: side.long + side.short }));
+    const totalCoinNotional = coinTotals.reduce((s, v) => s + v.total, 0) || 1;
+    const coinExposure = coinTotals
+      .sort((a, b) => b.total - a.total)
       .slice(0, 5)
-      .map(([coin, notional]) => ({ coin, notional: Math.round(notional), pct: Math.round((notional / totalCoinNotional) * 100) }));
+      .map(({ coin, side, total }) => ({
+        coin,
+        notional:       Math.round(total),
+        pct:            Math.round((total / totalCoinNotional) * 100),
+        long_notional:  Math.round(side.long),
+        short_notional: Math.round(side.short),
+        // +100 means every dollar on that coin is long, -100 every dollar short.
+        net_pct:        Math.round(((side.long - side.short) / total) * 100),
+      }));
 
     const tiltTotal = longNotional + shortNotional;
     const longPct   = tiltTotal > 0 ? (longNotional / tiltTotal) * 100 : 0;
@@ -791,7 +805,16 @@ export interface CohortCachePayload {
   // Always reflects the full cohort (not just the current batch slice).
   spotlight_positions?: SpotlightWallet[];
   // Top 5 coins by aggregate notional across all wallets with open positions.
-  coin_exposure?: Array<{ coin: string; notional: number; pct: number }>;
+  // net_pct runs +100 (every dollar long) to -100 (every dollar short); it is the
+  // part a reader can act on, and the reason the side split exists at all.
+  coin_exposure?: Array<{
+    coin:            string;
+    notional:        number;
+    pct:             number;
+    long_notional?:  number;
+    short_notional?: number;
+    net_pct?:        number;
+  }>;
   // Directional tilt across all open positions in the active cohort, weighted by notional $.
   cohort_tilt?: {
     long_notional:  number;
