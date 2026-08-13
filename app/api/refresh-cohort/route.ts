@@ -462,9 +462,11 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
     const coinTotals = Array.from(coinNotionalMap.entries())
       .map(([coin, side]) => ({ coin, side, total: side.long + side.short }));
     const totalCoinNotional = coinTotals.reduce((s, v) => s + v.total, 0) || 1;
+    // 25, not 5: the overview shows the top four, the markets index shows the
+    // rest. Widening the slice costs a few hundred bytes of payload.
     const coinExposure = coinTotals
       .sort((a, b) => b.total - a.total)
-      .slice(0, 5)
+      .slice(0, 25)
       .map(({ coin, side, total }) => ({
         coin,
         notional:       Math.round(total),

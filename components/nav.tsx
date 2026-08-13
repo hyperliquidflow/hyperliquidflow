@@ -18,38 +18,49 @@ type NavSection  = { section: string; label: string; base: string; children: Nav
 type NavFlat     = { href: string; label: string };
 type NavEntry    = NavFlat | NavSection;
 
+// Sections name what a reader wants, not the stage of our pipeline that
+// produces it. Discovery moved under Research because it describes the scanner.
 const NAV: NavEntry[] = [
   { href: "/",      label: "Overview"    },
   {
-    section:  "wallets",
-    label:    "Wallets",
-    base:     "/wallets",
+    section:  "markets",
+    label:    "Markets",
+    base:     "/coin",
     children: [
-      { href: "/wallets/discovery",   label: "Discovery"    },
-      { href: "/wallets/leaderboard", label: "Leaderboard"  },
-      { href: "/wallets/inposition",  label: "In Position"  },
-      { href: "/performance/ranking", label: "Scoring"      },
+      { href: "/coin",                label: "All Markets" },
+      { href: "/signals/radar",       label: "Entry Density" },
     ],
   },
   {
-    section:  "signals",
-    label:    "Signals",
+    section:  "traders",
+    label:    "Traders",
+    base:     "/wallets",
+    children: [
+      { href: "/wallets/leaderboard", label: "Leaderboard"  },
+      { href: "/wallets/inposition",  label: "In Position"  },
+      { href: "/wallets/following",   label: "Following"    },
+    ],
+  },
+  {
+    section:  "activity",
+    label:    "Activity",
     base:     "/signals",
     children: [
       { href: "/signals/feed",        label: "Feed"        },
       { href: "/signals/divergence",  label: "Divergence"  },
-      { href: "/signals/radar",       label: "Radar"       },
-      { href: "/signals/performance", label: "Signal Scores" },
     ],
   },
   {
-    section:  "portfolio",
-    label:    "Portfolio",
-    base:     "/wallets",
+    section:  "research",
+    label:    "Research",
+    base:     "/research",
     children: [
-      { href: "/wallets/following",   label: "Following"    },
-      { href: "/wallets/paper",       label: "Paper Trading"},
-      { href: "/portfolio/journal",   label: "Paper Journal"},
+      { href: "/research",            label: "What We Know"  },
+      { href: "/performance/ranking", label: "Ranking Quality" },
+      { href: "/signals/performance", label: "Signal Record" },
+      { href: "/portfolio/journal",   label: "Forward Record" },
+      { href: "/wallets/paper",       label: "Paper Trading" },
+      { href: "/wallets/discovery",   label: "Scanner"       },
     ],
   },
 ];

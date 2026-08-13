@@ -58,27 +58,6 @@ function buildHeatmap(signals: Signal[]) {
   }));
 }
 
-function buildRegimeHistory(
-  history: CohortCachePayload["regime_history"] | undefined,
-  currentRegime: "BULL" | "BEAR" | "RANGING",
-) {
-  const now = new Date();
-  return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(now);
-    d.setDate(now.getDate() - (6 - i));
-    const isToday = i === 6;
-    const label = isToday
-      ? "Today"
-      : d.toLocaleDateString("en-US", { weekday: "short" });
-
-    const entry = history?.[i];
-    const regime: "BULL" | "BEAR" | "RANGING" = isToday
-      ? currentRegime
-      : entry?.regime ?? "RANGING";
-    return { label, regime, isToday };
-  });
-}
-
 function buildCoinExposure(coinExposure: CohortCachePayload["coin_exposure"]) {
   return coinExposure ?? [];
 }
@@ -208,7 +187,6 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
   const totalPnl     = data.top_wallets.reduce((s, w) => s + w.unrealized_pnl, 0);
   const tilt         = data.cohort_tilt;
   const heatmap      = buildHeatmap(data.recent_signals);
-  const regimeHist   = buildRegimeHistory(data.regime_history, regime);
   const coinExposure = buildCoinExposure(data.coin_exposure);
   const topMovers    = buildTopMovers(data.recent_signals);
 
@@ -410,31 +388,6 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
           </div>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", flexShrink: 0, alignItems: "start" }}>
-          <div style={S.card}>
-            <div style={{ ...S.hdr, padding: "10px 16px" }}>
-              <span style={S.title}>Market Vibes</span>
-              <span style={{ ...S.link, cursor: "default" }}>7 days</span>
-            </div>
-            <div style={{ padding: "10px 16px 12px", display: "flex", alignItems: "flex-start", position: "relative" }}>
-              <div style={{ position: "absolute", top: "18px", left: "28px", right: "28px", height: "1px", background: "rgba(255,255,255,0.07)" }} />
-              {regimeHist.map(({ label, regime: r, isToday }) => {
-                const dotColor  = r === "BULL" ? color.green : r === "BEAR" ? color.red : "rgba(255,255,255,0.2)";
-                const dotShadow = r === "BULL" ? "0 0 6px rgba(106,170,122,0.5)" : r === "BEAR" ? "0 0 6px rgba(201,36,53,0.5)" : undefined;
-                const typeColor = r === "BULL" ? color.green : r === "BEAR" ? color.red : "rgba(255,255,255,0.3)";
-                const typeLabel = r === "BULL" ? "Bull" : r === "BEAR" ? "Bear" : "Range";
-                const size      = isToday ? 12 : 10;
-                return (
-                  <div key={label} style={{ flex: 1, textAlign: "center", position: "relative", zIndex: 1, cursor: "default" }}>
-                    <div style={{ width: size, height: size, borderRadius: "50%", margin: isToday ? "-1px auto 7px" : "0 auto 7px", background: dotColor, boxShadow: dotShadow, border: "2px solid rgba(0,0,0,0.7)" }} />
-                    <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: isToday ? "rgba(255,255,255,0.5)" : "rgba(255,255,255,0.25)" }}>{label}</div>
-                    <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.04em", marginTop: "3px", textTransform: "uppercase", color: typeColor }}>{typeLabel}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
           <div style={S.card}>
             <div style={{ ...S.hdr, padding: "10px 16px" }}>
               <span style={S.title}>Smart Money Exposure</span>
@@ -476,7 +429,6 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
               )}
             </div>
           </div>
-        </div>
       </div>
     </div>
   );
