@@ -68,8 +68,9 @@ audit re-ran it (dossier finding R2, confirmed by both external reviews).
   consequence. But it is the first copy variant with a **positive** point
   estimate, +71.3 bps an episode with a positive trimmed mean and halves that
   agree, where every fixed-horizon test was negative. Ran on 41 survivor-selected
-  wallets, which favours the lead, so the fail is a stronger kill not a weaker
-  one. Wider unconditioned run announced before this result was read.
+  wallets. The **unconditioned rerun settles it**: 3,779 episodes across 137
+  wallets drawn with a recorded seed, net -0.8 bps at t -0.08 with a negative
+  trimmed mean. The entire +71.3 was selection. Dead on both clauses.
 - [2026-08-13-websocket-coverage.md](2026-08-13-websocket-coverage.md): a data
   availability result. The public WS trades feed carries **both counterparty
   addresses** on every trade, which the docs deny and 732 observed trades
