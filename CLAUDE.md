@@ -7,10 +7,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 npm run dev          # Start dev server (localhost:3000)
 npm run build        # Production build
-npm run lint         # ESLint via Next.js
+npm run lint         # eslint .
 npm run typecheck    # tsc --noEmit
 npm run test         # Vitest (single run, node env, no live services needed)
 npm run test:watch   # Vitest in watch mode
+
+# CI (.github/workflows/ci.yml) runs typecheck + lint + test on every push and PR.
+# 622 tests across 39 files, about 1s. Nothing blocks a merge automatically, so
+# run them yourself before pushing.
 
 # Run a single test file
 npx vitest run lib/__tests__/cohort-engine.test.ts
@@ -30,6 +34,13 @@ npx tsx --env-file=.env.local scripts/signal-stack.ts      # features + correlat
 npx tsx --env-file=.env.local scripts/positioning-factor.ts
 npx tsx --env-file=.env.local scripts/cohort-skill-test.ts --min-active=5
 npx tsx --env-file=.env.local scripts/activity-gate-tradeoff.ts
+npx tsx --env-file=.env.local scripts/factor-rivals.ts     # positioning factor vs dumb rivals
+npx tsx --env-file=.env.local scripts/exit-structure-analysis.ts
+npx tsx --env-file=.env.local scripts/capacity-study.ts    # size the book before believing a bps number
+npx tsx scripts/cache-audit.ts                             # fingerprint a fill cache before citing it
+
+# Scheduled, and the one research script that writes Supabase
+npx tsx --env-file=.env.local scripts/factor-shadow.ts     # resolve yesterday, record today
 ```
 
 ## Measurement discipline
@@ -61,6 +72,22 @@ Before reading any research output:
 
 Work is organized in sprints tracked in [docs/sprints/status.md](docs/sprints/status.md). **Read that file at the start of any session** to know the active sprint, what's complete, and what's next. Sprint specs live in [docs/superpowers/specs/](docs/superpowers/specs/), plans in [docs/superpowers/plans/](docs/superpowers/plans/).
 
+## Research register
+
+[docs/research/README.md](docs/research/README.md) indexes every run that produced
+a number anyone might later cite. **Read it before proposing research.** Its rules
+bind:
+
+- A result that is not in the register does not exist. Commit messages are
+  pointers, not records.
+- One file per run, `YYYY-MM-DD-<slug>.md`, carrying the exact command, the cache
+  fingerprint (fetched_at, days, interval, row count, wallet count), the git
+  commit that ran, and the verbatim output tables.
+- Pre-registered thresholds are written down before the run, and results report
+  pass or fail against that written bar, not a reframed one.
+- Negative results are filed with the same care as positive ones. They are the
+  product.
+
 ## Architecture
 
 **HyperliquidFLOW** is a Next.js 15 App Router app that tracks an activated cohort of high-quality Hyperliquid wallets (~500 active at any time, rebuilt daily from ~4,500 discovered candidates), scores them, and surfaces trading signals. All heavy computation is server-side; the client is a thin React Query poller.
@@ -89,7 +116,7 @@ Browser (React)
     └─ fallback to Supabase on KV miss
 ```
 
-**Cron budget:** `/api/refresh-cohort` must complete within its 30s `maxDuration` (vercel.json) — that's why full cohort scoring lives in the daily GitHub Actions job, not the per-refresh path.
+**Cron budget:** vercel.json declares two crons, `/api/refresh-cohort` at 00:00 UTC (30s `maxDuration`) and `/api/measure-outcomes` at 02:00 UTC (25s). Both are pinned to `iad1`. The 30s ceiling is why full cohort scoring lives in the daily GitHub Actions job rather than the per-refresh path.
 
 ### Core Engines (`lib/`)
 
@@ -120,6 +147,32 @@ Browser (React)
 
 Client-side hooks live in `lib/hooks/`: `use-followed-wallets`, `use-alert-events`, `use-alert-detection`, `use-paper-positions`.
 
+Auth helpers are split out of the routes into `lib/auth/`: `cron.ts` (timing-safe
+`CRON_SECRET` compare) and `telegram.ts` (webhook secret + chat allowlist).
+`lib/server/` holds the I/O side: `kv-fetchers.ts` and `telegram-io.ts`.
+
+### Research and measurement (`lib/`)
+
+These carry the research program. A session that misses them will rebuild them.
+All are pure and unit-tested; none touch Supabase, KV, or `process.env`.
+
+| File | Purpose |
+|------|---------|
+| `benchmark.ts` | Separates edge from beta. A LONG returning 200 bps in a market that ran 180 bps is not a signal |
+| `beta.ts` | Per-coin sensitivity to BTC, so the benchmark charges each trade for the exposure it actually carried |
+| `cohort-lean.ts` | Reconstructs what the cohort held, day by day, from its fills |
+| `factor-book.ts` | Turns the forward record's raw rows into one honest number per day |
+| `power.ts` | How long a gate must run before it can see the effect it is testing. The 60-day bar was scheduling a false kill at 34% power |
+| `study-stats.ts` | Pure statistics for the research scripts, no I/O. A silent regression here corrupts every future verdict |
+| `slippage.ts` | What it costs to actually get filled, as a function of size |
+| `excursion.ts` | How far a trade travels each way before its holding window closes |
+| `discovery.ts` | When each wallet became knowable, plus the filter that keeps lookahead out of a pool |
+| `fill-compaction.ts` | Collapses fills to hourly, conservatively. Run before analysing a large cache |
+| `coin-eligibility.ts` | Restricts signal emission to coins the cohort actually has capital in |
+| `episode-dedup.ts` | Collapses poll-cadence repeats back into the single idea they represent |
+| `score-history.ts` | Pure row-building for daily wallet score history, the rank IC input |
+| `token-tiers.ts` | Coin tier classification (MAJOR / LARGE / rest) for threshold scaling |
+
 ### Pages (`app/`)
 
 | Route | Purpose |
@@ -135,6 +188,8 @@ Client-side hooks live in `lib/hooks/`: `use-followed-wallets`, `use-alert-event
 | `/wallets/following` | Followed wallets with alert configuration |
 | `/wallets/paper` | Paper trading, auto-copies positions from followed wallets |
 | `/performance/ranking` | Rank IC history; requires 30+ days of `wallet_score_history` data |
+| `/portfolio/journal` | Forward out-of-sample record for the positioning factor. Started 2026-08-12, one row per day, powered checkpoint at day 60 |
+| `/design-system` | Live render of every design token. Check here before inventing a style |
 
 Old routes (`/scanner`, `/stalker`, `/contrarian`, `/imbalance`, `/recipes`, `/edge`, `/performance`) redirect to their current equivalents.
 
@@ -149,7 +204,10 @@ Old routes (`/scanner`, `/stalker`, `/contrarian`, `/imbalance`, `/recipes`, `/e
 - `rank-ic`: Rank IC history from `wallet_score_history` (returns empty state until 30+ days accumulate)
 - `telegram/webhook`: inbound Telegram commands (`/status`, `/check`, `/cohort`, `/signals`, `/scan`). Read only, single authorized chat, all others silently ignored.
 - `telegram/watchdog`: runs the five health checks, sends a Telegram message only on a state change. Triggered every 15 min by `freshness-check.yml`.
-- `wallet-profile`, `scanner-stats`, `recipe-performance`, `top-markets`, `deep-dive`, `signals-feed`, `market-radar`, `measure-outcomes`, `agent-readiness`
+- `measure-outcomes`: the second Vercel Cron (`0 2 * * *`, `maxDuration` 25 in vercel.json). Resolves signal outcomes; same `CRON_SECRET` check as `refresh-cohort`.
+- `factor-journal`: serves the forward factor record behind `/portfolio/journal`
+- `market-radar/timeseries`: historical series behind the Market Radar view
+- `wallet-profile`, `scanner-stats`, `recipe-performance`, `top-markets`, `deep-dive`, `signals-feed`, `market-radar`, `agent-readiness`
 
 ### Server-Side Data Fetching
 
@@ -181,6 +239,14 @@ The `after()` Next.js API is used for fire-and-forget background work (e.g., tri
 | 018 | Shadow scoring columns (`overall_score_shadow`) for V2 canary rollout |
 | 019 | Enable Row Level Security on all tables |
 | 020 | Drop signal_events + rate_limit_tokens; outcome retention 30d to 180d |
+| 021 | One row per recipe per day on `recipe_performance` (append-only writes buried the nightly net-PnL stats) |
+| 022 | Path-dependent grading: bar-by-bar walk of hourly candles instead of three close-price snapshots |
+| 023 | Benchmark alpha. Every graded outcome records what the market did over the same window |
+| 024 | Benchmark scaled by each coin's own beta to BTC |
+| 025 | Exit multiples retuned from a path simulation over 2,808 random entries |
+| 026 | `factor_shadow`, the forward out-of-sample record for the positioning factor |
+
+This table drifts. `ls supabase/migrations/` is the authority.
 
 ### Two gates that look wrong but are not
 
@@ -224,20 +290,22 @@ Fallback chain on cache miss: primary key → fallback key → Supabase query.
 
 ### GitHub Actions
 
-Four workflows:
+Seven workflows. The four scheduled jobs run on staggered hours so they never
+overlap, and each one assumes the previous has finished:
 
+- **`daily-wallet-scan.yml`**, `0 0 * * *` UTC. Discovery, Streams A/C/D, backtests, full scoring for ~500 active wallets (up to 5,000 candidates). Writes Supabase and uploads `scan-summary.json` (7d retention). 50-minute timeout.
+- **`signal-learning.yml`**, `0 1 * * *` UTC, after the scan finishes. Runs `scripts/signal-learning.ts` to update outcome stats. 20-minute timeout. Uploads `learning-summary.json` (14d retention).
+- **`rank-ic.yml`**, `0 2 * * *` UTC. Runs `scripts/rank-ic.ts` over `wallet_score_history`, writes `rank_ic_history`. Phase 1 gate: IC must exceed MDIC (0.08) after 30+ measurements.
+- **`factor-shadow.yml`**, `0 3 * * *` UTC. Resolves yesterday and records today for the positioning factor. It finishes 60 days after it starts and needs no decision in between. A missed day is a missing row, not a corrupted record, because each row carries its own snapshot and resolution timestamps.
+- **`ci.yml`**: every push and pull request. typecheck, lint, full test suite, 10-minute timeout. It exists because 523 tests once sat with nothing running them, and a silent regression in `lib/study-stats.ts` would corrupt every future research verdict.
 - **`freshness-check.yml`**: every 15 min. Calls `/api/telegram/watchdog`, which owns all five check definitions and sends a Telegram message only when a check changes state. A failed curl means the app itself is unreachable, and GitHub's default failure email covers that case.
 - **`keepalive.yml`**: monthly. Commits a heartbeat file so GitHub's 60-day inactivity rule can never silently disable the scheduled workflows again (it did on 2026-06-22; see docs/audit/2026-08-08-full-audit.md).
-- **`daily-wallet-scan.yml`** — `0 0 * * *` UTC. Discovery, Streams A/C/D, backtests, full scoring for ~500 active wallets (up to 5,000 candidates). Writes Supabase + uploads `scan-summary.json` artifact (7d retention). 50-minute timeout.
-- **`signal-learning.yml`** — `0 1 * * *` UTC (after scan finishes). Runs `scripts/signal-learning.ts` to update outcome stats. 20-minute timeout. Uploads `learning-summary.json` (14d retention).
-
-- **`rank-ic.yml`** runs `scripts/rank-ic.ts` to compute Rank IC history from `wallet_score_history`.
 
 All support `workflow_dispatch` for manual runs.
 
 ### Tests
 
-Tests live in `lib/__tests__/*.test.ts`. The setup file (`lib/__tests__/setup.ts`) injects placeholder env vars — no real Supabase or KV credentials needed. Coverage exists for: `cohort-engine`, `utils`, `recipe-config`, `signal-learning`, `outcome-helpers`, `token-tiers`, `radar-utils`, `hypurrscan-api-client`. API routes and React components are not unit-tested.
+Tests live in `lib/__tests__/*.test.ts`: 39 files, 622 tests, under a second, run by `ci.yml` on every push. The setup file (`lib/__tests__/setup.ts`) injects placeholder env vars, so no real Supabase or KV credentials are needed. Roughly one test file per `lib/` module, including every research module above. API routes and React components are not unit-tested; the closest coverage is `cron-auth`, `telegram-auth`, and `env-fallback`.
 
 Mocking pattern uses `vi.mock()` for `@vercel/kv`, `@supabase/supabase-js`, and `@/lib/env`.
 
