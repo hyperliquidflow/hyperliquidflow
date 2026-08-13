@@ -25,6 +25,10 @@ npx tsx scripts/validate-scoring-weights.ts   # Correlate wallet scores vs EV sc
 npx tsx scripts/signal-learning.ts            # Update signal_outcomes stats (GitHub Actions runs this daily)
 npx tsx scripts/bootstrap-hypurrscan-index.ts # Seed Hypurrscan address-name index
 
+# Flow collector (persistent process, not a cron job; holds a WebSocket open)
+npx tsx --env-file=.env.local scripts/flow-collector.ts --coins=30 --floor=10000
+npx tsx --env-file=.env.local scripts/flow-collector.ts --dry-run   # no writes
+
 # Research scripts (read-only, write nothing to Supabase or KV)
 # Use --env-file=.env.local locally. Fetch once to a cache, then re-slice.
 npx tsx --env-file=.env.local scripts/fill-study.ts --fetch --days=120 --interval=1h --pool=traders --wallets=120
