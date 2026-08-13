@@ -47,8 +47,8 @@ type CoinAgg = { b: number; a: number; n: number; addrs: Set<string> };
 type AddrAgg = { b: number; a: number; n: number };
 
 /** Bucket keyed by minute, so a flush never splits a minute across two writes. */
-let coinBuckets = new Map<string, Map<string, CoinAgg>>();   // minuteIso -> coin -> agg
-let addrBuckets = new Map<string, Map<string, AddrAgg>>();   // minuteIso -> "coin|addr" -> agg
+const coinBuckets = new Map<string, Map<string, CoinAgg>>();   // minuteIso -> coin -> agg
+const addrBuckets = new Map<string, Map<string, AddrAgg>>();   // minuteIso -> "coin|addr" -> agg
 
 let tradesSeen = 0;
 let tradesDropped = 0;
