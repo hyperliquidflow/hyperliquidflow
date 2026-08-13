@@ -15,6 +15,48 @@ import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
+type RawPosition = {
+  position: {
+    coin:           string;
+    szi:            string;
+    positionValue:  string;
+    unrealizedPnl?: string;
+    entryPx?:       string;
+  };
+};
+
+export interface Holder {
+  address:        string;
+  score:          number;
+  direction:      "LONG" | "SHORT";
+  notional:       number;
+  unrealized_pnl: number;
+  entry_px:       number;
+}
+
+export interface CohortExposure {
+  net_notional:   number;
+  long_notional:  number;
+  short_notional: number;
+  wallet_count:   number;
+  direction:      string;
+}
+
+export interface DeepDivePayload {
+  coin:    string;
+  candles: unknown[];
+  ctx: {
+    funding:      string;
+    openInterest: string;
+    markPx:       string;
+    dayNtlVlm:    string;
+    prevDayPx:    string;
+  } | null;
+  fundingHistory: Array<{ time: number; fundingRate: string }>;
+  cohortExposure: CohortExposure | null;
+  holders:        Holder[];
+}
+
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const coin     = (req.nextUrl.searchParams.get("coin") ?? "BTC").toUpperCase();
   const interval = req.nextUrl.searchParams.get("interval") ?? "1h";
@@ -48,13 +90,15 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
     // Compute real cohort exposure for this coin from the latest Supabase snapshots.
     // This reads actual position data, not signal metadata (which is unreliable for this).
-    let cohortExposure: { net_notional: number; wallet_count: number; direction: string } | null = null;
+    let cohortExposure: CohortExposure | null = null;
+    let holders: Holder[] = [];
     try {
       const cohortRaw = await kv.get<string>("cohort:active");
       if (cohortRaw) {
         const cohort: CohortCachePayload =
           typeof cohortRaw === "string" ? JSON.parse(cohortRaw) : cohortRaw;
         const walletIds = cohort.top_wallets.map((w) => w.wallet_id);
+        const walletMeta = new Map(cohort.top_wallets.map((w) => [w.wallet_id, w]));
 
         if (walletIds.length > 0) {
           const { data: snaps } = await supabase
@@ -65,26 +109,46 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             .limit(walletIds.length * 2);
 
           const seenWallets = new Set<string>();
-          let netNotional = 0;
-          let walletCount = 0;
+          let longNotional  = 0;
+          let shortNotional = 0;
+          let walletCount   = 0;
 
           for (const snap of snaps ?? []) {
             if (seenWallets.has(snap.wallet_id)) continue;
             seenWallets.add(snap.wallet_id);
-            const positions = snap.positions as Array<{ position: { coin: string; szi: string; positionValue: string } }> ?? [];
+            const positions = snap.positions as RawPosition[] ?? [];
             const pos = positions.find((p) => p.position.coin === coin);
             if (!pos) continue;
             const szi = parseFloat(pos.position.szi ?? "0");
             const val = parseFloat(pos.position.positionValue ?? "0");
-            netNotional += szi > 0 ? val : -val;
+            if (!Number.isFinite(val) || val <= 0) continue;
+            if (szi > 0) longNotional += val;
+            else if (szi < 0) shortNotional += val;
+            else continue;
             walletCount++;
+
+            const meta = walletMeta.get(snap.wallet_id);
+            holders.push({
+              address:        meta?.address ?? "",
+              score:          meta?.overall_score ?? 0,
+              direction:      szi > 0 ? "LONG" : "SHORT",
+              notional:       val,
+              unrealized_pnl: parseFloat(pos.position.unrealizedPnl ?? "0"),
+              entry_px:       parseFloat(pos.position.entryPx ?? "0"),
+            });
           }
 
+          // Largest positions first. The tail is noise on a page meant to be read.
+          holders = holders.sort((a, b) => b.notional - a.notional).slice(0, 12);
+
           if (walletCount > 0) {
+            const net = longNotional - shortNotional;
             cohortExposure = {
-              net_notional: netNotional,
-              wallet_count: walletCount,
-              direction:    netNotional > 0 ? "LONG" : netNotional < 0 ? "SHORT" : "FLAT",
+              net_notional:   net,
+              long_notional:  longNotional,
+              short_notional: shortNotional,
+              wallet_count:   walletCount,
+              direction:      net > 0 ? "LONG" : net < 0 ? "SHORT" : "FLAT",
             };
           }
         }
@@ -93,7 +157,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
       // Non-fatal: cohort exposure is supplemental data
     }
 
-    const result = {
+    const result: DeepDivePayload = {
       coin,
       candles: candles.slice(-200), // cap at 200 candles for payload size
       ctx: ctx ? {
@@ -108,6 +172,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
         fundingRate: f.fundingRate,
       })),
       cohortExposure,
+      holders,
     };
 
     await kv.set(cacheKey, JSON.stringify(result), { ex: 60 });

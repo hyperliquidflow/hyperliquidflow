@@ -91,30 +91,20 @@ describe("bucketPositions", () => {
     expect(out[out.length - 1].short_notional).toBe(200);
   });
 
-  it("places liquidationPx in the correct liq bucket when present", () => {
+  // The liquidation overlay was removed on 2026-08-13. It bucketed position
+  // counts rather than notional, so a $5M position and a $500 one drew the same
+  // mark, and it covered only the tracked cohort while resembling an
+  // exchange-wide heatmap. liquidationPx is still carried on RadarPosition and
+  // must simply be ignored by the entry bucketing.
+  it("ignores liquidationPx entirely and still buckets the entry", () => {
     const positions: RadarPosition[] = [
       pos({ szi: 1, entryPx: 100, positionValue: 500, liquidationPx: 85 }),
       pos({ szi: -1, entryPx: 100, positionValue: 500, liquidationPx: 115 }),
-    ];
-    const out = bucketPositions(positions, 100);
-    const liqLongBucket = out.find((b) => 85 >= b.price_low && 85 < b.price_high)!;
-    const liqShortBucket = out.find((b) => 115 >= b.price_low && 115 < b.price_high)!;
-    expect(liqLongBucket.liq_long_count).toBe(1);
-    expect(liqShortBucket.liq_short_count).toBe(1);
-  });
-
-  it("skips positions with null liquidationPx from liq overlay but counts entry", () => {
-    const positions: RadarPosition[] = [
       pos({ szi: 1, entryPx: 100, positionValue: 500, liquidationPx: null }),
     ];
     const out = bucketPositions(positions, 100);
-    const totalLiq = out.reduce(
-      (s, b) => s + b.liq_long_count + b.liq_short_count,
-      0,
-    );
-    expect(totalLiq).toBe(0);
-    const totalLong = out.reduce((s, b) => s + b.long_count, 0);
-    expect(totalLong).toBe(1);
+    expect(out.reduce((s, b) => s + b.long_count, 0)).toBe(2);
+    expect(out.reduce((s, b) => s + b.short_count, 0)).toBe(1);
   });
 
   it("handles empty positions without throwing", () => {

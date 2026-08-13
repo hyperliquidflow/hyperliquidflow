@@ -1,6 +1,6 @@
 "use client";
 // app/signals/radar/RadarClient.tsx
-// Market Radar: per-asset price-axis view of cohort long/short density and liquidation zones.
+// Market Radar: per-asset price-axis view of cohort long/short entry density.
 
 import { useMemo, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
@@ -117,7 +117,7 @@ export function RadarClient({ initialData, initialAsset, initialTier }: Props) {
     <div>
       <PageHeader
         title="Market Radar"
-        subtitle="Where cohort wallets cluster entries and liquidations along the price axis"
+        subtitle="Where tracked wallets entered, along the price axis"
         updatedAt={data?.updated_at}
       />
       <div style={S.page}>
@@ -220,10 +220,7 @@ function RadarChart({ data }: ChartProps) {
   const onHover = (e: React.MouseEvent, b: RadarBucket) => {
     const longTxt  = b.long_count  > 0 ? `${b.long_count} long, ${formatUsd(b.long_notional)}`   : "";
     const shortTxt = b.short_count > 0 ? `${b.short_count} short, ${formatUsd(b.short_notional)}` : "";
-    const liqTxt   = (b.liq_long_count + b.liq_short_count) > 0
-      ? `${b.liq_long_count + b.liq_short_count} liq near ${formatPrice((b.price_low + b.price_high) / 2)}`
-      : "";
-    const parts = [longTxt, shortTxt, liqTxt].filter(Boolean);
+    const parts = [longTxt, shortTxt].filter(Boolean);
     if (parts.length === 0) return;
     setTip({ x: e.clientX + 14, y: e.clientY + 14, text: parts.join("  ·  ") });
   };
@@ -282,22 +279,6 @@ function RadarChart({ data }: ChartProps) {
                     width={shortW} height={barH}
                     fill={color.red} fillOpacity={0.82}
                     rx={1}
-                  />
-                )}
-                {b.liq_long_count > 0 && (
-                  <line
-                    x1={CX - usableHalf} x2={CX}
-                    y1={y + barH / 2 + 0.5} y2={y + barH / 2 + 0.5}
-                    stroke={color.green} strokeOpacity={0.45}
-                    strokeWidth={1.2} strokeDasharray="3 3"
-                  />
-                )}
-                {b.liq_short_count > 0 && (
-                  <line
-                    x1={CX} x2={CX + usableHalf}
-                    y1={y + barH / 2 + 0.5} y2={y + barH / 2 + 0.5}
-                    stroke={color.red} strokeOpacity={0.45}
-                    strokeWidth={1.2} strokeDasharray="3 3"
                   />
                 )}
               </g>

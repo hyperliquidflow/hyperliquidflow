@@ -21,8 +21,6 @@ export interface RadarBucket {
   short_count:      number;
   long_notional:    number;
   short_notional:   number;
-  liq_long_count:   number;
-  liq_short_count:  number;
 }
 
 export interface RadarStats {
@@ -53,8 +51,6 @@ function makeEmptyBuckets(min: number, max: number): RadarBucket[] {
     short_count:     0,
     long_notional:   0,
     short_notional:  0,
-    liq_long_count:  0,
-    liq_short_count: 0,
   }));
 }
 
@@ -88,12 +84,6 @@ export function bucketPositions(
       buckets[entryIdx].short_count += 1;
       buckets[entryIdx].short_notional += p.positionValue;
     }
-
-    if (p.liquidationPx != null && Number.isFinite(p.liquidationPx)) {
-      const liqIdx = bucketIndex(p.liquidationPx, min, max);
-      if (isLong) buckets[liqIdx].liq_long_count += 1;
-      else        buckets[liqIdx].liq_short_count += 1;
-    }
   }
 
   return buckets;
@@ -116,101 +106,6 @@ export function aggregateTopAssets(
     .sort((a, b) => b[1] - a[1])
     .slice(0, limit)
     .map(([coin]) => coin);
-}
-
-export interface TimeseriesBin {
-  t_start: number;
-  t_end:   number;
-  // notional sum of liquidationPx falling into each price bucket, split by side
-  liq_long_notional:  number[];
-  liq_short_notional: number[];
-}
-
-export interface OhlcCandle {
-  t: number;   // open time unix ms
-  o: number;
-  h: number;
-  l: number;
-  c: number;
-}
-
-export interface TimeseriesResponse {
-  asset:         string;
-  current_price: number;
-  price_range:   { min: number; max: number };
-  bin_minutes:   number;
-  bins:          TimeseriesBin[];
-  candles:       OhlcCandle[];
-}
-
-export interface TimeseriesSample {
-  t: number;           // unix ms
-  wallet_id: string;
-  szi: number;
-  liquidationPx: number | null;
-  positionValue: number;
-}
-
-export function bucketTimeseries(
-  samples: TimeseriesSample[],
-  currentPrice: number,
-  binMinutes: number,
-  binCount: number,
-  nowMs: number,
-): TimeseriesBin[] {
-  const binMs = binMinutes * 60 * 1000;
-  const min   = currentPrice * (1 - RANGE_PCT);
-  const max   = currentPrice * (1 + RANGE_PCT);
-  const bins: TimeseriesBin[] = Array.from({ length: binCount }, (_, i) => {
-    const t_end   = nowMs - (binCount - 1 - i) * binMs;
-    const t_start = t_end - binMs;
-    return {
-      t_start,
-      t_end,
-      liq_long_notional:  Array(BUCKET_COUNT).fill(0) as number[],
-      liq_short_notional: Array(BUCKET_COUNT).fill(0) as number[],
-    };
-  });
-
-  if (!(currentPrice > 0)) return bins;
-
-  const firstBinStart = bins[0].t_start;
-
-  // Step 1: find each wallet's latest snapshot before each bin ends (carry-forward).
-  // Build a sorted timeline of all samples per wallet.
-  const walletTimeline = new Map<string, TimeseriesSample[]>();
-  for (const s of samples) {
-    const arr = walletTimeline.get(s.wallet_id) ?? [];
-    arr.push(s);
-    walletTimeline.set(s.wallet_id, arr);
-  }
-  for (const arr of walletTimeline.values()) {
-    arr.sort((a, b) => a.t - b.t);
-  }
-
-  for (let bi = 0; bi < binCount; bi++) {
-    const binEnd = bins[bi].t_end;
-    if (binEnd < firstBinStart) continue;
-
-    for (const [, timeline] of walletTimeline) {
-      // Binary search for latest sample with t <= binEnd
-      let lo = 0, hi = timeline.length - 1, found = -1;
-      while (lo <= hi) {
-        const mid = (lo + hi) >> 1;
-        if (timeline[mid].t <= binEnd) { found = mid; lo = mid + 1; }
-        else hi = mid - 1;
-      }
-      if (found < 0) continue;
-      const s = timeline[found];
-      if (s.liquidationPx == null || !Number.isFinite(s.liquidationPx)) continue;
-      const priceIdx = bucketIndex(s.liquidationPx, min, max);
-      const notional = Math.abs(s.positionValue);
-      if (s.szi > 0) bins[bi].liq_long_notional[priceIdx]  += notional;
-      else           bins[bi].liq_short_notional[priceIdx] += notional;
-    }
-  }
-
-  return bins;
 }
 
 export function computeRadarStats(positions: RadarPosition[]): RadarStats {

@@ -8,6 +8,7 @@ import type { MarketTickerEntry } from "@/app/api/market-ticker/route";
 import type { SignalFreshnessPayload } from "@/app/api/signal-freshness/route";
 import type { RankIcPayload } from "@/app/api/rank-ic/route";
 import { PageHeader } from "@/components/page-header";
+import { CoinTag } from "@/components/coin-tag";
 import { RECIPE_META } from "@/lib/recipe-meta";
 import { OverviewLoadingState } from "@/components/loading-state";
 import { color, card as C, type as T, space, radius } from "@/lib/design-tokens";
@@ -248,7 +249,7 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
               borderRight: i < ticker.length - 1 ? "1px solid rgba(255,255,255,0.05)" : undefined,
             }}>
               <div>
-                <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", color: "rgba(255,255,255,0.38)", textTransform: "uppercase" }}>{t.coin}</div>
+                <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", color: "rgba(255,255,255,0.38)", textTransform: "uppercase" }}><CoinTag coin={t.coin} plain /></div>
                 <div style={{ fontSize: "16px", fontWeight: 700, fontVariantNumeric: "tabular-nums", color: color.text, marginTop: "3px", whiteSpace: "nowrap" }}>
                   ${t.price >= 1000
                     ? t.price.toLocaleString("en-US", { maximumFractionDigits: 0 })
@@ -391,7 +392,7 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
                   <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.35)", textAlign: "right", width: "36px", fontVariantNumeric: "tabular-nums" }}>
                     {sig.ev_score != null ? `EV ${(sig.ev_score * 100).toFixed(0)}` : ""}
                   </span>
-                  <span style={{ ...T.sigCoinTag }}>{sig.coin}</span>
+                  <CoinTag coin={sig.coin} />
                   <DirBadge direction={sig.direction} />
                 </div>
               ))}
@@ -416,7 +417,7 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
                     padding: "7px 14px",
                     borderBottom: i < arr.length - 1 ? `1px solid ${color.divider}` : undefined,
                   }}>
-                    <span style={{ fontSize: "13px", fontWeight: 700, color: color.text, minWidth: "38px" }}>{coin}</span>
+                    <span style={{ fontSize: "13px", fontWeight: 700, color: color.text, minWidth: "38px" }}><CoinTag coin={coin} plain /></span>
                     <span style={{
                       ...T.sigDir,
                       background: isLong ? color.longBg : color.shortBg,
@@ -498,7 +499,7 @@ export function OverviewClient({ initialData, initialTicker }: Props) {
                 const net = e.net_pct ?? 0;
                 return (
                   <div key={e.coin} style={{ display: "grid", gridTemplateColumns: "38px 1fr 40px", alignItems: "center", gap: "10px" }}>
-                    <span style={{ fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.5)", letterSpacing: "0.06em" }}>{e.coin}</span>
+                    <span style={{ fontSize: "11px", fontWeight: 700, color: "rgba(255,255,255,0.5)", letterSpacing: "0.06em" }}><CoinTag coin={e.coin} plain /></span>
                     <div style={{ height: "4px", background: color.barBg, borderRadius: radius.bar, overflow: "hidden" }}>
                       <div style={{ height: "100%", width: `${e.pct}%`, display: "flex", borderRadius: radius.bar, overflow: "hidden", transition: "width 0.65s cubic-bezier(0.22,1,0.36,1)" }}>
                         {sided ? (

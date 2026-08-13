@@ -8,6 +8,7 @@ import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY } from "@/lib/env";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 import type { MarketTickerEntry } from "@/app/api/market-ticker/route";
 import type { RadarResponse } from "@/lib/radar-utils";
+import type { DeepDivePayload } from "@/app/api/deep-dive/route";
 import { fetchGlobalAliases as hsGlobalAliases, type HsGlobalAliases } from "@/lib/hypurrscan-api-client";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -55,6 +56,23 @@ export async function fetchMarketRadar(
  * Read the cached top-assets list. Used by the radar page to pick a default
  * asset for first-paint prefetch. Returns null on miss.
  */
+/**
+ * First paint for a coin page. Reads the same key /api/deep-dive writes, so a
+ * miss simply means the client fetches it; it is never an error.
+ */
+export async function fetchDeepDive(
+  coin: string,
+  interval = "1h",
+): Promise<DeepDivePayload | null> {
+  try {
+    const raw = await kv.get<string>(`deep-dive:${coin.toUpperCase()}:${interval}`);
+    if (!raw) return null;
+    return typeof raw === "string" ? JSON.parse(raw) : raw;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchRadarTopAssets(): Promise<string[] | null> {
   try {
     return parse<string[]>(await kv.get("market-radar:top-assets"));

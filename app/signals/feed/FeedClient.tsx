@@ -5,6 +5,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { PageHeader } from "@/components/page-header";
+import { CoinTag } from "@/components/coin-tag";
 import { RECIPE_META } from "@/lib/recipe-meta";
 import { truncateAddress, formatSignalTime } from "@/lib/utils";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
@@ -311,7 +312,7 @@ function SignalRow({ sig }: { sig: Signal }) {
       <div style={{ minWidth: 0 }}>
         <div style={S.sigTopRow}>
           <span style={S.sigName}>{meta?.label ?? "Signal"}</span>
-          <span style={S.coinTag}>{sig.coin}</span>
+          <CoinTag coin={sig.coin} />
           {dirStyle && sig.direction && (
             <span style={{ ...S.dirPill, ...dirStyle }}>{sig.direction}</span>
           )}
