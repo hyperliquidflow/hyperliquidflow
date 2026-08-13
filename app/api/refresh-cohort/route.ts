@@ -426,7 +426,7 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
     );
 
     // Deduplicate snapRows (keep latest per wallet), build spotlight list, and aggregate coin notional
-    type RawPos = { position?: { coin?: string; positionValue?: string; szi?: string } };
+    type RawPos = { position?: { coin?: string; positionValue?: string; szi?: string; unrealizedPnl?: string } };
     const seenSpotlight = new Set<string>();
     const spotlightPositions: SpotlightWallet[] = [];
     // Per coin, split by side. Summing absolute notional here made a coin the
@@ -435,6 +435,9 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
     const coinNotionalMap = new Map<string, { long: number; short: number }>();
     let longNotional = 0;
     let shortNotional = 0;
+    // Position-level, for the daily positioning record. Kept flat rather than
+    // per wallet because the record ranks positions, not accounts.
+    const positionPnls: Array<{ szi: number; notional: number; upnl: number }> = [];
     for (const r of (snapRows ?? [])) {
       if (seenSpotlight.has(r.wallet_id)) continue;
       seenSpotlight.add(r.wallet_id);
@@ -456,6 +459,10 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
           if (szi > 0)      { side.long  += val; longNotional  += val; }
           else if (szi < 0) { side.short += val; shortNotional += val; }
           coinNotionalMap.set(coin, side);
+          if (szi !== 0) {
+            const upnl = parseFloat(ap.position?.unrealizedPnl ?? "0");
+            positionPnls.push({ szi, notional: val, upnl: Number.isFinite(upnl) ? upnl : 0 });
+          }
         }
       }
     }
@@ -492,6 +499,30 @@ async function handleRefresh(req: NextRequest): Promise<NextResponse> {
       short_pct:      shortPctRounded,
       label:          tiltLabel,
     };
+
+    // Daily positioning record. Upserted through the day, last write wins, and
+    // wallets/positions ride along so a future chart can drop thin days instead
+    // of drawing a line through a changing sample. Never blocks the response.
+    void (async () => {
+      try {
+        const top100 = [...positionPnls].sort((a, b) => b.upnl - a.upnl).slice(0, 100);
+        const tLong  = top100.filter((p) => p.szi > 0).reduce((s, p) => s + p.notional, 0);
+        const tShort = top100.filter((p) => p.szi < 0).reduce((s, p) => s + p.notional, 0);
+        const tTot   = tLong + tShort;
+        await supabase.from("positioning_history").upsert({
+          day:              new Date().toISOString().slice(0, 10),
+          long_notional:    Math.round(longNotional),
+          short_notional:   Math.round(shortNotional),
+          pct_short:        tiltTotal > 0 ? Math.round((shortNotional / tiltTotal) * 1000) / 10 : null,
+          top100_pct_short: tTot > 0 ? Math.round((tShort / tTot) * 1000) / 10 : null,
+          wallets:          seenSpotlight.size,
+          positions:        positionPnls.length,
+          recorded_at:      new Date().toISOString(),
+        }, { onConflict: "day" });
+      } catch (err) {
+        console.error("[refresh-cohort] positioning_history upsert failed:", err);
+      }
+    })();
 
     const payload: CohortCachePayload = {
       updated_at:           new Date().toISOString(),
