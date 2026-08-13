@@ -4,6 +4,36 @@ Written 2026-08-13, after the 200-day run closed both trading leads. This is the
 plan to work through without further direction. Each phase ships on its own and
 leaves the app in a working state, so stopping between phases is always safe.
 
+## Status, 2026-08-13
+
+| Phase | State | Landed in |
+|---|---|---|
+| 1, coin pages | **done** | `ebf28d4` |
+| 2, clickable coins | **done** | `ebf28d4` |
+| 3, nav by question | **done** | `f0b1e8b` |
+| 4, liquidation view | **done, retired not repaired** | `ebf28d4` |
+| 5, dead-premise surfaces | **done, moved to Research** | `f0b1e8b` |
+| 6, honest record | **done**, `/research` | `f0b1e8b` |
+
+Phase 4 resolved by deletion. The overlay bucketed counts rather than notional,
+and the coverage that would make a liquidation map usable cannot be obtained from
+Hyperliquid's public API, which exposes `clearinghouseState` per address only.
+`bucketTimeseries` and the `market-radar/timeseries` route went with it; both
+existed only to serve a liquidation heatmap over time and had no consumer.
+
+**What is left, in rough order of value:**
+
+1. The coin page shows cohort position but not its **change** since the previous
+   snapshot. Change is the part that carries information and it is still not
+   shown anywhere in the app.
+2. The markets index reports cohort side only. Joining exchange funding and open
+   interest per row would let a reader sort by cost of carry.
+3. `/signals/performance` still renders mostly "withheld, below sample". It is
+   under Research now, which is honest, but the empty state deserves a plain
+   sentence saying no recipe has cleared its bar.
+4. `wallet-profile` route has an unused `closing` variable, and `FeedClient:475`
+   has an expression statement lint warning. Both predate this work.
+
 ## Where this starts
 
 The backtested premise is dead: copying the cohort's trades does not pay, at any
