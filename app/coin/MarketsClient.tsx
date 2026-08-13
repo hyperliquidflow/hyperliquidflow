@@ -9,7 +9,8 @@ import { formatUsd } from "@/lib/utils";
 import { PageHeader } from "@/components/page-header";
 import type { CohortCachePayload } from "@/app/api/refresh-cohort/route";
 import type { MarketsPayload } from "@/app/api/markets/route";
-import { color, card as C, space } from "@/lib/design-tokens";
+import type { PositioningPayload } from "@/app/api/positioning/route";
+import { color, card as C, type as T, space } from "@/lib/design-tokens";
 
 const S = {
   page:  { padding: space.pagePaddingX },
@@ -46,6 +47,14 @@ export function MarketsClient({ initialData }: { initialData: CohortCachePayload
   });
   const ctxByCoin = new Map((mkts?.markets ?? []).map((m) => [m.coin, m]));
 
+  // Who is winning, and how are they positioned? The plainest read on the page.
+  const { data: pos } = useQuery<PositioningPayload>({
+    queryKey:        ["positioning"],
+    queryFn:         () => fetch("/api/positioning").then((r) => r.json()),
+    refetchInterval: 60_000,
+    staleTime:       55_000,
+  });
+
   const coins = (data?.coin_exposure ?? []).filter((e) => e.notional > 0);
 
   return (
@@ -57,6 +66,41 @@ export function MarketsClient({ initialData }: { initialData: CohortCachePayload
       />
 
       <div style={{ ...S.page, paddingTop: space.contentPaddingTop }}>
+
+        {pos && pos.buckets?.length > 0 && (
+          <div style={{ ...S.card, marginBottom: space.cardGap }}>
+            <div style={{ ...C.header }}>
+              <span style={{ ...T.cardTitle }}>Which side is winning</span>
+              <span style={{ ...T.cardLink, marginLeft: "auto", cursor: "default" }}>
+                {pos.total_positions} positions, {pos.wallets} wallets
+              </span>
+            </div>
+            <div style={{ padding: space.cardBodyPadding, display: "flex", flexDirection: "column", gap: "14px" }}>
+              {pos.buckets.map((b) => {
+                const shortPct = b.pct_short_notional ?? 0;
+                return (
+                  <div key={b.label} style={{ display: "grid", gridTemplateColumns: "190px 1fr 96px", alignItems: "center", gap: "14px" }}>
+                    <span style={{ fontSize: "13px", color: color.textMuted }}>{b.label}</span>
+                    <div style={{ height: "8px", background: color.barBg, borderRadius: 2, overflow: "hidden", display: "flex" }}>
+                      <div style={{ width: `${100 - shortPct}%`, background: color.green }} />
+                      <div style={{ width: `${shortPct}%`,       background: color.red }} />
+                    </div>
+                    <span style={{ fontSize: "13px", fontWeight: 700, textAlign: "right", fontVariantNumeric: "tabular-nums",
+                                   color: shortPct >= 60 ? color.red : shortPct <= 40 ? color.green : color.textMuted }}>
+                      {shortPct.toFixed(0)}% short
+                    </span>
+                  </div>
+                );
+              })}
+              <div style={{ ...S.muted, borderTop: `1px solid ${color.divider}`, paddingTop: "10px" }}>
+                Share of notional on the short side. A position showing the largest open profit is
+                winning right now, so in a falling market it is usually short. Read the gap between
+                the rows, not any row on its own.
+              </div>
+            </div>
+          </div>
+        )}
+
         <div style={S.card}>
           {coins.length === 0 ? (
             <div style={{ padding: space.cardBodyPadding, ...S.muted }}>No open cohort positions right now.</div>
