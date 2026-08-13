@@ -21,18 +21,29 @@ Hyperliquid's public API, which exposes `clearinghouseState` per address only.
 `bucketTimeseries` and the `market-radar/timeseries` route went with it; both
 existed only to serve a liquidation heatmap over time and had no consumer.
 
+**All six phases and the three follow-ups are done** (`63cfbc8`). Position change
+ships on the coin page, the markets index carries funding and open interest, and
+the Signal Record has an honest empty state.
+
 **What is left, in rough order of value:**
 
-1. The coin page shows cohort position but not its **change** since the previous
-   snapshot. Change is the part that carries information and it is still not
-   shown anywhere in the app.
-2. The markets index reports cohort side only. Joining exchange funding and open
-   interest per row would let a reader sort by cost of carry.
-3. `/signals/performance` still renders mostly "withheld, below sample". It is
-   under Research now, which is honest, but the empty state deserves a plain
-   sentence saying no recipe has cleared its bar.
-4. `wallet-profile` route has an unused `closing` variable, and `FeedClient:475`
-   has an expression statement lint warning. Both predate this work.
+1. **Nothing on the coin page is charted.** Candles are fetched, capped at 200,
+   and never drawn. `lightweight-charts` is already a dependency. Price with
+   funding underneath would make the page readable at a glance rather than as a
+   table of numbers.
+2. **Exposure change has no history.** It compares two snapshots. A short series
+   of daily net exposure per coin would show accumulation rather than a single
+   delta, and `wallet_score_history` shows the pattern for how to store it.
+   Respect the no-thin-data rule: do not chart it until the series is long enough
+   to mean something.
+3. **The markets index lists only coins the cohort holds.** A reader looking up a
+   coin with no cohort position gets nothing. `/api/markets` already returns the
+   full universe, so the index could show every market and mark which ones the
+   cohort is in.
+4. **Nothing links to the coin page from the wallet page.** A wallet's position
+   rows name coins that are still inert text there.
+5. `wallet-profile` has an unused `closing` variable and `FeedClient:475` has an
+   expression-statement lint warning. Both predate this work.
 
 ## Where this starts
 
