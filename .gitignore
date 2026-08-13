@@ -65,4 +65,6 @@ fill-study-cache.json
 funding-cache.json
 volume-cache.json
 fill-study-checkpoint.json
+tape-population-cache.json
+tape-population-checkpoint.json
 daily-volume-cache.json
