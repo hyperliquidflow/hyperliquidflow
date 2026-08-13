@@ -132,7 +132,7 @@ function BehaviorProfileSection({ profile: p }: { profile: StoredProfile }) {
 }
 
 function WalletProfileCard({ profile }: { profile: WalletProfile }) {
-  const [tab, setTab] = useState<"overview" | "positions" | "trades">("overview");
+  const [tab, setTab] = useState<"positions" | "trades">("positions");
   const pnlColor = profile.stats.total_pnl >= 0 ? color.green : color.red;
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
@@ -175,38 +175,28 @@ function WalletProfileCard({ profile }: { profile: WalletProfile }) {
       <div style={{ ...S.muted, fontSize: "11px", textAlign: "right" as const, marginTop: "4px" }}>* as of last daily scan</div>
       {profile.stored_profile && <BehaviorProfileSection profile={profile.stored_profile} />}
       <div style={S.card}>
+        {/* Margin sits above the tabs, not behind one. Account Value is omitted
+            deliberately: it is the same number as AUM in the header strip. */}
+        <div style={{ display: "flex", gap: "28px", padding: "12px 20px", borderBottom: `1px solid ${color.borderFaint}`, flexWrap: "wrap" as const }}>
+          {[
+            ["Total Notional", formatUsd(parseFloat(profile.state.totalNtlPos))],
+            ["Margin Used",    formatUsd(parseFloat(profile.state.totalMarginUsed))],
+            ["Withdrawable",   formatUsd(parseFloat(profile.state.withdrawable))],
+          ].map(([k, v]) => (
+            <div key={k} style={{ display: "flex", alignItems: "baseline", gap: "8px" }}>
+              <span style={S.muted}>{k}</span>
+              <span style={{ fontSize: "13px", fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>{v}</span>
+            </div>
+          ))}
+        </div>
         <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-          {(["overview", "positions", "trades"] as const).map((t) => (
+          {(["positions", "trades"] as const).map((t) => (
             <button key={t} onClick={() => setTab(t)} className={`tab-hover${tab === t ? " tab-active" : ""}`}
               style={{ padding: "12px 20px", fontSize: "13px", fontWeight: 500, color: tab === t ? color.text : "rgba(255,255,255,0.44)", background: "none", border: "none", cursor: "pointer", borderBottom: tab === t ? `2px solid ${color.neutral}` : "2px solid transparent", marginBottom: "-1px", textTransform: "capitalize" as const }}>
               {t}
             </button>
           ))}
         </div>
-        {tab === "overview" && (
-          <div style={{ padding: "20px" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
-              <div>
-                <div style={{ ...S.label, marginBottom: "10px" }}>Margin Summary</div>
-                {[["Account Value", formatUsd(parseFloat(profile.state.accountValue))], ["Total Notional", formatUsd(parseFloat(profile.state.totalNtlPos))], ["Margin Used", formatUsd(parseFloat(profile.state.totalMarginUsed))], ["Withdrawable", formatUsd(parseFloat(profile.state.withdrawable))]].map(([k, v]) => (
-                  <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                    <span style={S.muted}>{k}</span>
-                    <span style={{ fontSize: "13px", fontVariantNumeric: "tabular-nums" }}>{v}</span>
-                  </div>
-                ))}
-              </div>
-              <div>
-                <div style={{ ...S.label, marginBottom: "10px" }}>Performance</div>
-                {[["Win Rate", formatPct(profile.stats.win_rate)], ["Trade Count", `${profile.stats.trade_count}`], ["Profit Factor", profile.stats.profit_factor.toFixed(2)], ["Current Streak", `${profile.stats.current_streak}* ${profile.stats.is_win_streak ? "W" : "L"}`]].map(([k, v]) => (
-                  <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-                    <span style={S.muted}>{k}</span>
-                    <span style={{ fontSize: "13px" }}>{v}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
         {tab === "positions" && (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead><tr>{["Coin","Side","Size","Value","uPnL","Entry Px","Lev","Liq Px"].map(h => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
@@ -322,7 +312,9 @@ export function DiscoveryClient({ initialScannerData }: { initialScannerData: Sc
 
         {profile && <div style={{ marginBottom: "24px" }}><WalletProfileCard profile={profile} /></div>}
 
-        {scannerData && (
+        {/* Pipeline stats describe the scanner, not the wallet. When a wallet is
+            open they are noise below the thing the reader came for. */}
+        {!profile && scannerData && (
           <>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px", marginBottom: "20px" }}>
               {[

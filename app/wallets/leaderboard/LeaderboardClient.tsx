@@ -19,7 +19,6 @@ function TierBadge({ tier }: { tier: string | null | undefined }) {
       fontWeight: 600,
       letterSpacing: "0.04em",
       textTransform: "uppercase" as const,
-      marginLeft: "6px",
       cursor: "default",
       padding: "2px 8px",
     }}>
@@ -38,12 +37,12 @@ function StyleBadge({ style }: { style: string | null | undefined }) {
   if (!style) return null;
   return (
     <span style={{
-      fontSize: "10px",
+      fontSize: "11px",
       fontWeight: 600,
       letterSpacing: "0.06em",
       textTransform: "uppercase" as const,
-      marginLeft: "5px",
       padding: "2px 6px",
+      whiteSpace: "nowrap" as const,
       borderRadius: "3px",
       border: `1px solid ${STYLE_COLORS[style] ?? "rgba(255,255,255,0.15)"}40`,
       color: STYLE_COLORS[style] ?? "rgba(255,255,255,0.44)",
@@ -85,14 +84,20 @@ function ScoreCell({ score }: { score: number }) {
 
 type SortKey = "address" | "overall_score" | "account_value" | "unrealized_pnl" | "win_rate" | "position_count" | "liq_buffer_pct";
 
-const COLS: { key: SortKey; label: string }[] = [
-  { key: "address",        label: "Wallet"     },
+// key null means the column is not sortable. Tier, Style and Follow used to be
+// crammed into the Wallet cell, which left them ragged because address width
+// varies. They get their own columns so they line up.
+const COLS: { key: SortKey | null; label: string }[] = [
+  { key: "address",        label: "Wallet"         },
+  { key: null,             label: "Tier"           },
+  { key: null,             label: "Style"          },
   { key: "overall_score",  label: "Score"          },
   { key: "account_value",  label: "AUM"            },
   { key: "unrealized_pnl", label: "Open PnL"       },
   { key: "win_rate",       label: "Win Rate"       },
   { key: "position_count", label: "Positions"      },
   { key: "liq_buffer_pct", label: "Safety Margin"  },
+  { key: null,             label: "Follow"         },
 ];
 
 export function LeaderboardClient({ initialData }: { initialData: CohortCachePayload | null }) {
@@ -166,16 +171,16 @@ export function LeaderboardClient({ initialData }: { initialData: CohortCachePay
               <tr style={{ background: color.bg }}>
                 <th style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: "rgba(255,255,255,0.5)", padding: "12px 16px", textAlign: "left", userSelect: "none", width: "40px" }}>#</th>
                 {COLS.map(({ key, label }) => (
-                  <th key={key} onClick={() => data && handleSort(key)}
+                  <th key={label} onClick={() => key && data && handleSort(key)}
                     style={{
                       fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em",
                       textTransform: "uppercase" as const,
-                      color: sort === key ? color.text : "rgba(255,255,255,0.5)",
+                      color: key && sort === key ? color.text : "rgba(255,255,255,0.5)",
                       padding: "12px 16px", textAlign: "left" as const,
-                      cursor: data ? "pointer" : "default", userSelect: "none", whiteSpace: "nowrap" as const,
+                      cursor: key && data ? "pointer" : "default", userSelect: "none", whiteSpace: "nowrap" as const,
                     }}>
                     {label}
-                    {data && (
+                    {key && data && (
                       <span style={{ marginLeft: "5px", opacity: sort === key ? 0.7 : 0, transition: "opacity 0.15s" }}>
                         {asc ? "↑" : "↓"}
                       </span>
@@ -190,6 +195,8 @@ export function LeaderboardClient({ initialData }: { initialData: CohortCachePay
                   <tr key={i} style={ghost(i * 0.08)}>
                     <td style={S.td}><div style={bone(16)} /></td>
                     <td style={S.td}><div style={bone(110)} /></td>
+                    <td style={S.td}><div style={bone(46)} /></td>
+                    <td style={S.td}><div style={bone(52)} /></td>
                     <td style={S.td}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <div style={{ width: 48, height: 3, borderRadius: 2, background: "rgba(255,255,255,0.08)" }} />
@@ -201,6 +208,7 @@ export function LeaderboardClient({ initialData }: { initialData: CohortCachePay
                     <td style={S.td}><div style={bone(48)} /></td>
                     <td style={S.td}><div style={bone(24)} /></td>
                     <td style={S.td}><div style={bone(48)} /></td>
+                    <td style={S.td}><div style={bone(56)} /></td>
                   </tr>
                 ))
               ) : (
@@ -214,16 +222,13 @@ export function LeaderboardClient({ initialData }: { initialData: CohortCachePay
                     }}>
                     <td style={{ ...S.td, color: "rgba(255,255,255,0.32)" }}>{i + 1}</td>
                     <td style={S.td}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <button onClick={() => router.push(`/wallets/discovery?address=${w.address}`)}
-                          style={{ ...S.mono, color: color.neutral, background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" as const }}>
-                          {truncateAddress(w.address)}
-                        </button>
-                        <TierBadge tier={w.equity_tier} />
-                        <StyleBadge style={w.trading_style} />
-                        <FollowButton address={w.address} />
-                      </div>
+                      <button onClick={() => router.push(`/wallets/discovery?address=${w.address}`)}
+                        style={{ ...S.mono, color: color.neutral, background: "none", border: "none", cursor: "pointer", padding: 0, textAlign: "left" as const }}>
+                        {truncateAddress(w.address)}
+                      </button>
                     </td>
+                    <td style={S.td}><TierBadge tier={w.equity_tier} /></td>
+                    <td style={S.td}><StyleBadge style={w.trading_style} /></td>
                     <td style={S.td}>
                       <ScoreCell score={w.overall_score} />
                     </td>
@@ -234,6 +239,7 @@ export function LeaderboardClient({ initialData }: { initialData: CohortCachePay
                     <td style={{ ...S.td, color: (w.liq_buffer_pct ?? 1) < 0.15 ? color.red : "rgba(255,255,255,0.69)" }}>
                       {w.liq_buffer_pct != null ? formatPct(w.liq_buffer_pct) : "n/a"}
                     </td>
+                    <td style={S.td}><FollowButton address={w.address} /></td>
                   </tr>
                 ))
               )}
