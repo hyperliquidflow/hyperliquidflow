@@ -79,6 +79,13 @@ so no forward information enters it.
 
 The other two remain reported as supporting shape and **cannot satisfy the bar**.
 
+**One clause added 2026-08-14, before the corrected run:** wallets whose fill
+history is partial, from the page cap or a failed page, are excluded from the
+primary. Their score is computed on a series that ends before the wallet did,
+which is a measurement error rather than a small sample. Reported both ways.
+Reasoning and the class C decision that accompanies it:
+[2026-08-14-class-c-decision.md](../research/2026-08-14-class-c-decision.md).
+
 **Minimum sample: 250 usable pairs.** The preliminary run had 48 against the 6,624
 behind the published 0.0939, and returned an IC near 0.30. A statistic that
 triples on a sample two orders of magnitude smaller should be read as noise until
@@ -140,6 +147,12 @@ The flow collector must run continuously. It is a persistent process; the GitHub
 Actions cron cannot hold a socket and the daily scan pattern does not fit. Until
 it has a host, the discovered population is only as wide as the minutes it
 happened to be up.
+
+`ops/flow-collector.plist` is a launchd agent that keeps it alive across logout
+and reboot on the owner's machine, which is the cheapest host that is not a
+laptop session. It is checked in and **not installed**; the install command is in
+its header. A real host is still the better answer, because a laptop that sleeps
+leaves the same holes in the tape.
 
 Roughly a day of tape makes Step 1 worth running. Steps 2 and 3 improve with more.
 

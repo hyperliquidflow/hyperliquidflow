@@ -40,9 +40,16 @@ const MIN_ACTIVE_DAYS = arg("min-active", 5);
 // lived only in the doc, so the first corrected run printed a verdict line on 205
 // pairs. A threshold that is not in the code is not a threshold.
 const MIN_PAIRS       = arg("min-pairs", 250);
+// The recurring class of docs/research/2026-08-14-market-maker-separation.md,
+// expressed as a share so it survives a longer collection window: 5 minutes of
+// the 692 that classification observed. Used only for the declared sensitivity
+// slice, never for the primary. See 2026-08-14-class-c-decision.md.
+const RECURRING_SHARE = Number(process.argv.find((a) => a.startsWith("--recurring-share="))?.split("=")[1] ?? 5 / 692);
 
 interface WalletRecord {
   address: string; equity: number | null; truncated: boolean;
+  truncation?: "none" | "page_cap" | "fetch_error";
+  tape_minutes?: number; tape_coins?: number;
   daily: Array<[number, number]>;   // [utc day index, realised pnl]
 }
 
@@ -75,7 +82,9 @@ function main(): void {
   }
   const cache = JSON.parse(readFileSync(CACHE, "utf8")) as {
     fetched_at: string; days: number; discovery: string; wallets: WalletRecord[];
+    tape_span_minutes?: number; dropped?: string[]; attempted?: number;
   };
+  const span = cache.tape_span_minutes ?? 0;
 
   console.log(`[tape-skill] cache ${cache.fetched_at}, ${cache.days}d, discovery=${cache.discovery}`);
   console.log(`[tape-skill] ${cache.wallets.length} wallets in population`);
@@ -87,12 +96,16 @@ function main(): void {
   const pairs:       Array<{ score: number; forwardPnl: number }> = [];
   const normPairs:   Array<{ score: number; forwardPnl: number }> = [];
   const activePairs: Array<{ score: number; forwardPnl: number }> = [];
+  // Declared before the run in 2026-08-14-class-c-decision.md. Supporting only.
+  const withPartial: Array<{ score: number; forwardPnl: number }> = [];
+  const sporadic:    Array<{ score: number; forwardPnl: number }> = [];
 
-  let tooShort = 0, noPnl = 0, truncated = 0;
+  let tooShort = 0, noPnl = 0, pageCapped = 0, fetchPartial = 0;
   const forwardDollars: number[] = [];
 
   for (const w of cache.wallets) {
-    if (w.truncated) truncated++;
+    if (w.truncation === "page_cap" || (w.truncated && !w.truncation)) pageCapped++;
+    if (w.truncation === "fetch_error") fetchPartial++;
     const series = dailySeries(w.daily);
     if (series.length === 0) { noPnl++; continue; }
 
@@ -112,13 +125,20 @@ function main(): void {
     // uses the train half only, so no forward information enters the filter.
     const active = (xs: number[]) => xs.filter((v) => v !== 0).length;
     if (active(split.train) >= MIN_ACTIVE_DAYS && normalized !== null) {
-      activePairs.push({ score, forwardPnl: normalized });
+      withPartial.push({ score, forwardPnl: normalized });
+      // Partial history means the score is computed on a series that ends before
+      // the wallet did, which is a measurement error rather than a small sample.
+      if (!w.truncated) activePairs.push({ score, forwardPnl: normalized });
+      if (!w.truncated && span > 0 && (w.tape_minutes ?? 0) / span < RECURRING_SHARE) {
+        sporadic.push({ score, forwardPnl: normalized });
+      }
     }
   }
 
-  console.log(`[tape-skill] usable ${pairs.length}, too short ${tooShort}, no realised PnL ${noPnl}, page-capped ${truncated}`);
-  if (truncated > 0) {
-    console.log(`[tape-skill] WARNING: ${truncated} wallets hit the fill page cap, so their series is partial.`);
+  console.log(`[tape-skill] usable ${pairs.length}, too short ${tooShort}, no realised PnL ${noPnl}`);
+  console.log(`[tape-skill] partial history ${pageCapped} page-capped, ${fetchPartial} fetch error, excluded from the primary`);
+  if (cache.attempted) {
+    console.log(`[tape-skill] ${(cache.dropped ?? []).length} of ${cache.attempted} addresses never fetched, so they are absent from every line below`);
   }
 
   const report = (label: string, ps: Array<{ score: number; forwardPnl: number }>) => {
@@ -132,10 +152,13 @@ function main(): void {
 
   console.log(`\n=== Rank IC on a tape-discovered population ===`);
   console.log(`  bar: IC above 0.08 with t above 2 (MDIC, already on the books)`);
-  console.log(`  primary: active in train half, forward PnL in own risk units\n`);
+  console.log(`  primary: active in train half, own risk units, complete history\n`);
   report("forward PnL, dollars", pairs);
   report("forward PnL, own risk units", normPairs);
-  report("PRIMARY active in train half", activePairs);
+  report("PRIMARY active, full history", activePairs);
+  console.log(`  --- supporting, cannot satisfy the bar ---`);
+  report("primary incl. partial history", withPartial);
+  report("sensitivity: sporadic only", sporadic);
 
   if (activePairs.length < MIN_PAIRS) {
     console.log(`\n=== UNDERPOWERED, no verdict recorded ===`);

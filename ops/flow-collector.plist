@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  launchd agent for scripts/flow-collector.ts.
+
+  The collector holds a WebSocket open, so it cannot be a cron job and cannot run
+  on GitHub Actions. Tied to a terminal session it dies with the session, which is
+  what happened on 2026-08-14 and left a 2.5-hour hole in the tape.
+
+  This file is checked in and NOT installed. To install:
+
+    cp ops/flow-collector.plist ~/Library/LaunchAgents/com.hyperliquidflow.collector.plist
+    launchctl load ~/Library/LaunchAgents/com.hyperliquidflow.collector.plist
+
+  To stop and remove:
+
+    launchctl unload ~/Library/LaunchAgents/com.hyperliquidflow.collector.plist
+    rm ~/Library/LaunchAgents/com.hyperliquidflow.collector.plist
+
+  KeepAlive restarts it on crash and on network changes. It does not survive a
+  sleeping laptop: macOS suspends the process, the socket drops, and the tape
+  gains a hole for the length of the nap. A always-on host is the better answer,
+  and `caffeinate -s` is the stopgap.
+
+  Edit WorkingDirectory and the npx path if the checkout or node install moves.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.hyperliquidflow.collector</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>-lc</string>
+    <string>exec npx tsx --env-file=.env.local scripts/flow-collector.ts --coins=30 --floor=5000</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/ahimsa/Documents/Lakshmi</string>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+    <key>NetworkState</key>
+    <true/>
+  </dict>
+
+  <!-- Restart no faster than once a minute, so a bad credential cannot spin. -->
+  <key>ThrottleInterval</key>
+  <integer>60</integer>
+
+  <key>StandardOutPath</key>
+  <string>/tmp/flow-collector.log</string>
+  <key>StandardErrorPath</key>
+  <string>/tmp/flow-collector.err</string>
+</dict>
+</plist>

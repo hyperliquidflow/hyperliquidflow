@@ -50,6 +50,10 @@ const MAX_MINUTE_SHARE = Number(process.argv.find((a) => a.startsWith("--max-min
 const MAX_COINS        = arg("max-coins", 3);
 const RANDOM_SAMPLE    = !process.argv.includes("--by-notional");
 const SEED             = arg("seed", 20260814);
+// 12 page-capped 31 of 331 wallets on 2026-08-14, and a capped wallet is scored
+// on partial history. Raising the cap shrinks that set; whatever still caps is
+// marked and excluded from the primary statistic rather than silently scored.
+const MAX_PAGES        = arg("max-pages", 30);
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -62,6 +66,7 @@ interface WalletRecord {
   address:       string;
   tape_notional: number;   // notional seen on the tape during discovery
   tape_minutes:  number;   // distinct minutes active, a crude activity measure
+  tape_coins:    number;   // distinct coins traded on the tape
   equity:        number | null;
   position_count: number | null;
   /** Realised PnL per UTC day index, sparse. Raw fills are not kept: 300 wallets
@@ -70,7 +75,8 @@ interface WalletRecord {
   daily:         Array<[number, number]>;
   fill_count:    number;
   fill_pages:    number;
-  truncated:     boolean;  // hit the page cap, more history exists
+  truncated:     boolean;  // history is partial, for either reason below
+  truncation:    Truncation;
 }
 
 /** Sum closedPnl per UTC day. Sparse, so absent days carry no row. */
@@ -87,35 +93,89 @@ function toDaily(fills: Fill[]): Array<[number, number]> {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function hlPost<T>(body: unknown): Promise<T> {
-  for (let attempt = 0; attempt < 4; attempt++) {
+/**
+ * A 429 and a 5xx need opposite treatment and the old single budget conflated
+ * them. A 429 is our own rate and always deserves the full backoff. A 5xx on this
+ * endpoint is usually a query the server will not serve rather than a blip:
+ * measured 2026-08-14, 30 of 378 addresses failed all four attempts, so 15
+ * seconds of backoff each rescued none of them and only slowed the run.
+ */
+async function hlPost<T>(body: unknown, opts: { serverAttempts?: number } = {}): Promise<T> {
+  const maxServer = opts.serverAttempts ?? 4;
+  let serverFails = 0;
+  let rateFails   = 0;
+  for (;;) {
     const res = await fetch(HYPERLIQUID_API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
     if (res.ok) return res.json() as Promise<T>;
-    // 429 and 5xx get a backoff. Anything else is a real error worth surfacing.
-    if (res.status !== 429 && res.status < 500) throw new Error(`HL ${res.status}`);
-    await sleep(1_000 * Math.pow(2, attempt));
+    if (res.status === 429) {
+      if (++rateFails >= 6) throw new Error("HL 429 retries exhausted");
+      await sleep(1_000 * Math.pow(2, Math.min(rateFails, 4)));
+      continue;
+    }
+    if (res.status >= 500) {
+      if (++serverFails >= maxServer) throw new Error(`HL ${res.status} after ${serverFails} attempts`);
+      await sleep(500 * serverFails);
+      continue;
+    }
+    throw new Error(`HL ${res.status}`);
   }
-  throw new Error("HL retries exhausted");
 }
 
 /**
  * Discovered population, from the flow tables the collector writes.
  * Ranked by notional so a truncated run keeps the addresses that matter.
  */
-async function discoverFromTape(): Promise<Array<{ address: string; notional: number; minutes: number }>> {
-  const { data, error } = await supabase
-    .from("flow_address_minute")
-    .select("address, coin, minute, side_b_notional, side_a_notional")
-    .limit(200_000);
-  if (error) throw new Error(`flow_address_minute read failed: ${error.message}`);
+/** Observed tape span in minutes, set by discovery and written into the cache so
+ *  a presence share stays comparable across runs of different length. */
+let tapeSpanMinutes = 0;
+
+interface AddressMinuteRow {
+  address: string; coin: string; minute: string;
+  side_b_notional: number | string; side_a_notional: number | string;
+}
+
+/**
+ * Read every `flow_address_minute` row, in pages.
+ *
+ * PostgREST caps a response at 5,000 rows and **says nothing when it does**: a
+ * `.limit(200_000)` returns 5,000 with no error and no truncation flag. Measured
+ * 2026-08-14, that silently drew the population from the oldest 2.5 hours of a
+ * 21.6-hour tape, which is why an extra 15 hours of collection produced the same
+ * 378 eligible addresses. Same family as the candleSnapshot cap in CLAUDE.md.
+ *
+ * The order clause is not decoration. Without one, PostgREST gives no ordering
+ * guarantee, so paging by range can repeat or skip rows.
+ */
+async function readAllAddressMinutes(): Promise<AddressMinuteRow[]> {
+  const PAGE = 5_000;
+  const out: AddressMinuteRow[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from("flow_address_minute")
+      .select("address, coin, minute, side_b_notional, side_a_notional")
+      .order("minute", { ascending: true })
+      .order("address", { ascending: true })
+      .order("coin", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`flow_address_minute read failed: ${error.message}`);
+    const page = (data ?? []) as AddressMinuteRow[];
+    out.push(...page);
+    if (page.length < PAGE) break;
+  }
+  console.log(`[tape] read ${out.length.toLocaleString("en-US")} address-minute rows`);
+  return out;
+}
+
+async function discoverFromTape(): Promise<Array<{ address: string; notional: number; minutes: number; coins: number }>> {
+  const rows = await readAllAddressMinutes();
 
   const agg = new Map<string, { notional: number; minutes: Set<string>; coins: Set<string> }>();
   const allMinutes = new Set<string>();
-  for (const r of data ?? []) {
+  for (const r of rows) {
     allMinutes.add(r.minute as string);
     const a = agg.get(r.address) ?? { notional: 0, minutes: new Set<string>(), coins: new Set<string>() };
     a.notional += Number(r.side_b_notional) + Number(r.side_a_notional);
@@ -124,6 +184,7 @@ async function discoverFromTape(): Promise<Array<{ address: string; notional: nu
     agg.set(r.address, a);
   }
   const span = Math.max(1, allMinutes.size);
+  tapeSpanMinutes = span;
 
   const eligible = [...agg.entries()]
     .map(([address, v]) => ({
@@ -162,30 +223,48 @@ function mulberry32(seed: number): () => number {
   };
 }
 
+/** Why a wallet's history may be incomplete. Any value but "none" means the
+ *  daily series ends before the wallet did, so its score is computed on partial
+ *  history and it is excluded from the primary statistic. */
+type Truncation = "none" | "page_cap" | "fetch_error";
+
+interface FillResult { fills: Fill[]; pages: number; truncated: boolean; truncation: Truncation }
+
 /**
  * Paginate past the 2,000 fill cap by advancing startTime past the newest fill
  * seen, per the measured limit in CLAUDE.md. The cap has no truncation signal,
  * so a full page is the only hint that more exists.
+ *
+ * A failed page keeps the pages already retrieved and marks the wallet rather
+ * than discarding it, because a dropped address biases the sample and a marked
+ * one can simply be excluded from the primary statistic.
  */
-async function fetchFills(address: string, sinceMs: number): Promise<{ fills: Fill[]; pages: number; truncated: boolean }> {
+async function fetchFills(address: string, sinceMs: number): Promise<FillResult> {
   const out: Fill[] = [];
   let cursor = sinceMs;
   let pages  = 0;
-  const MAX_PAGES = 12;
 
   while (pages < MAX_PAGES) {
-    const page = await hlPost<Fill[]>({ type: "userFillsByTime", user: address, startTime: cursor });
+    let page: Fill[];
+    try {
+      page = await hlPost<Fill[]>(
+        { type: "userFillsByTime", user: address, startTime: cursor },
+        { serverAttempts: 2 },
+      );
+    } catch {
+      return { fills: out, pages, truncated: true, truncation: "fetch_error" };
+    }
     pages++;
-    if (!Array.isArray(page) || page.length === 0) return { fills: out, pages, truncated: false };
+    if (!Array.isArray(page) || page.length === 0) return { fills: out, pages, truncated: false, truncation: "none" };
     out.push(...page);
-    if (page.length < 2_000) return { fills: out, pages, truncated: false };
+    if (page.length < 2_000) return { fills: out, pages, truncated: false, truncation: "none" };
 
     const newest = Math.max(...page.map((f) => f.time));
-    if (newest <= cursor) return { fills: out, pages, truncated: true };  // no progress, stop
+    if (newest <= cursor) return { fills: out, pages, truncated: true, truncation: "page_cap" };  // no progress, stop
     cursor = newest + 1;
     await sleep(120);
   }
-  return { fills: out, pages, truncated: true };
+  return { fills: out, pages, truncated: true, truncation: "page_cap" };
 }
 
 async function main(): Promise<void> {
@@ -195,6 +274,7 @@ async function main(): Promise<void> {
       ...w,
       daily:      w.daily ?? toDaily(w.fills ?? []),
       fill_count: w.fill_count ?? (w.fills?.length ?? 0),
+      truncation: w.truncation ?? (w.truncated ? "page_cap" : "none"),
       fills:      undefined,
     }));
     writeFileSync(CACHE, JSON.stringify({
@@ -213,7 +293,8 @@ async function main(): Promise<void> {
     console.log(`cache        fetched_at ${c.fetched_at}, days ${c.days}`);
     console.log(`wallets      ${wallets.length} (${withFills.length} with realised PnL)`);
     console.log(`fills        ${totalFills.toLocaleString("en-US")}`);
-    console.log(`truncated    ${wallets.filter((w) => w.truncated).length} wallets hit the page cap`);
+    console.log(`truncated    ${wallets.filter((w) => w.truncated).length} partial (${wallets.filter((w) => w.truncation === "page_cap").length} page cap, ${wallets.filter((w) => w.truncation === "fetch_error").length} fetch error)`);
+    console.log(`dropped      ${(c.dropped ?? []).length} addresses never fetched`);
     const eq = wallets.map((w) => w.equity ?? 0).filter((e) => e > 0).sort((a, b) => a - b);
     if (eq.length > 0) {
       console.log(`equity       median $${(eq[Math.floor(eq.length / 2)] / 1e3).toFixed(0)}k, max $${(eq[eq.length - 1] / 1e6).toFixed(2)}M`);
@@ -231,6 +312,13 @@ async function main(): Promise<void> {
     : {};
   const sinceMs = Date.now() - DAYS * 86_400_000;
 
+  // Dropouts are not random: an address whose query the server refuses is
+  // plausibly one with a large history, so silently losing them trims the
+  // high-volume tail. Counted and written into the cache so the register entry
+  // can state the size of the hole rather than omit it.
+  const dropped: string[] = [];
+  let partialFetches = 0;
+
   let i = 0;
   for (const t of targets) {
     i++;
@@ -245,14 +333,18 @@ async function main(): Promise<void> {
         address:        t.address,
         tape_notional:  Math.round(t.notional),
         tape_minutes:   t.minutes,
+        tape_coins:     t.coins,
         equity:         parseFloat(state?.marginSummary?.accountValue ?? "0") || null,
         position_count: state?.assetPositions?.length ?? null,
         daily:          toDaily(fillsRes.fills),
         fill_count:     fillsRes.fills.length,
         fill_pages:     fillsRes.pages,
         truncated:      fillsRes.truncated,
+        truncation:     fillsRes.truncation,
       };
+      if (fillsRes.truncation === "fetch_error") partialFetches++;
     } catch (err) {
+      dropped.push(t.address);
       console.error(`[tape] ${t.address} failed:`, err instanceof Error ? err.message : err);
     }
     if (i % 25 === 0) {
@@ -268,9 +360,15 @@ async function main(): Promise<void> {
     days:       DAYS,
     min_notional: MIN_NOTIONAL,
     discovery:  "tape",   // NOT leaderboard. The whole point.
+    seed:       RANDOM_SAMPLE ? SEED : null,
+    max_pages:  MAX_PAGES,
+    tape_span_minutes: tapeSpanMinutes,
+    attempted:  targets.length,
+    dropped,
     wallets,
   }));
   console.log(`[tape] wrote ${CACHE}: ${wallets.length} wallets, ${wallets.reduce((s, w) => s + w.fill_count, 0).toLocaleString("en-US")} fills condensed to daily`);
+  console.log(`[tape] attempted ${targets.length}, dropped ${dropped.length}, partial from fetch error ${partialFetches}, page-capped ${wallets.filter((w) => w.truncation === "page_cap").length}`);
 }
 
 void main();

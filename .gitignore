@@ -68,3 +68,8 @@ fill-study-checkpoint.json
 tape-population-cache.json
 tape-population-checkpoint.json
 daily-volume-cache.json
+
+# archived caches, kept so a rerun can be compared against the run it replaced.
+# The 120-day fill cache was overwritten in place on 2026-08-13 and that is the
+# one confound the 200-day kill cannot separate.
+.cache-archive/

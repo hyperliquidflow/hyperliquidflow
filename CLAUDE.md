@@ -13,7 +13,7 @@ npm run test         # Vitest (single run, node env, no live services needed)
 npm run test:watch   # Vitest in watch mode
 
 # CI (.github/workflows/ci.yml) runs typecheck + lint + test on every push and PR.
-# 622 tests across 39 files, about 1s. Nothing blocks a merge automatically, so
+# 621 tests across 39 files, about 1s. Nothing blocks a merge automatically, so
 # run them yourself before pushing.
 
 # Run a single test file
@@ -23,7 +23,9 @@ npx vitest run lib/__tests__/cohort-engine.test.ts
 npx tsx scripts/daily-wallet-scan.ts          # Full cohort scan: discovery, Streams A/C/D, backtests (GitHub Actions runs this)
 npx tsx scripts/validate-scoring-weights.ts   # Correlate wallet scores vs EV scores over 30 days
 npx tsx scripts/signal-learning.ts            # Update signal_outcomes stats (GitHub Actions runs this daily)
+npx tsx scripts/wallet-signal-stats.ts        # recipe_calibration + wallet_signal_stats, runs after signal-learning in the same workflow
 npx tsx scripts/bootstrap-hypurrscan-index.ts # Seed Hypurrscan address-name index
+npx tsx scripts/recipe-dry-run.ts             # Replay the last two snapshots through every recipe. Writes nothing
 
 # Flow collector (persistent process, not a cron job; holds a WebSocket open)
 npx tsx --env-file=.env.local scripts/flow-collector.ts --coins=30 --floor=10000
@@ -41,11 +43,25 @@ npx tsx --env-file=.env.local scripts/activity-gate-tradeoff.ts
 npx tsx --env-file=.env.local scripts/factor-rivals.ts     # positioning factor vs dumb rivals
 npx tsx --env-file=.env.local scripts/exit-structure-analysis.ts
 npx tsx --env-file=.env.local scripts/capacity-study.ts    # size the book before believing a bps number
+npx tsx --env-file=.env.local scripts/mirror-exit-test.ts --wallets=150 --days=90  # hold what they hold until they drop it
+npx tsx --env-file=.env.local scripts/funding-reachability.ts  # can the funding-gated recipes ever fire
 npx tsx scripts/cache-audit.ts                             # fingerprint a fill cache before citing it
+
+# Tape program (docs/sprints/2026-08-13-tape-program.md): a wallet population
+# discovered from the public tape rather than the leaderboard, so an address is
+# known for having traded rather than for having won.
+npx tsx --env-file=.env.local scripts/tape-population.ts   # build the population and fetch its history
+npx tsx --env-file=.env.local scripts/tape-skill-test.ts   # the same rank IC statistic, on that population
 
 # Scheduled, and the one research script that writes Supabase
 npx tsx --env-file=.env.local scripts/factor-shadow.ts     # resolve yesterday, record today
 ```
+
+Research caches live at the repo root (`fill-study-cache.json`,
+`tape-population-cache.json`, `volume-cache.json`, `funding-cache.json`, plus
+their `-checkpoint` files). All are gitignored and regenerable, all are large,
+and `scripts/cache-audit.ts` fingerprints one before any number drawn from it is
+cited.
 
 ## Measurement discipline
 
@@ -68,6 +84,26 @@ had left. The literal reading, hold what they hold until they drop it, went
 untested for months. Ask what the question actually is before reusing the
 measurement you already have.
 
+An eighth, found 2026-08-14: **the query asked for 200,000 rows and the database
+returned 5,000, silently.** `tape-population.ts` read `flow_address_minute` with
+`.limit(200_000)`; PostgREST caps a response at 5,000 and reports no error and no
+truncation flag, so tape discovery drew its population from the oldest 2.5 hours
+of a 21.6-hour tape. The tell was a population that did not grow: 378 eligible
+addresses before and after 15 extra hours of collection. Paginated with an
+explicit order clause, the same tape yields 2,449. The cap was already recorded
+in this project's own notes and the code was written as if the limit parameter
+would be honoured. **Any client-side `limit` above 1,000 is a claim about the
+server, not an instruction to it.** Page it and count what comes back.
+
+**The sample under everything.** Every wallet this project has studied entered
+its universe through the Hyperliquid leaderboard, which ranks by realised PnL, so
+a wallet is known here because it already won. That conditioning sits under every
+number in `docs/research/`, and it is why `--freeze-pool` exists and why no clean
+window predates 2026-04-11. Tape discovery (`scripts/tape-population.ts`) removes
+it: an address appears because it traded. It is not bias free either, since a
+wallet that blew up and stopped trading never appears on today's tape, and that
+limitation belongs in every entry drawn from it.
+
 Before reading any research output:
 - Compare row counts against the previous run. A 33x drop with no error is a bug, not a finding.
 - Every row of a table must use the same sample. Non-monotonic `n` across horizons means data is missing.
@@ -75,6 +111,7 @@ Before reading any research output:
 - Subtract a benchmark. A long-biased cohort in a drifting market shows beta as alpha.
 - Split-half anything promising. Two results died here after looking significant.
 - Never rank by a score computed from the window being measured.
+- Page every Supabase read that could exceed 1,000 rows, ordered explicitly, and log the row count. PostgREST truncates at 5,000 without saying so.
 
 ## Hyperliquid API limits (measured, not documented)
 
@@ -86,7 +123,7 @@ Before reading any research output:
 
 ## Sprint Workflow
 
-Work is organized in sprints tracked in [docs/sprints/status.md](docs/sprints/status.md). **Read that file at the start of any session** to know the active sprint, what's complete, and what's next. Sprint specs live in [docs/superpowers/specs/](docs/superpowers/specs/), plans in [docs/superpowers/plans/](docs/superpowers/plans/).
+Work is organized in sprints tracked in [docs/sprints/status.md](docs/sprints/status.md). **Read that file at the start of any session** to know the active sprint, what's complete, and what's next. Sprint specs live in [docs/superpowers/specs/](docs/superpowers/specs/), plans in [docs/superpowers/plans/](docs/superpowers/plans/). Longer programs get their own file in [docs/sprints/](docs/sprints/), currently the tape program and the product plan, but status.md is the authority on which one is live.
 
 ## Research register
 
@@ -106,7 +143,9 @@ bind:
 
 ## Architecture
 
-**HyperliquidFLOW** is a Next.js 15 App Router app that tracks an activated cohort of high-quality Hyperliquid wallets (~500 active at any time, rebuilt daily from ~4,500 discovered candidates), scores them, and surfaces trading signals. All heavy computation is server-side; the client is a thin React Query poller.
+**HyperliquidFLOW** is a Next.js 15 App Router app that tracks an activated cohort of Hyperliquid wallets, scores them, and surfaces trading signals. All heavy computation is server-side; the client is a thin React Query poller.
+
+The cohort was designed for ~500 active wallets rebuilt daily from ~4,500 candidates. Measured 2026-08-14 it holds **41**, with 415 deactivated in the prior 30 days (162 unfunded, 77 low regime coverage, 43 high leverage, 37 idle, 26 liq imminent). Do not quote the design figure as the live one. `docs/sprints/status.md` carries the current count.
 
 ### Data Flow
 
@@ -205,9 +244,16 @@ All are pure and unit-tested; none touch Supabase, KV, or `process.env`.
 | `/wallets/paper` | Paper trading, auto-copies positions from followed wallets |
 | `/performance/ranking` | Rank IC history; requires 30+ days of `wallet_score_history` data |
 | `/portfolio/journal` | Forward out-of-sample record for the positioning factor. Started 2026-08-12, one row per day, powered checkpoint at day 60 |
+| `/coin` | Markets index, every coin the cohort holds, biggest book first |
+| `/coin/[symbol]` | Per-coin deep dive. First paint from the same KV key `/api/deep-dive` writes |
+| `/research` | The honest record: what is established, what is dead, what is open. Static by design, not a live feed |
 | `/design-system` | Live render of every design token. Check here before inventing a style |
 
-Old routes (`/scanner`, `/stalker`, `/contrarian`, `/imbalance`, `/recipes`, `/edge`, `/performance`) redirect to their current equivalents.
+Old routes are redirect stubs, some of them two hops:
+
+- `/scanner`, `/stalker`, `/wallets` land on `/wallets/discovery`. `/stalker` and `/wallets` preserve `?address=`.
+- `/contrarian`, `/imbalance`, `/signals` land on `/signals/feed`.
+- `/recipes`, `/edge`, `/performance` land on `/signals/performance`.
 
 ### API Routes (`app/api/`)
 
@@ -222,7 +268,8 @@ Old routes (`/scanner`, `/stalker`, `/contrarian`, `/imbalance`, `/recipes`, `/e
 - `telegram/watchdog`: runs the five health checks, sends a Telegram message only on a state change. Triggered every 15 min by `freshness-check.yml`.
 - `measure-outcomes`: the second Vercel Cron (`0 2 * * *`, `maxDuration` 25 in vercel.json). Resolves signal outcomes; same `CRON_SECRET` check as `refresh-cohort`.
 - `factor-journal`: serves the forward factor record behind `/portfolio/journal`
-- `market-radar/timeseries`: historical series behind the Market Radar view
+- `markets`: exchange-wide funding, open interest and 24h move keyed by coin. A thin cacheable join of public facts; the cohort side of the table comes from `cohort:active` on the client
+- `positioning`: ranks every open cohort position by unrealised PnL and compares the top slice against the whole. Descriptive only, and the comparison against the losing half is what stops it restating the last 24 hours of price
 - `wallet-profile`, `scanner-stats`, `recipe-performance`, `top-markets`, `deep-dive`, `signals-feed`, `market-radar`, `agent-readiness`
 
 ### Server-Side Data Fetching
@@ -261,6 +308,8 @@ The `after()` Next.js API is used for fire-and-forget background work (e.g., tri
 | 024 | Benchmark scaled by each coin's own beta to BTC |
 | 025 | Exit multiples retuned from a path simulation over 2,808 random entries |
 | 026 | `factor_shadow`, the forward out-of-sample record for the positioning factor |
+| 027 | `flow_coin_minute` and the address-minute tables. Minute-level capture of the WS trades feed, written by `scripts/flow-collector.ts`. Records sides, not signed flow, because which of the two addresses in `users` is the aggressor is unverified |
+| 028 | `positioning_history`, one row per day of which side the cohort is on. `wallets` and `positions` are on every row and not optional, so a thin day can be seen and dropped rather than silently drawn |
 
 This table drifts. `ls supabase/migrations/` is the authority.
 
@@ -301,6 +350,11 @@ BTC 24h return → BULL (>1%) / BEAR (<-1%) / RANGING. Feeds `regime_fit` factor
 | `cohort:cycle_offset` | Rotating window offset for partial cron cycles | persistent |
 | `market-ticker:v4` | Live price/change data | short |
 | `contrarian:latest` | Contrarian signal cache | ~120s |
+| `market-radar:{asset}:{tier}` | Bucketed position + liquidation density per asset per tier | short |
+| `market-radar:top-assets` | Assets the radar ranks first | short |
+| `deep-dive:{coin}` | Per-coin deep dive payload, read by `/coin/[symbol]` at first paint | short |
+| `recipe:intraday_perf` | Intraday recipe performance rollup | short |
+| `btc_mid:{hour}` | Hourly BTC mid, for regime and benchmark math | rolling |
 
 Fallback chain on cache miss: primary key → fallback key → Supabase query.
 
@@ -309,8 +363,8 @@ Fallback chain on cache miss: primary key → fallback key → Supabase query.
 Seven workflows. The four scheduled jobs run on staggered hours so they never
 overlap, and each one assumes the previous has finished:
 
-- **`daily-wallet-scan.yml`**, `0 0 * * *` UTC. Discovery, Streams A/C/D, backtests, full scoring for ~500 active wallets (up to 5,000 candidates). Writes Supabase and uploads `scan-summary.json` (7d retention). 50-minute timeout.
-- **`signal-learning.yml`**, `0 1 * * *` UTC, after the scan finishes. Runs `scripts/signal-learning.ts` to update outcome stats. 20-minute timeout. Uploads `learning-summary.json` (14d retention).
+- **`daily-wallet-scan.yml`**, `0 0 * * *` UTC. Discovery, Streams A/C/D, backtests, full scoring for ~500 active wallets (up to 5,000 candidates). Writes Supabase and uploads `scan-summary.json` (7d retention). Asserts the scan produced score history, then sends a Telegram digest via `scripts/notify-scan-digest.ts` with `if: always()`, so a crashed scan reports itself. 50-minute timeout.
+- **`signal-learning.yml`**, `0 1 * * *` UTC, after the scan finishes. Runs `scripts/signal-learning.ts` to update outcome stats, then `scripts/wallet-signal-stats.ts` to refresh `recipe_calibration` and `wallet_signal_stats`, the two tables `enrichWithEv` reads. 20-minute timeout. Uploads `learning-summary.json` (14d retention).
 - **`rank-ic.yml`**, `0 2 * * *` UTC. Runs `scripts/rank-ic.ts` over `wallet_score_history`, writes `rank_ic_history`. Phase 1 gate: IC must exceed MDIC (0.08) after 30+ measurements.
 - **`factor-shadow.yml`**, `0 3 * * *` UTC. Resolves yesterday and records today for the positioning factor. It finishes 60 days after it starts and needs no decision in between. A missed day is a missing row, not a corrupted record, because each row carries its own snapshot and resolution timestamps.
 - **`ci.yml`**: every push and pull request. typecheck, lint, full test suite, 10-minute timeout. It exists because 523 tests once sat with nothing running them, and a silent regression in `lib/study-stats.ts` would corrupt every future research verdict.
@@ -321,7 +375,7 @@ All support `workflow_dispatch` for manual runs.
 
 ### Tests
 
-Tests live in `lib/__tests__/*.test.ts`: 39 files, 622 tests, under a second, run by `ci.yml` on every push. The setup file (`lib/__tests__/setup.ts`) injects placeholder env vars, so no real Supabase or KV credentials are needed. Roughly one test file per `lib/` module, including every research module above. API routes and React components are not unit-tested; the closest coverage is `cron-auth`, `telegram-auth`, and `env-fallback`.
+Tests live in `lib/__tests__/*.test.ts`: 39 files, 621 tests, under a second, run by `ci.yml` on every push. The setup file (`lib/__tests__/setup.ts`) injects placeholder env vars, so no real Supabase or KV credentials are needed. Roughly one test file per `lib/` module, including every research module above. API routes and React components are not unit-tested; the closest coverage is `cron-auth`, `telegram-auth`, and `env-fallback`.
 
 Mocking pattern uses `vi.mock()` for `@vercel/kv`, `@supabase/supabase-js`, and `@/lib/env`.
 
@@ -337,7 +391,12 @@ Add to `lib/signal-lab.ts` following the `(pair: SnapshotPair) => SignalEvent[]`
 
 ### Nav Structure
 
-The nav is defined in `components/nav.tsx` in the `NAV` array. Sections (Wallets, Signals) always show their children — no expand/collapse state.
+The nav is defined in `components/nav.tsx` in the `NAV` array: a flat Overview
+entry plus four sections, Markets, Traders, Activity, Research. Sections always
+show their children, with no expand/collapse state. Nav labels are outward
+facing and do not match the route names: `/wallets/discovery` shows as Scanner,
+`/signals/radar` as Entry Density, `/performance/ranking` as Ranking Quality,
+`/portfolio/journal` as Forward Record, `/research` as What We Know.
 
 ## UI Work
 

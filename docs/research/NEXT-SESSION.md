@@ -108,6 +108,7 @@ including the failures, nav reorganised around what a reader wants, and the
 liquidation heatmap deleted. All six phases of
 `docs/sprints/2026-08-13-product-plan.md` are done, plus the three follow-ups.
 
-**Still open and owner-only:** Path B (a data product) versus Path D (stop or
-hold), per `docs/preflight/kill-criteria.md`. Every trading hypothesis is now
-dead. The product does not depend on any of them being alive.
+**Decided 2026-08-14: Path B.** The owner confirmed stopping was never on the
+table. The product makes analytics claims, not alpha claims, per
+`docs/preflight/kill-criteria.md`. Every trading hypothesis is dead and the
+product does not depend on any of them being alive.

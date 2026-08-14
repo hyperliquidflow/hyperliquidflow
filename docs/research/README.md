@@ -5,6 +5,11 @@ dated file. This exists because two headline results lived only in commit messag
 and one critical correction had no recorded output anywhere until the 2026-08-12
 audit re-ran it (dossier finding R2, confirmed by both external reviews).
 
+Companion: [LESSONS.md](LESSONS.md) is the program retrospective, the full arc
+from the April idea to the August kills, the distilled lessons, and the list of
+what is recorded but unresolved. It is a synthesis, not a run record; the dated
+files below stay the authority on every number.
+
 ## Rules
 
 1. One file per run: `YYYY-MM-DD-<slug>.md`.
@@ -77,6 +82,21 @@ audit re-ran it (dossier finding R2, confirmed by both external reviews).
   flow. The Step 1 population, top 300 by notional, was 13% maker-like and 71%
   recurring high-frequency, which is the likely source of its IC 0.30 on 48 pairs.
   Records the exclusion rule for reuse.
+- [2026-08-14-class-c-decision.md](2026-08-14-class-c-decision.md): the class C
+  question decided **before** the run that depends on it, per item 7 of the audit
+  list. C stays in the population: the maker rule targets a business model that
+  needs persistence, and C is present 3.3% of minutes across 2.1 coins. The
+  555-trade figure that made C look disqualifying comes from the
+  notional-conditioned subset, which is the selection that produced IC 0.30.
+  Declares two supporting slices and adds one clause to the primary, that partial
+  histories are excluded.
+- [2026-08-14-tape-discovery-row-cap.md](2026-08-14-tape-discovery-row-cap.md):
+  **defect eight, caught by a population that would not grow.** A `.limit(200_000)`
+  on a Supabase read returned 5,000 rows with no error and no truncation flag, so
+  tape discovery drew from the oldest 2.5 hours of a 21.6-hour tape. Paged, the
+  same tape yields 2,451 eligible addresses against 378. The market-maker
+  classification is unaffected and reproduces on the full window. No published
+  result rested on the capped population.
 - [2026-08-13-mirror-exit.md](2026-08-13-mirror-exit.md): the copy test that
   should have been run first, hold what they hold until they drop it. **FAILS**
   its pre-registered bar at t 1.61 against 2.5, so it is dead by the written

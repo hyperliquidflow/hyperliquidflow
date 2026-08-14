@@ -3,6 +3,18 @@
 Update this file whenever a sprint starts, progresses, or completes.
 At the start of each session, read this file to know where to pick up.
 
+## Owner decision, 2026-08-14: Path B
+
+The owner confirmed stopping (Path D) was never on the table, which settles the
+"if both leads fail" choice: **Path B, a data and intelligence product making
+analytics claims, not alpha claims.** The boundary from
+`docs/preflight/kill-criteria.md` binds: the product describes what profitable
+wallets are doing, it never claims that following them earns a return, because
+every measured version of that claim is dead. First steps are in
+[docs/research/NEXT-SESSION.md](../research/NEXT-SESSION.md): permanent host for
+the flow collector, the two tape fixes, the class-C decision before the next
+skill run, three weeks of `positioning_history` before charting bias.
+
 ## Where this stands, 2026-08-13 late: the 200-day run landed and both leads are dead
 
 The extension the whole pre-registration was built for completed and was read
