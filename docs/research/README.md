@@ -62,6 +62,14 @@ audit re-ran it (dossier finding R2, confirmed by both external reviews).
   control. Both leads stay positive and below the bar. Establishes the hard
   bound that no clean window can predate 2026-04-11, which is why the forward
   record is the only instrument that can settle either lead.
+- [2026-08-14-market-maker-separation.md](2026-08-14-market-maker-separation.md):
+  Step 3, arrived at early because it was a confound on Step 1 rather than a
+  separate task. Two-sidedness **cannot** be computed from the tape, since both
+  counterparties inherit a trade's single `side` field. Persistence and breadth
+  can: 3 addresses run 12,828 trades across 13.7 coins, and A+B are 26.8% of all
+  flow. The Step 1 population, top 300 by notional, was 13% maker-like and 71%
+  recurring high-frequency, which is the likely source of its IC 0.30 on 48 pairs.
+  Records the exclusion rule for reuse.
 - [2026-08-13-mirror-exit.md](2026-08-13-mirror-exit.md): the copy test that
   should have been run first, hold what they hold until they drop it. **FAILS**
   its pre-registered bar at t 1.61 against 2.5, so it is dead by the written
