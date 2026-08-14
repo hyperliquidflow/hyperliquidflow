@@ -1,34 +1,53 @@
 # Pick up here
 
-Rewritten 2026-08-14 at session close. **Nothing is in flight.** One thing stopped
-when the session ended and needs restarting.
+Updated 2026-08-14 evening, mid-session. **Two things are in flight**, both
+started here, and one of them may still be running when you read this.
 
-## The thing that stopped
+## In flight
 
-`scripts/flow-collector.ts` was running for 21.3 hours and died with the session.
-It is a persistent process, so it cannot be a cron job.
-
-**Nothing was lost.** Everything it captured is in Supabase:
-
-| | |
-|---|---|
-| addresses discovered | 6,037 |
-| address-minute rows | 65,516 |
-| coin-minute rows | 35,759 |
-| notional observed | $1.74B |
-| hours of tape | 21.3 |
-
-Restart with:
+**1. The flow collector**, restarted at 17:00 UTC after dying with the previous
+session. It is a persistent process holding a WebSocket, so it cannot be a cron
+job and it dies with the session that owns it.
 
 ```bash
 npx tsx --env-file=.env.local scripts/flow-collector.ts --coins=30 --floor=5000
 ```
 
-Giving it a permanent host is the one decision gating everything below. Cost is
-bounded: 0.50 GB/day raw for the full 177-coin universe, and the collector
-aggregates to the minute before writing, so the stored footprint is far smaller.
+`ops/flow-collector.plist` is a launchd agent that survives logout and reboot,
+checked in and **not installed**; the install command is in its header. It does
+not survive a sleeping laptop. A real host is still the better answer and is
+still the owner's call.
 
-## What happened this session
+**2. The Step 1 population fetch**, 900 wallets over 90 days, roughly three
+hours. Check it:
+
+```bash
+npx tsx --env-file=.env.local scripts/tape-population.ts   # summarise the cache
+npx tsx --env-file=.env.local scripts/tape-skill-test.ts --min-active=5
+```
+
+If the fetch died partway, the checkpoint at `tape-population-checkpoint.json`
+lets a rerun of the same command resume rather than restart. **Do not** run the
+skill test against a checkpoint-salvaged cache without saying so in the entry.
+
+## Defect eight, found before it could publish anything
+
+Tape discovery was drawing from the oldest 2.5 hours of a 21.6-hour tape.
+`.limit(200_000)` on a Supabase read returns 5,000 rows with no error and no
+truncation flag. The tell was a population that did not grow after 15 extra hours
+of collection. Paged, the same tape yields **2,451 eligible addresses against
+378**. See
+[2026-08-14-tape-discovery-row-cap.md](2026-08-14-tape-discovery-row-cap.md).
+
+The market-maker classification is unaffected and reproduces on the full window.
+
+**The class C question is decided and written down**
+([2026-08-14-class-c-decision.md](2026-08-14-class-c-decision.md)): C stays in the
+population, with two declared supporting slices and one clause added to the
+primary, that partial histories are excluded. Decided before the run, which is
+the whole point of it.
+
+## The prior session, for context
 
 **The follow premise closed completely.** Mirror-exit copying, hold what they hold
 until they drop it, was the last untested and most literal reading of "copy a
@@ -56,33 +75,21 @@ reverse. See
 [2026-08-14-tape-skill-preliminary.md](2026-08-14-tape-skill-preliminary.md).
 No verdict was recorded: 205 primary pairs against a designated 250.
 
-## First thing to run next session
+## Done 2026-08-14 evening, so do not redo it
 
-The tape population is now far larger than the 378 that Step 1 drew from, because
-the collector ran another 15 hours after that draw. Re-run Step 1 properly:
+The two small fixes from the previous handoff are shipped in commit `52d970e`,
+along with the discovery paging above. 5xx now fails after one retry while 429
+keeps its full backoff; a failed page keeps what it fetched and marks the wallet
+rather than dropping the address; the fill page cap is 30 and whatever still
+truncates is excluded from the primary statistic. The cache records the seed,
+span, page cap, attempt count and dropped addresses.
 
-```bash
-npx tsx --env-file=.env.local scripts/tape-population.ts --fetch --days=90 --max-wallets=900
-npx tsx --env-file=.env.local scripts/tape-skill-test.ts --min-active=5
-```
-
-900 rather than 378 because attrition is brutal: 331 fetched became 226 usable
-became 205 primary. Clearing 250 primary pairs needs roughly 450 fetched.
-
-**Settle this before that run, not after:** whether class C, 892 addresses
-averaging 555 trades in six hours, should also be excluded. It is not
-discretionary trading either. Deciding it after seeing a result is choosing a
-population by its answer.
-
-## Two fixes worth making first, both small
-
-1. **Faster failure on 5xx.** `tape-population.ts` retries four times with
-   doubling backoff, roughly 15 seconds per dead address. 30 of 378 failed, and
-   they are plausibly the largest histories, so the dropouts bias the sample.
-   Drop after one retry.
-2. **Page cap.** 31 of 331 wallets hit the 12-page fill cap, so their series is
-   partial and their score is computed on incomplete history. Either raise the
-   cap or exclude truncated wallets from the primary statistic.
+Attrition to watch when the fetch lands: 331 fetched became 226 usable became 205
+primary on the previous draw. 900 was chosen for that reason, but the corrected
+population contains many more sporadic addresses, whose histories are thinner, so
+attrition may be worse rather than better. **If the primary clears fewer than 250
+pairs the script prints UNDERPOWERED and no verdict may be recorded.** Draw more
+and rerun; do not reframe the bar.
 
 ## What not to do
 
