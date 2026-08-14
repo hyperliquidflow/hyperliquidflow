@@ -36,6 +36,10 @@ const arg = (name: string, fallback: number): number => {
 
 const MIN_HALF_DAYS   = arg("min-half", 7);
 const MIN_ACTIVE_DAYS = arg("min-active", 5);
+// Designated in docs/sprints/2026-08-13-tape-program.md before the real run. It
+// lived only in the doc, so the first corrected run printed a verdict line on 205
+// pairs. A threshold that is not in the code is not a threshold.
+const MIN_PAIRS       = arg("min-pairs", 250);
 
 interface WalletRecord {
   address: string; equity: number | null; truncated: boolean;
@@ -127,10 +131,18 @@ function main(): void {
   };
 
   console.log(`\n=== Rank IC on a tape-discovered population ===`);
-  console.log(`  bar: IC above 0.08 with t above 2 (MDIC, already on the books)\n`);
+  console.log(`  bar: IC above 0.08 with t above 2 (MDIC, already on the books)`);
+  console.log(`  primary: active in train half, forward PnL in own risk units\n`);
   report("forward PnL, dollars", pairs);
   report("forward PnL, own risk units", normPairs);
-  report("active in train half only", activePairs);
+  report("PRIMARY active in train half", activePairs);
+
+  if (activePairs.length < MIN_PAIRS) {
+    console.log(`\n=== UNDERPOWERED, no verdict recorded ===`);
+    console.log(`  primary has ${activePairs.length} pairs against a designated minimum of ${MIN_PAIRS}.`);
+    console.log(`  A reading here may be cited only to reject an effect far larger than the bar,`);
+    console.log(`  never to accept or reject the bar itself.`);
+  }
 
   if (forwardDollars.length > 0) {
     console.log(`\n=== Base rate, the number nobody had ===`);

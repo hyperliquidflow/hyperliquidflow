@@ -62,6 +62,13 @@ audit re-ran it (dossier finding R2, confirmed by both external reviews).
   control. Both leads stay positive and below the bar. Establishes the hard
   bound that no clean window can predate 2026-04-11, which is why the forward
   record is the only instrument that can settle either lead.
+- [2026-08-14-tape-skill-preliminary.md](2026-08-14-tape-skill-preliminary.md):
+  **IC 0.30 was the market makers, entirely.** On a maker-excluded random draw the
+  primary statistic reads -0.0369 on 205 pairs. Not a verdict: 205 is under the
+  designated 250, so the reading may be cited to reject an effect the size of
+  0.30 and not to accept or reject the 0.08 bar. Names three unresolved selection
+  effects, and records a process defect, the minimum sample lived in a document
+  and not in the code.
 - [2026-08-14-market-maker-separation.md](2026-08-14-market-maker-separation.md):
   Step 3, arrived at early because it was a confound on Step 1 rather than a
   separate task. Two-sidedness **cannot** be computed from the tape, since both
