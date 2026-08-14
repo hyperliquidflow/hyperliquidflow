@@ -27,6 +27,12 @@ import { SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, HYPERLIQUID_API_URL } from "@/
 
 const CACHE      = "tape-population-cache.json";
 const CHECKPOINT = "tape-population-checkpoint.json";
+// The drawn sample, frozen. The collector adds addresses continuously, so the
+// eligible list grows between runs and a same-seed redraw is a DIFFERENT sample:
+// measured 2026-08-14, a restart minutes later shared only 42 of 100 addresses
+// with the draw it was resuming. Freezing the target list is what makes the run
+// reproducible and lets a restart resume instead of silently resampling.
+const TARGETS    = "tape-population-targets.json";
 
 const arg = (name: string, fallback: number): number => {
   const raw = process.argv.find((a) => a.startsWith(`--${name}=`))?.split("=")[1];
@@ -54,6 +60,8 @@ const SEED             = arg("seed", 20260814);
 // on partial history. Raising the cap shrinks that set; whatever still caps is
 // marked and excluded from the primary statistic rather than silently scored.
 const MAX_PAGES        = arg("max-pages", 30);
+const CONCURRENCY      = arg("concurrency", 3);
+const REDRAW           = process.argv.includes("--redraw");
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -302,9 +310,32 @@ async function main(): Promise<void> {
     return;
   }
 
-  const discovered = await discoverFromTape();
-  console.log(`[tape] ${discovered.length} addresses above $${MIN_NOTIONAL.toLocaleString("en-US")} on the tape`);
-  const targets = discovered.slice(0, MAX_WALLETS);
+  interface Target { address: string; notional: number; minutes: number; coins: number }
+  interface TargetFile { drawn_at: string; seed: number | null; eligible: number; span_minutes: number; targets: Target[] }
+
+  let targets: Target[];
+  let eligibleCount: number;
+  if (existsSync(TARGETS) && !REDRAW) {
+    const f = JSON.parse(readFileSync(TARGETS, "utf8")) as TargetFile;
+    targets = f.targets;
+    eligibleCount = f.eligible;
+    tapeSpanMinutes = f.span_minutes;
+    console.log(`[tape] reusing the frozen draw from ${f.drawn_at}: ${targets.length} of ${f.eligible} eligible`);
+    console.log(`[tape] pass --redraw to sample again, which produces a DIFFERENT sample because the tape has grown`);
+  } else {
+    const discovered = await discoverFromTape();
+    eligibleCount = discovered.length;
+    console.log(`[tape] ${discovered.length} addresses above $${MIN_NOTIONAL.toLocaleString("en-US")} on the tape`);
+    targets = discovered.slice(0, MAX_WALLETS).map((t) => ({
+      address: t.address, notional: t.notional, minutes: t.minutes, coins: t.coins,
+    }));
+    const file: TargetFile = {
+      drawn_at: new Date().toISOString(), seed: RANDOM_SAMPLE ? SEED : null,
+      eligible: eligibleCount, span_minutes: tapeSpanMinutes, targets,
+    };
+    writeFileSync(TARGETS, JSON.stringify(file));
+    console.log(`[tape] froze the draw into ${TARGETS}`);
+  }
   console.log(`[tape] fetching history for ${targets.length}, ${DAYS} days back`);
 
   const done: Record<string, WalletRecord> = existsSync(CHECKPOINT)
@@ -319,42 +350,62 @@ async function main(): Promise<void> {
   const dropped: string[] = [];
   let partialFetches = 0;
 
-  let i = 0;
-  for (const t of targets) {
-    i++;
-    if (done[t.address]) continue;
-    try {
-      const [state, fillsRes] = await Promise.all([
-        hlPost<{ marginSummary?: { accountValue?: string }; assetPositions?: unknown[] }>(
-          { type: "clearinghouseState", user: t.address }),
-        fetchFills(t.address, sinceMs),
-      ]);
-      done[t.address] = {
-        address:        t.address,
-        tape_notional:  Math.round(t.notional),
-        tape_minutes:   t.minutes,
-        tape_coins:     t.coins,
-        equity:         parseFloat(state?.marginSummary?.accountValue ?? "0") || null,
-        position_count: state?.assetPositions?.length ?? null,
-        daily:          toDaily(fillsRes.fills),
-        fill_count:     fillsRes.fills.length,
-        fill_pages:     fillsRes.pages,
-        truncated:      fillsRes.truncated,
-        truncation:     fillsRes.truncation,
-      };
-      if (fillsRes.truncation === "fetch_error") partialFetches++;
-    } catch (err) {
-      dropped.push(t.address);
-      console.error(`[tape] ${t.address} failed:`, err instanceof Error ? err.message : err);
-    }
-    if (i % 25 === 0) {
-      writeFileSync(CHECKPOINT, JSON.stringify(done));
-      console.log(`[tape] ${i}/${targets.length}, checkpointed`);
-    }
-    await sleep(150);
-  }
+  // Serial, this is latency-bound rather than rate-bound: measured 2.7 wallets a
+  // minute, which is roughly 14 requests a minute against an endpoint that allows
+  // far more. A small pool cuts a 900-wallet draw from about five hours to under
+  // two. Kept small deliberately, because 429s are handled by backing off and a
+  // storm of them would be slower than going serially.
+  const pending = targets.filter((t) => !done[t.address]);
+  console.log(`[tape] ${targets.length - pending.length} already in the checkpoint, ${pending.length} to fetch, concurrency ${CONCURRENCY}`);
 
-  const wallets = Object.values(done);
+  let cursor = 0, finished = 0;
+  const worker = async (): Promise<void> => {
+    for (;;) {
+      const t = pending[cursor++];
+      if (!t) return;
+      try {
+        const [state, fillsRes] = await Promise.all([
+          hlPost<{ marginSummary?: { accountValue?: string }; assetPositions?: unknown[] }>(
+            { type: "clearinghouseState", user: t.address }),
+          fetchFills(t.address, sinceMs),
+        ]);
+        done[t.address] = {
+          address:        t.address,
+          tape_notional:  Math.round(t.notional),
+          tape_minutes:   t.minutes,
+          tape_coins:     t.coins,
+          equity:         parseFloat(state?.marginSummary?.accountValue ?? "0") || null,
+          position_count: state?.assetPositions?.length ?? null,
+          daily:          toDaily(fillsRes.fills),
+          fill_count:     fillsRes.fills.length,
+          fill_pages:     fillsRes.pages,
+          truncated:      fillsRes.truncated,
+          truncation:     fillsRes.truncation,
+        };
+        if (fillsRes.truncation === "fetch_error") partialFetches++;
+      } catch (err) {
+        dropped.push(t.address);
+        console.error(`[tape] ${t.address} failed:`, err instanceof Error ? err.message : err);
+      }
+      // Single-threaded, so the write cannot interleave with another worker's.
+      if (++finished % 25 === 0) {
+        writeFileSync(CHECKPOINT, JSON.stringify(done));
+        console.log(`[tape] ${finished}/${pending.length}, checkpointed`);
+      }
+      await sleep(150);
+    }
+  };
+  await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
+  writeFileSync(CHECKPOINT, JSON.stringify(done));
+
+  // Only the frozen draw. The checkpoint can carry wallets from an earlier draw,
+  // and writing those would make the cache a union of two samples rather than one
+  // draw, which is the quiet kind of contamination this project keeps meeting.
+  const inDraw = new Set(targets.map((t) => t.address));
+  const carried = Object.keys(done).filter((a) => !inDraw.has(a)).length;
+  const wallets = Object.values(done).filter((w) => inDraw.has(w.address));
+  if (carried > 0) console.log(`[tape] ${carried} checkpoint wallets are outside this draw and were not written`);
+
   writeFileSync(CACHE, JSON.stringify({
     fetched_at: new Date().toISOString(),
     days:       DAYS,
@@ -363,6 +414,7 @@ async function main(): Promise<void> {
     seed:       RANDOM_SAMPLE ? SEED : null,
     max_pages:  MAX_PAGES,
     tape_span_minutes: tapeSpanMinutes,
+    eligible:   eligibleCount,
     attempted:  targets.length,
     dropped,
     wallets,

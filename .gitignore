@@ -67,6 +67,7 @@ volume-cache.json
 fill-study-checkpoint.json
 tape-population-cache.json
 tape-population-checkpoint.json
+tape-population-targets.json
 daily-volume-cache.json
 
 # archived caches, kept so a rerun can be compared against the run it replaced.
