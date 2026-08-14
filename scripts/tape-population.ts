@@ -40,6 +40,16 @@ const FROM_CKPT   = process.argv.includes("--from-checkpoint");
 const DAYS        = arg("days", 30);
 const MAX_WALLETS = arg("max-wallets", 400);
 const MIN_NOTIONAL = arg("min-notional", 50_000);
+// Exclude persistent, broad-quoting addresses. Ranking by notional selects for
+// market makers: measured 2026-08-14, the top 300 by notional was 13% maker-like
+// and 71% recurring high-frequency, which is not the population a discretionary
+// skill score is measuring. Two-sidedness cannot be used to detect them because
+// both counterparties inherit the trade's single `side` field, so persistence and
+// breadth are the signals that survive.
+const MAX_MINUTE_SHARE = Number(process.argv.find((a) => a.startsWith("--max-minute-share="))?.split("=")[1] ?? 0.20);
+const MAX_COINS        = arg("max-coins", 3);
+const RANDOM_SAMPLE    = !process.argv.includes("--by-notional");
+const SEED             = arg("seed", 20260814);
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -99,21 +109,57 @@ async function hlPost<T>(body: unknown): Promise<T> {
 async function discoverFromTape(): Promise<Array<{ address: string; notional: number; minutes: number }>> {
   const { data, error } = await supabase
     .from("flow_address_minute")
-    .select("address, side_b_notional, side_a_notional")
+    .select("address, coin, minute, side_b_notional, side_a_notional")
     .limit(200_000);
   if (error) throw new Error(`flow_address_minute read failed: ${error.message}`);
 
-  const agg = new Map<string, { notional: number; minutes: number }>();
+  const agg = new Map<string, { notional: number; minutes: Set<string>; coins: Set<string> }>();
+  const allMinutes = new Set<string>();
   for (const r of data ?? []) {
-    const a = agg.get(r.address) ?? { notional: 0, minutes: 0 };
+    allMinutes.add(r.minute as string);
+    const a = agg.get(r.address) ?? { notional: 0, minutes: new Set<string>(), coins: new Set<string>() };
     a.notional += Number(r.side_b_notional) + Number(r.side_a_notional);
-    a.minutes  += 1;
+    a.minutes.add(r.minute as string);
+    a.coins.add(r.coin as string);
     agg.set(r.address, a);
   }
-  return [...agg.entries()]
-    .map(([address, v]) => ({ address, ...v }))
+  const span = Math.max(1, allMinutes.size);
+
+  const eligible = [...agg.entries()]
+    .map(([address, v]) => ({
+      address, notional: v.notional, minutes: v.minutes.size,
+      share: v.minutes.size / span, coins: v.coins.size,
+    }))
     .filter((w) => w.notional >= MIN_NOTIONAL)
-    .sort((a, b) => b.notional - a.notional);
+    // A maker is on the tape most minutes across many coins. Excluding by
+    // behaviour, not by a guessed size threshold.
+    .filter((w) => !(w.share >= MAX_MINUTE_SHARE && w.coins >= MAX_COINS));
+
+  const excluded = [...agg.values()].filter((v) =>
+    v.notional >= MIN_NOTIONAL && v.minutes.size / span >= MAX_MINUTE_SHARE && v.coins.size >= MAX_COINS).length;
+  console.log(`[tape] ${eligible.length} eligible, ${excluded} excluded as maker-like (>=${MAX_MINUTE_SHARE * 100}% of minutes and >=${MAX_COINS} coins)`);
+
+  if (!RANDOM_SAMPLE) return eligible.sort((a, b) => b.notional - a.notional);
+
+  // Random, because sorting by notional is itself the maker filter in reverse.
+  const rng = mulberry32(SEED);
+  for (let i = eligible.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [eligible[i], eligible[j]] = [eligible[j], eligible[i]];
+  }
+  console.log(`[tape] random sample, seed ${SEED}`);
+  return eligible;
+}
+
+/** Same seeded PRNG the study scripts use, so a draw is repeatable. */
+function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 /**
