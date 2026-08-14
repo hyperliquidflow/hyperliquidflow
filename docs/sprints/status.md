@@ -3,6 +3,32 @@
 Update this file whenever a sprint starts, progresses, or completes.
 At the start of each session, read this file to know where to pick up.
 
+## Step 1 passed, 2026-08-14 evening: IC 0.1733 on an unbiased population
+
+**The first clean positive result in the project's life**, and it is the one
+hypothesis that was still standing. Wallet skill persists on a population
+discovered from the tape rather than the leaderboard, so it was never selected on
+having won: primary **IC 0.1733, t 4.50, n 655**, against a bar of 0.08 and t 2
+with a 250-pair minimum written before the run. Full entry, including the attack:
+[docs/research/2026-08-14-tape-skill-step1.md](../research/2026-08-14-tape-skill-step1.md).
+
+It could have been an artifact and was tested as one. The score contains
+mean(train)/sd(train) and the forward variable is mean(test)/sd(train), so both
+carry sd(train). Removing the Sharpe proxy from the score costs 0.004; the score
+is orthogonal to sd(train) at -0.0017; the effect is positive in all five
+volatility quintiles; the dollar variant reads 0.1064 (t 2.73); split halves read
+0.1708 and 0.1861. The artifact is not what is happening.
+
+**It revives nothing.** Skill predicting a wallet's own forward returns and a
+follower earning a return are different claims, and the second was killed
+separately and specifically on 2026-08-13. No copy hypothesis reopens.
+
+Three defects were caught this session before they could publish anything: tape
+discovery reading 5,000 of 66,000 rows and drawing from the oldest 2.5 hours of
+tape; a same-seed redraw silently producing a different sample because the
+population grows; and transport errors never being retried, which had dropped 22
+addresses and truncated 21 more.
+
 ## Owner decision, 2026-08-14: Path B
 
 The owner confirmed stopping (Path D) was never on the table, which settles the

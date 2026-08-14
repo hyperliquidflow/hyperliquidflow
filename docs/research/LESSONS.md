@@ -39,7 +39,7 @@ before any sunk cost existed. That definition held.
 | Mirror-exit copying (hold what they hold) | dead | -0.8 bps unconditioned, t -0.08; the +71.3 was selection |
 | Positioning factor, traded book | dead | +29.6 bps/day, t 1.33 against a bar of 2.5 |
 | Positioning factor, diagnostic IC | dead | 0.0185 (t 0.70) on 385 wallets, was 0.0653 (t 3.17) on 112 |
-| Tape skill persistence | open, no verdict | -0.0369 on 205 pairs, below the designated 250 minimum |
+| Tape skill persistence | **supported** | IC 0.1733, t 4.50, n 655, on a population never selected on winning |
 
 ## Chapter 1: The build (April 2026)
 
@@ -341,9 +341,12 @@ exposure, not a to-do.
    question was settled, but an unexplained factor that worked for 104 days
    deserves a post-mortem: what was it correlated with?
 5. **The surviving hypothesis is thin.** Rank IC 0.0939 has a 95% interval of
-   roughly 0.056 to 0.131, which contains values below the 0.08 bar. It also
-   predates the tape program's maker lesson; whether leaderboard discovery has
-   its own composition bias has not been re-examined under that lens.
+   roughly 0.056 to 0.131, which contains values below the 0.08 bar.
+   **Substantially answered 2026-08-14**: on a tape-discovered population the
+   same statistic reads 0.1733 (t 4.50, n 655) and survives four controls, which
+   is both cleaner and stronger than the leaderboard reading. The likely reason
+   is range restriction in the leaderboard sample, offered as interpretation and
+   not measured. See [2026-08-14-tape-skill-step1.md](2026-08-14-tape-skill-step1.md).
 6. **The forward shadow's day-60 checkpoint is mis-powered as written.**
    **Resolved 2026-08-14**, and the answer is worse than the item assumed: on
    the surviving reading (t 0.70 over 107 days) day 60 has **16% power** at a

@@ -90,6 +90,17 @@ files below stay the authority on every number.
   notional-conditioned subset, which is the selection that produced IC 0.30.
   Declares two supporting slices and adds one clause to the primary, that partial
   histories are excluded.
+- [2026-08-14-tape-skill-step1.md](2026-08-14-tape-skill-step1.md): **the first
+  clean positive result this project has produced.** Wallet skill persists on a
+  tape-discovered population that was never selected on winning: primary
+  **IC 0.1733, t 4.50, n 655** against a pre-registered bar of 0.08 and t 2 with
+  a 250-pair minimum. 900 wallets, 6.8M fills, zero dropped. The headline could
+  have been an artifact, because the score and the forward variable share
+  sd(train) in the denominator; it survived removing the Sharpe proxy entirely
+  (0.1697), stratification by sd(train) (positive in all five quintiles), the
+  dollar variant (0.1064, t 2.73), and a seeded split-half (0.1708 / 0.1861).
+  Score against sd(train) is -0.0017, which is what kills the artifact. Revives
+  no copy hypothesis: skill predicts a wallet's own returns, not a follower's.
 - [2026-08-14-day-60-power.md](2026-08-14-day-60-power.md): the forward record's
   day-60 checkpoint **cannot decide anything**. Powered at 82% off a t 3.17 that
   the 200-day run killed; redone on the surviving t 0.70 it has **16% power** at

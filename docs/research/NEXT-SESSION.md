@@ -1,13 +1,25 @@
 # Pick up here
 
-Updated 2026-08-14 evening, mid-session. **Two things are in flight**, both
-started here, and one of them may still be running when you read this.
+Updated 2026-08-14 late. **Step 1 is done and it passed.** One process is in
+flight.
+
+## The headline
+
+**Wallet skill persists on a population that was never selected on winning.**
+Primary **IC 0.1733, t 4.50, n 655**, against a pre-registered bar of 0.08 with
+t 2 and a 250-pair minimum. 900 wallets, 6.8M fills, zero dropped. It is the
+first clean positive result in the project's life. Full entry with the attack
+that failed to break it:
+[2026-08-14-tape-skill-step1.md](2026-08-14-tape-skill-step1.md).
+
+**It revives nothing.** Skill predicting a wallet's own forward returns and a
+follower earning a return are separate claims, and the second died on
+2026-08-13 specifically. A stronger ranking is not a reason to reopen copying.
 
 ## In flight
 
-**1. The flow collector**, restarted at 17:00 UTC after dying with the previous
-session. It is a persistent process holding a WebSocket, so it cannot be a cron
-job and it dies with the session that owns it.
+**The flow collector**, restarted 17:00 UTC. Persistent WebSocket process, so it
+dies with the session that owns it.
 
 ```bash
 npx tsx --env-file=.env.local scripts/flow-collector.ts --coins=30 --floor=5000
@@ -18,17 +30,22 @@ checked in and **not installed**; the install command is in its header. It does
 not survive a sleeping laptop. A real host is still the better answer and is
 still the owner's call.
 
-**2. The Step 1 population fetch**, 900 wallets over 90 days, roughly three
-hours. Check it:
+## If you rerun Step 1
+
+The draw is frozen in `tape-population-targets.json`, so rerunning the fetch
+resumes the same 900 addresses rather than resampling. Passing `--redraw` gives a
+**different** sample, because the eligible population grows with the tape: it was
+378 addresses when capped, 2,451 when paged, and 2,469 forty minutes later.
 
 ```bash
-npx tsx --env-file=.env.local scripts/tape-population.ts   # summarise the cache
+npx tsx --env-file=.env.local scripts/tape-population.ts               # summarise
 npx tsx --env-file=.env.local scripts/tape-skill-test.ts --min-active=5
+npx tsx --env-file=.env.local scripts/tape-skill-robustness.ts --min-active=5
 ```
 
-If the fetch died partway, the checkpoint at `tape-population-checkpoint.json`
-lets a rerun of the same command resume rather than restart. **Do not** run the
-skill test against a checkpoint-salvaged cache without saying so in the entry.
+Prior caches are archived under `.cache-archive/`, which exists because the one
+cache this project overwrote in place is the one confound the 200-day kill cannot
+separate.
 
 ## Defect eight, found before it could publish anything
 
@@ -74,6 +91,18 @@ first number was market makers. Selection by notional is a maker filter in
 reverse. See
 [2026-08-14-tape-skill-preliminary.md](2026-08-14-tape-skill-preliminary.md).
 No verdict was recorded: 205 primary pairs against a designated 250.
+
+## What Step 1 opens, none of it decided
+
+Step 2 (the base rate) is answered descriptively and **still not citable**: 58.6%
+profitable across 752 wallets, a third population returning nearly the same
+number as the first two, gross of fees, with the split itself letting
+survivorship in. Step 4 (flow toxicity) is the next program step and needs a
+pre-registration written before its first run.
+
+The open question the result raises and does not answer: the effect is roughly
+three times stronger among the quietest quintile of wallets than the noisiest,
+and nobody knows why.
 
 ## Done 2026-08-14 evening, so do not redo it
 
