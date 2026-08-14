@@ -113,11 +113,22 @@ async function hlPost<T>(body: unknown, opts: { serverAttempts?: number } = {}):
   let serverFails = 0;
   let rateFails   = 0;
   for (;;) {
-    const res = await fetch(HYPERLIQUID_API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    let res: Response;
+    try {
+      res = await fetch(HYPERLIQUID_API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+    } catch (err) {
+      // A transport failure throws rather than returning a status, so the
+      // status-based branches below never saw it: 21 of 22 dropouts on the
+      // 2026-08-14 draw were `TypeError: fetch failed` and were never retried
+      // once. Treated as a server fault, which is what a dropped socket is.
+      if (++serverFails >= maxServer) throw err;
+      await sleep(1_000 * serverFails);
+      continue;
+    }
     if (res.ok) return res.json() as Promise<T>;
     if (res.status === 429) {
       if (++rateFails >= 6) throw new Error("HL 429 retries exhausted");
@@ -364,9 +375,13 @@ async function main(): Promise<void> {
       const t = pending[cursor++];
       if (!t) return;
       try {
+        // Equity is context, not an input to any statistic here, so a failed
+        // state lookup degrades to null rather than costing the whole wallet.
+        // Losing a wallet's history because a second endpoint was unavailable is
+        // sample loss for nothing.
         const [state, fillsRes] = await Promise.all([
           hlPost<{ marginSummary?: { accountValue?: string }; assetPositions?: unknown[] }>(
-            { type: "clearinghouseState", user: t.address }),
+            { type: "clearinghouseState", user: t.address }).catch(() => null),
           fetchFills(t.address, sinceMs),
         ]);
         done[t.address] = {
