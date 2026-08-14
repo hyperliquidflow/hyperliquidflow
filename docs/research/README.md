@@ -90,6 +90,15 @@ files below stay the authority on every number.
   notional-conditioned subset, which is the selection that produced IC 0.30.
   Declares two supporting slices and adds one clause to the primary, that partial
   histories are excluded.
+- [2026-08-14-trade-side-convention.md](2026-08-14-trade-side-convention.md):
+  the tape's `side` is the **aggressor's**, measured on 131 fills joined by `tid`
+  with zero exceptions (crossed the spread: 21 match, 0 opposite; rested: 0 match,
+  110 opposite). Position in `users` explains nothing. Signed **per-coin** flow is
+  therefore sound and is exactly an order-flow imbalance; signed **per-address**
+  flow is not derivable, because the trade never says which counterparty crossed.
+  Names the trap in `flow_address_minute.side_b_notional` and a recommended
+  rename. Also records how a broken join on `(hash, coin, size)` made a
+  deterministic relationship look like noise at 2 of 17.
 - [2026-08-14-tape-discovery-row-cap.md](2026-08-14-tape-discovery-row-cap.md):
   **defect eight, caught by a population that would not grow.** A `.limit(200_000)`
   on a Supabase read returned 5,000 rows with no error and no truncation flag, so

@@ -36,11 +36,17 @@ const supabase = DRY_RUN ? null : createClient(SUPABASE_URL, SUPABASE_SERVICE_RO
 
 interface WsTrade {
   coin:  string;
-  side:  string;      // "B" or "A", exchange-reported. Aggressor identity unverified.
+  /**
+   * "B" or "A", and it is the AGGRESSOR's side: measured 2026-08-14 on 131 fills
+   * joined by `tid`, an address's own fill side matches this exactly when its
+   * `crossed` flag is true, with zero exceptions. Position in `users` explains
+   * nothing. See docs/research/2026-08-14-trade-side-convention.md.
+   */
+  side:  string;
   px:    string;
   sz:    string;
   time:  number;
-  users: string[];    // both counterparties
+  users: string[];    // both counterparties, in no role-bearing order
 }
 
 type CoinAgg = { b: number; a: number; n: number; addrs: Set<string> };
@@ -73,6 +79,13 @@ function record(t: WsTrade): void {
   byCoin.set(t.coin, c);
   coinBuckets.set(min, byCoin);
 
+  // Both counterparties are credited with the aggressor's side, because the trade
+  // does not say which of them crossed. So an address row means "notional this
+  // address was in while the aggressor was buying", NOT "notional this address
+  // bought". Reading these columns as the address's own direction gives every
+  // market maker the wrong sign. The per-coin split above has no such problem: it
+  // is aggressive buy notional against aggressive sell notional, which is what an
+  // order-flow imbalance is.
   const byAddr = addrBuckets.get(min) ?? new Map<string, AddrAgg>();
   for (const u of t.users ?? []) {
     const k = `${t.coin}|${u}`;

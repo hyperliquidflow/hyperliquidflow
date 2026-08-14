@@ -101,9 +101,13 @@ and rerun; do not reframe the bar.
    reassuring. The likely cause is the split: the forward half is the later part
    of each wallet's own history, so a wallet still trading late was probably
    doing acceptably. Survivorship entering through the measurement.
-3. **Do not derive signed per-address flow.** Both counterparties inherit a
-   trade's single `side` field. Confirm the convention against `userFillsByTime`
-   for a known address first.
+3. **Do not derive signed per-address flow.** Now measured rather than suspected:
+   the tape's `side` is the **aggressor's**, with zero exceptions on 131 fills
+   joined by `tid`, and the trade never says which counterparty crossed. Signed
+   **per-coin** flow is sound and is the honest version of this metric. See
+   [2026-08-14-trade-side-convention.md](2026-08-14-trade-side-convention.md).
+   `flow_address_minute.side_b_notional` is a trap: it means "notional this
+   address was in while the aggressor was buying".
 4. **Do not chart the long-short split yet.** `positioning_history` has 2 days.
    It needs about three weeks.
 
