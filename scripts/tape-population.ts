@@ -35,6 +35,8 @@ const arg = (name: string, fallback: number): number => {
 };
 
 const DO_FETCH    = process.argv.includes("--fetch");
+// Convert a checkpoint written in the old raw-fill shape without refetching.
+const FROM_CKPT   = process.argv.includes("--from-checkpoint");
 const DAYS        = arg("days", 30);
 const MAX_WALLETS = arg("max-wallets", 400);
 const MIN_NOTIONAL = arg("min-notional", 50_000);
@@ -52,9 +54,25 @@ interface WalletRecord {
   tape_minutes:  number;   // distinct minutes active, a crude activity measure
   equity:        number | null;
   position_count: number | null;
-  fills:         Fill[];
+  /** Realised PnL per UTC day index, sparse. Raw fills are not kept: 300 wallets
+   *  of them is over a million objects and JSON.stringify dies on the string
+   *  length, which is the 1GB-fetch defect this repo already recorded once. */
+  daily:         Array<[number, number]>;
+  fill_count:    number;
   fill_pages:    number;
   truncated:     boolean;  // hit the page cap, more history exists
+}
+
+/** Sum closedPnl per UTC day. Sparse, so absent days carry no row. */
+function toDaily(fills: Fill[]): Array<[number, number]> {
+  const byDay = new Map<number, number>();
+  for (const f of fills) {
+    const pnl = parseFloat(f.closedPnl ?? "0");
+    if (!Number.isFinite(pnl)) continue;
+    const d = Math.floor(f.time / 86_400_000);
+    byDay.set(d, (byDay.get(d) ?? 0) + pnl);
+  }
+  return [...byDay.entries()].sort((a, b) => a[0] - b[0]);
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -125,14 +143,29 @@ async function fetchFills(address: string, sinceMs: number): Promise<{ fills: Fi
 }
 
 async function main(): Promise<void> {
+  if (FROM_CKPT) {
+    const raw = JSON.parse(readFileSync(CHECKPOINT, "utf8")) as Record<string, WalletRecord & { fills?: Fill[] }>;
+    const wallets = Object.values(raw).map((w) => ({
+      ...w,
+      daily:      w.daily ?? toDaily(w.fills ?? []),
+      fill_count: w.fill_count ?? (w.fills?.length ?? 0),
+      fills:      undefined,
+    }));
+    writeFileSync(CACHE, JSON.stringify({
+      fetched_at: new Date().toISOString(), days: DAYS, min_notional: MIN_NOTIONAL,
+      discovery: "tape", wallets,
+    }));
+    console.log(`[tape] salvaged ${wallets.length} wallets from checkpoint into ${CACHE}`);
+    return;
+  }
   if (!DO_FETCH) {
     if (!existsSync(CACHE)) { console.log(`No ${CACHE}. Run with --fetch first.`); return; }
     const c = JSON.parse(readFileSync(CACHE, "utf8"));
     const wallets: WalletRecord[] = c.wallets ?? [];
-    const withFills = wallets.filter((w) => w.fills.length > 0);
-    const totalFills = wallets.reduce((s, w) => s + w.fills.length, 0);
+    const withFills = wallets.filter((w) => w.daily.length > 0);
+    const totalFills = wallets.reduce((s, w) => s + w.fill_count, 0);
     console.log(`cache        fetched_at ${c.fetched_at}, days ${c.days}`);
-    console.log(`wallets      ${wallets.length} (${withFills.length} with fills)`);
+    console.log(`wallets      ${wallets.length} (${withFills.length} with realised PnL)`);
     console.log(`fills        ${totalFills.toLocaleString("en-US")}`);
     console.log(`truncated    ${wallets.filter((w) => w.truncated).length} wallets hit the page cap`);
     const eq = wallets.map((w) => w.equity ?? 0).filter((e) => e > 0).sort((a, b) => a - b);
@@ -168,7 +201,8 @@ async function main(): Promise<void> {
         tape_minutes:   t.minutes,
         equity:         parseFloat(state?.marginSummary?.accountValue ?? "0") || null,
         position_count: state?.assetPositions?.length ?? null,
-        fills:          fillsRes.fills,
+        daily:          toDaily(fillsRes.fills),
+        fill_count:     fillsRes.fills.length,
         fill_pages:     fillsRes.pages,
         truncated:      fillsRes.truncated,
       };
@@ -190,7 +224,7 @@ async function main(): Promise<void> {
     discovery:  "tape",   // NOT leaderboard. The whole point.
     wallets,
   }));
-  console.log(`[tape] wrote ${CACHE}: ${wallets.length} wallets, ${wallets.reduce((s, w) => s + w.fills.length, 0).toLocaleString("en-US")} fills`);
+  console.log(`[tape] wrote ${CACHE}: ${wallets.length} wallets, ${wallets.reduce((s, w) => s + w.fill_count, 0).toLocaleString("en-US")} fills condensed to daily`);
 }
 
 void main();

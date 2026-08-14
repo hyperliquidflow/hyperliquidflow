@@ -65,7 +65,24 @@ half, rank-correlate against realised performance in the second. This is
 
 No pre-registration required: this re-measures an existing published statistic on
 a cleaner sample. The bar is the one already on the books, **IC above 0.08 (MDIC)
-with a day-clustered t above 2**.
+with a t above 2**.
+
+**Primary statistic, designated 2026-08-14 after a preliminary run made the hole
+obvious.** The script reports three variants and the first run had exactly one of
+them clear the bar, which is the decile-9 error this project already caught once.
+The primary is **forward PnL in the wallet's own risk units, restricted to
+wallets active in the train half**. Risk units because dollars let account size
+into the forward variable, which a scale-free score cannot predict. Active-only
+because a wallet that stopped trading contributes an absence of a measurement
+rather than a measurement of no skill, and the filter reads the train half alone
+so no forward information enters it.
+
+The other two remain reported as supporting shape and **cannot satisfy the bar**.
+
+**Minimum sample: 250 usable pairs.** The preliminary run had 48 against the 6,624
+behind the published 0.0939, and returned an IC near 0.30. A statistic that
+triples on a sample two orders of magnitude smaller should be read as noise until
+the sample is real.
 
 - **Survives** and it is the first genuinely clean positive result this project
   has produced. Everything downstream inherits real footing.

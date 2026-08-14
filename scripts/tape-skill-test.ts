@@ -37,8 +37,10 @@ const arg = (name: string, fallback: number): number => {
 const MIN_HALF_DAYS   = arg("min-half", 7);
 const MIN_ACTIVE_DAYS = arg("min-active", 5);
 
-interface Fill { time: number; closedPnl?: string }
-interface WalletRecord { address: string; equity: number | null; fills: Fill[]; truncated: boolean }
+interface WalletRecord {
+  address: string; equity: number | null; truncated: boolean;
+  daily: Array<[number, number]>;   // [utc day index, realised pnl]
+}
 
 /**
  * Realised PnL per UTC day, dense across the observed span.
@@ -47,16 +49,10 @@ interface WalletRecord { address: string; equity: number | null; fills: Fill[]; 
  * a two-day history with no drawdown, which flatters the score. Days with no
  * fills are real zeros for a realised-PnL series.
  */
-function dailySeries(fills: Fill[]): number[] {
-  const byDay = new Map<number, number>();
-  for (const f of fills) {
-    const pnl = parseFloat(f.closedPnl ?? "0");
-    if (!Number.isFinite(pnl)) continue;
-    const day = Math.floor(f.time / 86_400_000);
-    byDay.set(day, (byDay.get(day) ?? 0) + pnl);
-  }
-  if (byDay.size === 0) return [];
-  const days = [...byDay.keys()].sort((a, b) => a - b);
+function dailySeries(daily: Array<[number, number]>): number[] {
+  if (!daily || daily.length === 0) return [];
+  const byDay = new Map(daily);
+  const days = daily.map((d) => d[0]).sort((a, b) => a - b);
   const out: number[] = [];
   for (let d = days[0]; d <= days[days.length - 1]; d++) out.push(byDay.get(d) ?? 0);
   return out;
@@ -93,7 +89,7 @@ function main(): void {
 
   for (const w of cache.wallets) {
     if (w.truncated) truncated++;
-    const series = dailySeries(w.fills);
+    const series = dailySeries(w.daily);
     if (series.length === 0) { noPnl++; continue; }
 
     const split = splitDailyPnls(series, { minHalf: MIN_HALF_DAYS });
