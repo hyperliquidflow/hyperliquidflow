@@ -55,9 +55,12 @@ successful outcome. This is the owner's call and no code should be written
 toward either path before it is made.
 
 **Still running, needing nothing.** `scripts/factor-shadow.ts` at 03:00 UTC. Its
-day-60 checkpoint was powered at 82% off an assumed t 3.17 over 104 days; at
-t 0.70 that arithmetic no longer describes the instrument and should be redone
-with `lib/power.ts` before day 60 is read. Recording costs nothing.
+day-60 checkpoint was powered at 82% off an assumed t 3.17 over 104 days. **Redone
+2026-08-14 on the surviving t 0.70: 16% power at a bar of 1.5, and the bar a
+60-day window can carry at 80% power is negative.** Day 60 is retired as a
+decision point and is a verdict in neither direction; the recording continues
+because it is free. See
+[docs/research/2026-08-14-day-60-power.md](../research/2026-08-14-day-60-power.md).
 
 ## Where this stands, 2026-08-13: two external reviews answered in full
 

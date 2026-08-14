@@ -344,10 +344,14 @@ exposure, not a to-do.
    roughly 0.056 to 0.131, which contains values below the 0.08 bar. It also
    predates the tape program's maker lesson; whether leaderboard discovery has
    its own composition bias has not been re-examined under that lens.
-6. **The forward shadow's day-60 checkpoint is mis-powered as written.** It
-   was powered at 82% off t 3.17, a number that is now dead. Redo the
-   arithmetic with lib/power.ts before reading day 60, or the checkpoint will
-   assert more than it can.
+6. **The forward shadow's day-60 checkpoint is mis-powered as written.**
+   **Resolved 2026-08-14**, and the answer is worse than the item assumed: on
+   the surviving reading (t 0.70 over 107 days) day 60 has **16% power** at a
+   bar of 1.5, and the bar a 60-day window can carry at 80% power is negative.
+   Clearing 1.5 honestly would take 3.3 years. The checkpoint is retired as a
+   decision point, the recording continues because it is free, and day 60 may
+   not be read as a verdict in either direction. See
+   [2026-08-14-day-60-power.md](2026-08-14-day-60-power.md).
 7. **The class C decision is pending and order-sensitive.** Whether 892
    high-frequency addresses join the maker exclusion must be decided before
    the tape rerun. Deciding after seeing the result is choosing a population

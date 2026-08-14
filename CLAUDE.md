@@ -244,7 +244,7 @@ All are pure and unit-tested; none touch Supabase, KV, or `process.env`.
 | `/wallets/following` | Followed wallets with alert configuration |
 | `/wallets/paper` | Paper trading, auto-copies positions from followed wallets |
 | `/performance/ranking` | Rank IC history; requires 30+ days of `wallet_score_history` data |
-| `/portfolio/journal` | Forward out-of-sample record for the positioning factor. Started 2026-08-12, one row per day, powered checkpoint at day 60 |
+| `/portfolio/journal` | Forward out-of-sample record for the positioning factor. Started 2026-08-12, one row per day. The day-60 checkpoint is **retired as a decision point**: at the surviving t 0.70 it carries 16% power, so day 60 is a verdict in neither direction. Recording continues because it is free |
 | `/coin` | Markets index, every coin the cohort holds, biggest book first |
 | `/coin/[symbol]` | Per-coin deep dive. First paint from the same KV key `/api/deep-dive` writes |
 | `/research` | The honest record: what is established, what is dead, what is open. Static by design, not a live feed |

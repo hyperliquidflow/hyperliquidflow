@@ -90,6 +90,13 @@ files below stay the authority on every number.
   notional-conditioned subset, which is the selection that produced IC 0.30.
   Declares two supporting slices and adds one clause to the primary, that partial
   histories are excluded.
+- [2026-08-14-day-60-power.md](2026-08-14-day-60-power.md): the forward record's
+  day-60 checkpoint **cannot decide anything**. Powered at 82% off a t 3.17 that
+  the 200-day run killed; redone on the surviving t 0.70 it has **16% power** at
+  a bar of 1.5, and the bar a 60-day window can carry at 80% power is negative.
+  Clearing 1.5 honestly needs 3.3 years. Retires the decision, keeps the
+  recording, and states the general form: a scheduled gate inherits the estimate
+  it was powered from and expires when that estimate does.
 - [2026-08-14-trade-side-convention.md](2026-08-14-trade-side-convention.md):
   the tape's `side` is the **aggressor's**, measured on 131 fills joined by `tid`
   with zero exceptions (crossed the spread: 21 match, 0 opposite; rested: 0 match,
