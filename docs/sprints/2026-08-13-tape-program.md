@@ -25,6 +25,35 @@ next. It promises nothing about the answer, and it revives no dead hypothesis.
 The six killed on the 200-day run stay killed unless re-measured here, and a
 re-measurement is a new run needing its own pre-registration.
 
+## The operational case, measured 2026-08-14
+
+Leaderboard discovery plus the hygiene gates currently yields **41 active
+wallets**, against the ~500 this project's own documentation describes. 415 were
+deactivated in the last 30 days:
+
+| reason | n |
+|---|---|
+| unfunded | 162 |
+| low_regime_coverage | 77 |
+| high_leverage | 43 |
+| idle | 37 |
+| liq_imminent | 26 |
+| score_unstable | 25 |
+| low_equity | 23 |
+| drawdown_7d | 22 |
+
+Every gate is individually defensible and several exist because they caught real
+defects. The `unfunded` cut is `verifyLiveEquity` working exactly as designed.
+The problem is the intake, not the filter: the leaderboard is a narrow, slow,
+PnL-conditioned source, so the pipeline is filtering a stream that was already
+too thin.
+
+**Tape discovery found 1,741 distinct addresses in five hours**, 650 of them
+above a $50k notional floor, with no conditioning on performance at all.
+
+So this program is not only a methodological fix. It is also the answer to why
+the cohort keeps shrinking, and the two motivations point the same way.
+
 ## Step 1: does wallet skill survive an unbiased sample?
 
 **The one hypothesis still standing is rank IC 0.0939, and it has never been
