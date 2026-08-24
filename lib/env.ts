@@ -83,14 +83,3 @@ function requireInProd(name: string): string {
 
 /** Vercel Cron secret. Required in production, optional in dev/test. */
 export const CRON_SECRET = requireInProd("CRON_SECRET");
-
-// ── Telegram ops bot ─────────────────────────────────────────────────────────
-
-/** Telegram bot token from BotFather. Required in production. */
-export const TELEGRAM_BOT_TOKEN = requireInProd("TELEGRAM_BOT_TOKEN");
-
-/** The single authorized Telegram chat id. Every other chat is ignored. */
-export const TELEGRAM_CHAT_ID = requireInProd("TELEGRAM_CHAT_ID");
-
-/** Secret registered at setWebhook time, echoed back by Telegram in a header. */
-export const TELEGRAM_WEBHOOK_SECRET = requireInProd("TELEGRAM_WEBHOOK_SECRET");

@@ -13,7 +13,7 @@ npm run test         # Vitest (single run, node env, no live services needed)
 npm run test:watch   # Vitest in watch mode
 
 # CI (.github/workflows/ci.yml) runs typecheck + lint + test on every push and PR.
-# 621 tests across 39 files, about 1s. Nothing blocks a merge automatically, so
+# 561 tests across 36 files, about 1s. Nothing blocks a merge automatically, so
 # run them yourself before pushing.
 
 # Run a single test file
@@ -189,8 +189,6 @@ Browser (React)
 | `signal-learning-utils.ts` | Outcome tracking helpers for the daily learning loop |
 | `recipe-config.ts` | Per-recipe tunable config (thresholds, window sizes) |
 | `radar-utils.ts` | Aggregation helpers for the Market Radar view |
-| `watchdog.ts` | Pure health-check evaluation and alert state transitions, no I/O |
-| `telegram.ts` | Telegram transport plus every bot message string |
 | `hypurrscan-api-client.ts` | Hypurrscan name/label index client |
 | `alert-engine.ts` | Core types for wallet-following alerts: `AlertEvent`, `FollowedWallet`, `PaperPosition`, `PositionSnapshot` |
 | `leverage-risk.ts` | Leverage penalty math for scoring V2 (`LeveragePenaltyParams`, blow-up curve) |
@@ -203,9 +201,9 @@ Browser (React)
 
 Client-side hooks live in `lib/hooks/`: `use-followed-wallets`, `use-alert-events`, `use-alert-detection`, `use-paper-positions`.
 
-Auth helpers are split out of the routes into `lib/auth/`: `cron.ts` (timing-safe
-`CRON_SECRET` compare) and `telegram.ts` (webhook secret + chat allowlist).
-`lib/server/` holds the I/O side: `kv-fetchers.ts` and `telegram-io.ts`.
+Auth helpers are split out of the routes into `lib/auth/`: `cron.ts`, a
+timing-safe `CRON_SECRET` compare. `lib/server/` holds the I/O side:
+`kv-fetchers.ts`.
 
 ### Research and measurement (`lib/`)
 
@@ -265,8 +263,6 @@ Old routes are redirect stubs, some of them two hops:
 - `wallet-positions`: Real-time open positions for a single wallet (used by alert engine)
 - `signal-freshness`: Rolling 1h latency stats from `signal_timing` table (Overview stat card)
 - `rank-ic`: Rank IC history from `wallet_score_history` (returns empty state until 30+ days accumulate)
-- `telegram/webhook`: inbound Telegram commands (`/status`, `/check`, `/cohort`, `/signals`, `/scan`). Read only, single authorized chat, all others silently ignored.
-- `telegram/watchdog`: runs the five health checks, sends a Telegram message only on a state change. Triggered every 15 min by `freshness-check.yml`.
 - `measure-outcomes`: the second Vercel Cron (`0 2 * * *`, `maxDuration` 25 in vercel.json). Resolves signal outcomes; same `CRON_SECRET` check as `refresh-cohort`.
 - `factor-journal`: serves the forward factor record behind `/portfolio/journal`
 - `markets`: exchange-wide funding, open interest and 24h move keyed by coin. A thin cacheable join of public facts; the cohort side of the table comes from `cohort:active` on the client
@@ -361,22 +357,21 @@ Fallback chain on cache miss: primary key → fallback key → Supabase query.
 
 ### GitHub Actions
 
-Seven workflows. The four scheduled jobs run on staggered hours so they never
+Six workflows. The four scheduled jobs run on staggered hours so they never
 overlap, and each one assumes the previous has finished:
 
-- **`daily-wallet-scan.yml`**, `0 0 * * *` UTC. Discovery, Streams A/C/D, backtests, full scoring for ~500 active wallets (up to 5,000 candidates). Writes Supabase and uploads `scan-summary.json` (7d retention). Asserts the scan produced score history, then sends a Telegram digest via `scripts/notify-scan-digest.ts` with `if: always()`, so a crashed scan reports itself. 50-minute timeout.
+- **`daily-wallet-scan.yml`**, `0 0 * * *` UTC. Discovery, Streams A/C/D, backtests, full scoring for ~500 active wallets (up to 5,000 candidates). Writes Supabase and uploads `scan-summary.json` (7d retention). Asserts the scan produced score history, so a crashed scan fails the run and GitHub's default failure email fires. 50-minute timeout.
 - **`signal-learning.yml`**, `0 1 * * *` UTC, after the scan finishes. Runs `scripts/signal-learning.ts` to update outcome stats, then `scripts/wallet-signal-stats.ts` to refresh `recipe_calibration` and `wallet_signal_stats`, the two tables `enrichWithEv` reads. 20-minute timeout. Uploads `learning-summary.json` (14d retention).
 - **`rank-ic.yml`**, `0 2 * * *` UTC. Runs `scripts/rank-ic.ts` over `wallet_score_history`, writes `rank_ic_history`. Phase 1 gate: IC must exceed MDIC (0.08) after 30+ measurements.
 - **`factor-shadow.yml`**, `0 3 * * *` UTC. Resolves yesterday and records today for the positioning factor. It finishes 60 days after it starts and needs no decision in between. A missed day is a missing row, not a corrupted record, because each row carries its own snapshot and resolution timestamps.
 - **`ci.yml`**: every push and pull request. typecheck, lint, full test suite, 10-minute timeout. It exists because 523 tests once sat with nothing running them, and a silent regression in `lib/study-stats.ts` would corrupt every future research verdict.
-- **`freshness-check.yml`**: every 15 min. Calls `/api/telegram/watchdog`, which owns all five check definitions and sends a Telegram message only when a check changes state. A failed curl means the app itself is unreachable, and GitHub's default failure email covers that case.
 - **`keepalive.yml`**: monthly. Commits a heartbeat file so GitHub's 60-day inactivity rule can never silently disable the scheduled workflows again (it did on 2026-06-22; see docs/audit/2026-08-08-full-audit.md).
 
 All support `workflow_dispatch` for manual runs.
 
 ### Tests
 
-Tests live in `lib/__tests__/*.test.ts`: 39 files, 621 tests, under a second, run by `ci.yml` on every push. The setup file (`lib/__tests__/setup.ts`) injects placeholder env vars, so no real Supabase or KV credentials are needed. Roughly one test file per `lib/` module, including every research module above. API routes and React components are not unit-tested; the closest coverage is `cron-auth`, `telegram-auth`, and `env-fallback`.
+Tests live in `lib/__tests__/*.test.ts`: 36 files, 561 tests, under a second, run by `ci.yml` on every push. The setup file (`lib/__tests__/setup.ts`) injects placeholder env vars, so no real Supabase or KV credentials are needed. Roughly one test file per `lib/` module, including every research module above. API routes and React components are not unit-tested; the closest coverage is `cron-auth` and `env-fallback`.
 
 Mocking pattern uses `vi.mock()` for `@vercel/kv`, `@supabase/supabase-js`, and `@/lib/env`.
 
@@ -435,9 +430,6 @@ KV_URL, KV_REST_API_URL, KV_REST_API_TOKEN, KV_REST_API_READ_ONLY_TOKEN
 HYPERLIQUID_API_URL=https://api.hyperliquid.xyz/info
 NEXT_PUBLIC_POLL_INTERVAL_MS=60000
 CRON_SECRET=                    # required in production; restricts cron endpoint to Vercel scheduler
-TELEGRAM_BOT_TOKEN=             # BotFather token, required in production
-TELEGRAM_CHAT_ID=               # the single authorized chat, all others ignored
-TELEGRAM_WEBHOOK_SECRET=        # registered at setWebhook time
 ```
 
 Backend routes use `SUPABASE_SERVICE_ROLE_KEY` (full access). Client uses anon key.

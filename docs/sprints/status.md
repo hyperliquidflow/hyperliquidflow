@@ -802,7 +802,7 @@ Separate sprint numbering from the product sprints above.
 | R14-R24 | Phases 2-4 (remainder) | PLANNED | |
 | R25 | Audit remediation (Phases 1 to 4) | COMPLETE (2026-04-21) | migrations 019, 020, cron auth hardening, indexes, tokens, eslint CLI migration |
 | R26+ | Phase 5: automated execution | GATED on Phase 3 | |
-| R28 | Telegram ops bot | COMPLETE (2026-08-08) | 5 read-only commands, transition-based alerts (alert once, recover once), nightly scan digest. Spec: `2026-08-08-telegram-ops-bot-design.md`. Blocked on owner setup: `CRON_SECRET` must be added to GitHub repo secrets or the watchdog 401s every run |
+| R28 | Telegram ops bot | REMOVED (2026-08-20) | Built 2026-08-08, deleted at the owner's request: bot, watchdog, both routes, the freshness-check workflow, the scan digest, and the three `TELEGRAM_*` env vars. The design is still on record in `2026-08-08-telegram-ops-bot-design.md`, and the code is one `git revert` away if a notification channel is ever wanted again |
 
 ### R13 Canary Cutover Gate
 

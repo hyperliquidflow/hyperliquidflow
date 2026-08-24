@@ -351,8 +351,8 @@ export interface RecipeNetStats {
 /**
  * Headline net stats for a recipe, withheld until the sample clears
  * `meetsMinSample`. Gating at the writer rather than in each view means the
- * dashboard, the server components and the Telegram bot cannot independently
- * decide to publish an expectancy computed from a handful of trades.
+ * dashboard and the server components cannot independently decide to publish
+ * an expectancy computed from a handful of trades.
  * The sample count is always reported so the wait is visible.
  */
 export function computeRecipeNetStats(
